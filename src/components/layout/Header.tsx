@@ -1,12 +1,18 @@
-import { Link, useLocation } from 'react-router';
-import { Menu, X } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router';
+import { Menu, X, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 
 export default function Header() {
-  const { state } = useApp();
+  const { state, logout } = useApp();
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/onboarding');
+  };
 
   const navItems = [
     { path: '/', label: 'Home' },
@@ -63,6 +69,20 @@ export default function Header() {
                 <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#6B7280' }}>
                   {state.user.name}
                 </span>
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    padding: '0.5rem 0.75rem', borderRadius: '10px', fontSize: '0.875rem',
+                    fontWeight: 500, border: 'none', backgroundColor: 'transparent',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    color: '#6B7280', transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = '#DC2626')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = '#6B7280')}
+                  title="Logout"
+                >
+                  <LogOut size={16} /> Logout
+                </button>
               </div>
 
               {/* Mobile menu button */}
@@ -100,6 +120,23 @@ export default function Header() {
                 {item.label}
               </Link>
             ))}
+            <button
+              onClick={() => {
+                handleLogout();
+                setMobileOpen(false);
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                padding: '0.75rem 1rem', borderRadius: '10px', border: 'none',
+                fontSize: '0.875rem', fontWeight: 500, backgroundColor: 'transparent',
+                cursor: 'pointer', color: '#DC2626', transition: 'all 0.2s',
+                width: '100%', marginTop: '0.5rem',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(220,38,38,0.05)')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            >
+              <LogOut size={16} /> Logout
+            </button>
           </nav>
         )}
       </div>

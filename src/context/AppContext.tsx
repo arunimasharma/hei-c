@@ -147,6 +147,7 @@ interface AppContextType {
   updateGoal: (id: string, updates: Partial<Goal>) => void;
   deleteGoal: (id: string) => void;
   clearAllData: () => void;
+  logout: () => void;
   llmState: LLMActionState;
   saveApiKey: (key: string) => void;
   clearApiKey: () => void;
@@ -301,6 +302,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLEAR_ALL' });
   };
 
+  const logout = () => {
+    Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
+    localStorage.removeItem(API_KEY_STORAGE);
+    clearMemory();
+    dispatch({ type: 'CLEAR_ALL' });
+  };
+
   return (
     <AppContext.Provider value={{
       state,
@@ -322,6 +330,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateGoal,
       deleteGoal,
       clearAllData,
+      logout,
       llmState,
       saveApiKey,
       clearApiKey,
