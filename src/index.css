@@ -1,0 +1,148 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #4A5FC1;
+  --color-primary-light: #6B7ED8;
+  --color-primary-dark: #3A4FA1;
+  --color-secondary: #8B7EC8;
+  --color-secondary-light: #A99BDB;
+  --color-bg: #F8F9FE;
+  --color-surface: #FFFFFF;
+  --color-text-primary: #1F2937;
+  --color-text-secondary: #6B7280;
+  --color-text-muted: #9CA3AF;
+  --color-intensity-low: #34D399;
+  --color-intensity-medium-low: #FCD34D;
+  --color-intensity-medium-high: #FB923C;
+  --color-intensity-high: #EF4444;
+  --color-emotion-joy: #FBBF24;
+  --color-emotion-stress: #F97316;
+  --color-emotion-anxiety: #DC2626;
+  --color-emotion-confidence: #8B5CF6;
+  --color-emotion-frustration: #EF4444;
+  --color-emotion-pride: #10B981;
+  --color-emotion-fear: #7C3AED;
+  --color-emotion-excitement: #F59E0B;
+  --color-emotion-sadness: #3B82F6;
+  --color-emotion-hope: #6EE7B7;
+  --color-emotion-anger: #B91C1C;
+  --color-emotion-gratitude: #84CC16;
+  --font-family-sans: 'Inter', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #F8F9FE;
+  color: #1F2937;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Onboarding gradient background */
+.onboarding-bg {
+  background: linear-gradient(135deg, #F8F9FE 0%, #EEF0FF 25%, #F0ECFF 50%, #F8F9FE 75%, #EBF5FF 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.onboarding-bg::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(ellipse at 30% 20%, rgba(74, 95, 193, 0.06) 0%, transparent 50%),
+              radial-gradient(ellipse at 70% 80%, rgba(139, 126, 200, 0.06) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 4px;
+  outline: none;
+  width: 100%;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid #4A5FC1;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid #4A5FC1;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 3px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #4A5FC1;
+  outline-offset: 2px;
+}
+
+::selection {
+  background-color: rgba(74, 95, 193, 0.15);
+  color: #1F2937;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.95); }
+}
