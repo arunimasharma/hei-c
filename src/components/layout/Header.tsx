@@ -54,6 +54,20 @@ export default function Header() {
                     {item.label}
                   </Link>
                 ))}
+                <a
+                  href="https://forms.gle/qZAfUaUeYH4FNJnQ9"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    padding: '0.5rem 0.875rem', borderRadius: '10px', fontSize: '0.875rem',
+                    fontWeight: 600, transition: 'all 0.2s', textDecoration: 'none',
+                    backgroundColor: '#4A5FC1', color: '#FFFFFF', marginLeft: '0.25rem',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#3A4FA1')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#4A5FC1')}
+                >
+                  Join HEQ Club!
+                </a>
               </nav>
 
               {/* Desktop user */}
@@ -120,6 +134,20 @@ export default function Header() {
                 {item.label}
               </Link>
             ))}
+            <a
+              href="https://forms.gle/qZAfUaUeYH4FNJnQ9"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMobileOpen(false)}
+              style={{
+                display: 'block', padding: '0.75rem 1rem', borderRadius: '10px',
+                fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none',
+                marginBottom: '0.25rem', transition: 'all 0.2s',
+                backgroundColor: '#4A5FC1', color: '#FFFFFF', textAlign: 'center',
+              }}
+            >
+              Join HEQ Club!
+            </a>
             <button
               onClick={() => {
                 handleLogout();

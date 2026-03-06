@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useReducer, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import type { UserProfile, EmotionEntry, CareerEvent, MicroAction, AppSettings, JournalReflection, Goal } from '../types';
 import type { LLMActionState } from '../types/llm';
 import { generateSuggestedActions } from '../utils/actionGenerator';
@@ -138,6 +138,7 @@ interface AppContextType {
   deleteEvent: (id: string) => void;
   completeAction: (id: string) => void;
   skipAction: (id: string) => void;
+  dismissAction: (id: string) => void;
   refreshActions: () => void;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
   updateSettings: (updates: Partial<AppSettings>) => void;
@@ -149,9 +150,6 @@ interface AppContextType {
   clearAllData: () => void;
   logout: () => void;
   llmState: LLMActionState;
-  saveApiKey: (key: string) => void;
-  clearApiKey: () => void;
-  getApiKey: () => string;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -166,7 +164,6 @@ const STORAGE_KEYS = {
   settings: 'eicos_settings',
 };
 
-const API_KEY_STORAGE = 'eicos_claude_api_key';
 
 function loadFromStorage(): Partial<AppState> {
   try {
@@ -243,22 +240,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SKIP_ACTION', payload: id });
   };
 
-  const refreshActions = useCallback(() => {
-    const apiKey = getApiKey() || undefined;
+  // Dismiss for now — hides from view without recording to memory (may suggest again)
+  const dismissAction = (id: string) => {
+    dispatch({ type: 'SKIP_ACTION', payload: id });
+  };
 
-    if (!apiKey || !state.user) {
-      const suggested = generateSuggestedActions(state.emotions, state.actions);
+  const refreshActions = useCallback(() => {
+    if (!state.user) {
+      const suggested = generateSuggestedActions(state.emotions, state.actions, state.goals);
       const completed = state.actions.filter(a => a.completed);
       dispatch({ type: 'SET_ACTIONS', payload: [...suggested, ...completed] });
       return;
     }
 
-    generateActions(apiKey, state.user, state.emotions, state.events, state.actions)
+    generateActions(state.user, state.emotions, state.events, state.actions, state.goals)
       .then(suggested => {
         const completed = state.actions.filter(a => a.completed);
         dispatch({ type: 'SET_ACTIONS', payload: [...suggested, ...completed] });
       });
-  }, [state.user, state.emotions, state.events, state.actions, generateActions]);
+  }, [state.user, state.emotions, state.events, state.actions, state.goals, generateActions]);
+
+  // Auto-refresh when a new emotion is logged and active actions are running low
+  const prevEmotionCountRef = useRef(state.emotions.length);
+  useEffect(() => {
+    const prev = prevEmotionCountRef.current;
+    const curr = state.emotions.length;
+    prevEmotionCountRef.current = curr;
+    if (curr > prev) {
+      const activeCount = state.actions.filter(a => !a.completed && !a.skipped).length;
+      if (activeCount < 2) {
+        const timer = setTimeout(() => refreshActions(), 300);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [state.emotions.length, refreshActions]);
 
   const addReflection = (reflection: JournalReflection) => dispatch({ type: 'ADD_REFLECTION', payload: reflection });
   const updateReflection = (id: string, updates: Partial<JournalReflection>) => dispatch({ type: 'UPDATE_REFLECTION', payload: { id, updates } });
@@ -270,41 +285,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateUserProfile = (updates: Partial<UserProfile>) => dispatch({ type: 'UPDATE_USER', payload: updates });
   const updateSettings = (updates: Partial<AppSettings>) => dispatch({ type: 'UPDATE_SETTINGS', payload: updates });
 
-  const saveApiKey = (key: string) => {
-    try {
-      // Base64-encode the key before storing so it's not plain text in localStorage.
-      // This is obfuscation, not encryption — it prevents casual exposure in DevTools.
-      localStorage.setItem(API_KEY_STORAGE, btoa(key));
-    } catch {
-      console.warn('Failed to save API key');
-    }
-  };
-
-  const clearApiKey = () => {
-    localStorage.removeItem(API_KEY_STORAGE);
-  };
-
-  const getApiKey = () => {
-    const stored = localStorage.getItem(API_KEY_STORAGE);
-    if (!stored) return '';
-    try {
-      return atob(stored);
-    } catch {
-      // Fallback for keys saved before obfuscation was added
-      return stored;
-    }
-  };
-
   const clearAllData = () => {
     Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
-    localStorage.removeItem(API_KEY_STORAGE);
     clearMemory();
     dispatch({ type: 'CLEAR_ALL' });
   };
 
   const logout = () => {
     Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
-    localStorage.removeItem(API_KEY_STORAGE);
     clearMemory();
     dispatch({ type: 'CLEAR_ALL' });
   };
@@ -321,6 +309,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteEvent,
       completeAction,
       skipAction,
+      dismissAction,
       refreshActions,
       updateUserProfile,
       updateSettings,
@@ -332,9 +321,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearAllData,
       logout,
       llmState,
-      saveApiKey,
-      clearApiKey,
-      getApiKey,
     }}>
       {children}
     </AppContext.Provider>

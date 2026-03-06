@@ -1,4 +1,14 @@
-import type { EmotionEntry, MicroAction, EmotionType } from '../types';
+import type { EmotionEntry, MicroAction, EmotionType, ActionCategory, Goal, EmotionalIntelligenceGoal } from '../types';
+import { loadMemory } from '../services/memoryManager';
+
+// Map EQ goal focus areas to the action categories that build them
+const FOCUS_AREA_CATEGORY_MAP: Record<string, ActionCategory> = {
+  'self-awareness': 'Reflection',
+  'self-regulation': 'Grounding',
+  'empathy': 'Reflection',
+  'social-skills': 'Confidence Building',
+  'motivation': 'Energy Boost',
+};
 
 const ACTION_LIBRARY: Omit<MicroAction, 'id' | 'completed' | 'completedAt' | 'skipped'>[] = [
   {
@@ -135,32 +145,94 @@ function generateId(): string {
   return `action_${Date.now()}_${actionCounter++}`;
 }
 
-export function generateSuggestedActions(recentEmotions: EmotionEntry[], existingActions: MicroAction[]): MicroAction[] {
-  const activeActionTitles = new Set(existingActions.filter(a => !a.completed && !a.skipped).map(a => a.title));
+// Trigger keywords mapped to action categories that address them
+const TRIGGER_CATEGORY_MAP: Record<string, ActionCategory> = {
+  workload: 'Stress Relief',
+  deadline: 'Stress Relief',
+  overwhelmed: 'Stress Relief',
+  meeting: 'Grounding',
+  conflict: 'Grounding',
+  feedback: 'Reflection',
+  review: 'Reflection',
+  promotion: 'Confidence Building',
+  presentation: 'Confidence Building',
+  interview: 'Confidence Building',
+  achievement: 'Gratitude',
+  success: 'Gratitude',
+};
+
+export function generateSuggestedActions(recentEmotions: EmotionEntry[], existingActions: MicroAction[], goals: Goal[] = []): MicroAction[] {
+  const memory = loadMemory();
+
+  // Boost categories aligned with active EQ goal focus areas
+  const goalCategoryBoosts = new Map<ActionCategory, number>();
+  goals
+    .filter(g => g.status === 'active' && 'focusArea' in g)
+    .forEach(g => {
+      const cat = FOCUS_AREA_CATEGORY_MAP[(g as EmotionalIntelligenceGoal).focusArea];
+      if (cat) goalCategoryBoosts.set(cat, (goalCategoryBoosts.get(cat) ?? 0) + 2);
+    });
+
+  // Titles to avoid: currently active + previously skipped
+  const skippedTitles = new Set(
+    memory.actionOutcomes.filter(a => !a.wasCompleted).map(a => a.actionTitle)
+  );
+  const activeActionTitles = new Set(
+    existingActions.filter(a => !a.completed && !a.skipped).map(a => a.title)
+  );
+  const excludedTitles = new Set([...activeActionTitles, ...skippedTitles]);
 
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
   const recent = recentEmotions.filter(e => new Date(e.timestamp) >= weekAgo);
 
+  const now = Date.now();
+
+  // Recency-weighted emotion scores: newer entries count more
   const emotionScores = new Map<EmotionType, number>();
   recent.forEach(e => {
-    const current = emotionScores.get(e.emotion) ?? 0;
-    emotionScores.set(e.emotion, current + e.intensity);
+    const ageDays = (now - new Date(e.timestamp).getTime()) / (1000 * 60 * 60 * 24);
+    const recencyWeight = Math.max(0.3, 1 - ageDays / 7); // 1.0 → 0.3 over 7 days
+    const weighted = e.intensity * recencyWeight;
+    emotionScores.set(e.emotion, (emotionScores.get(e.emotion) ?? 0) + weighted);
   });
 
+  // Boost categories that match known triggers
+  const triggeredCategories = new Map<ActionCategory, number>();
+  recent.forEach(e => {
+    (e.triggers ?? []).forEach(trigger => {
+      const cat = TRIGGER_CATEGORY_MAP[trigger.toLowerCase()];
+      if (cat) triggeredCategories.set(cat, (triggeredCategories.get(cat) ?? 0) + 1);
+    });
+  });
+
+  // Prefer categories the user has completed before
+  const completedCatCounts = new Map<string, number>();
+  memory.actionOutcomes
+    .filter(a => a.wasCompleted)
+    .forEach(a => completedCatCounts.set(a.category, (completedCatCounts.get(a.category) ?? 0) + 1));
+
   const scored = ACTION_LIBRARY
-    .filter(a => !activeActionTitles.has(a.title))
+    .filter(a => !excludedTitles.has(a.title))
     .map(action => {
       let score = 0;
+      // Base: emotion match with recency weighting
       (action.suggestedFor ?? []).forEach(emotion => {
         score += emotionScores.get(emotion) ?? 0;
       });
+      // Boost: trigger-matched categories
+      score += (triggeredCategories.get(action.category) ?? 0) * 2;
+      // Boost: active goal focus areas
+      score += goalCategoryBoosts.get(action.category) ?? 0;
+      // Boost: previously completed category (user finds this type helpful)
+      score += (completedCatCounts.get(action.category) ?? 0) * 0.5;
       return { action, score };
     })
     .sort((a, b) => b.score - a.score);
 
   const result: MicroAction[] = [];
   const usedCategories = new Set<string>();
+  const generatedAt = new Date().toISOString();
 
   for (const { action } of scored) {
     if (result.length >= 5) break;
@@ -169,16 +241,21 @@ export function generateSuggestedActions(recentEmotions: EmotionEntry[], existin
         ...action,
         id: generateId(),
         completed: false,
+        generatedAt,
       });
       usedCategories.add(action.category);
     }
   }
 
+  // Fill to minimum 3 from remaining (ignoring skipped for backfill if needed)
   if (result.length < 3) {
-    const remaining = ACTION_LIBRARY.filter(a => !activeActionTitles.has(a.title) && !result.find(r => r.title === a.title));
-    for (const action of remaining) {
+    const resultTitles = new Set(result.map(r => r.title));
+    const backfill = ACTION_LIBRARY.filter(
+      a => !activeActionTitles.has(a.title) && !resultTitles.has(a.title)
+    );
+    for (const action of backfill) {
       if (result.length >= 3) break;
-      result.push({ ...action, id: generateId(), completed: false });
+      result.push({ ...action, id: generateId(), completed: false, generatedAt });
     }
   }
 

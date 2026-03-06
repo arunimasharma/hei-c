@@ -3,8 +3,8 @@ import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles, Send, ChevronDown, ChevronUp, AlertTriangle,
-  CheckCircle2, Edit3, ArrowRight, BookOpen, Settings,
-  Zap, Clock, SkipForward, RefreshCw,
+  CheckCircle2, Edit3, ArrowRight, BookOpen,
+  Zap, Clock, SkipForward, RefreshCw, TrendingUp,
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Button from '../components/common/Button';
@@ -60,13 +60,23 @@ const CATEGORY_COLORS: Record<string, string> = {
 type Phase = 'writing' | 'analyzing' | 'review' | 'success';
 
 export default function HomePage() {
-  const { state, getApiKey, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, refreshActions, llmState } = useApp();
+  const { state, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, dismissAction, refreshActions, llmState } = useApp();
   const { analysisState, analyzeJournal, resetAnalysis } = useJournalAnalysis();
 
   const [phase, setPhase] = useState<Phase>('writing');
   const [journalText, setJournalText] = useState('');
   const [showManual, setShowManual] = useState(false);
   const [questionIdx, setQuestionIdx] = useState(0);
+  const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(new Set());
+  const [skipConfirmId, setSkipConfirmId] = useState<string | null>(null);
+
+  const toggleReasoning = (id: string) => {
+    setExpandedReasoning(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -89,7 +99,6 @@ export default function HomePage() {
   const [reviewCompany, setReviewCompany] = useState('');
   const [reflectionId, setReflectionId] = useState('');
 
-  const apiKey = getApiKey();
   const today = new Date();
   const greeting = today.getHours() < 12 ? 'Good morning' : today.getHours() < 17 ? 'Good afternoon' : 'Good evening';
   const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
@@ -111,7 +120,7 @@ export default function HomePage() {
     addReflection(draft);
 
     const approvedReflections = state.reflections.filter(r => r.status === 'approved');
-    const result = await analyzeJournal(journalText, apiKey, state.user, approvedReflections);
+    const result = await analyzeJournal(journalText, state.user, approvedReflections);
 
     if (result) {
       // Use manual overrides if provided, otherwise use detected
@@ -357,18 +366,10 @@ export default function HomePage() {
                     </motion.span>
                   </AnimatePresence>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    {!apiKey && (
-                      <Link to="/settings" style={{
-                        fontSize: '0.8125rem', color: '#D97706', display: 'flex', alignItems: 'center', gap: '0.25rem',
-                        textDecoration: 'none',
-                      }}>
-                        <Settings size={14} /> Add API Key
-                      </Link>
-                    )}
                     <Button
                       size="sm"
                       onClick={handleAnalyze}
-                      disabled={!journalText.trim() || !apiKey}
+                      disabled={!journalText.trim()}
                     >
                       <Sparkles size={14} /> Analyze
                       <Send size={14} />
@@ -580,6 +581,7 @@ export default function HomePage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {shown.map(action => {
                           const catColor = CATEGORY_COLORS[action.category] || '#6B7280';
+                          const isExpanded = expandedReasoning.has(action.id);
                           return (
                             <motion.div
                               key={action.id}
@@ -587,55 +589,151 @@ export default function HomePage() {
                               animate={{ opacity: 1, y: 0 }}
                               style={{
                                 backgroundColor: 'white', borderRadius: '14px',
-                                border: '1px solid #F3F4F6', padding: '0.875rem 1rem',
-                                display: 'flex', alignItems: 'center', gap: '0.875rem',
+                                border: '1px solid #F3F4F6', overflow: 'hidden',
                               }}
                             >
-                              <div style={{
-                                width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
-                                backgroundColor: `${catColor}18`,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              }}>
-                                <Zap size={16} style={{ color: catColor }} />
-                              </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
-                                  {action.title}
-                                </p>
-                                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem', alignItems: 'center' }}>
-                                  <span style={{
-                                    fontSize: '0.6875rem', fontWeight: 500, padding: '0.125rem 0.5rem',
-                                    borderRadius: '999px', backgroundColor: `${catColor}15`, color: catColor,
-                                  }}>
-                                    {action.category}
-                                  </span>
-                                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.6875rem', color: '#9CA3AF' }}>
-                                    <Clock size={11} /> {action.estimatedMinutes} min
-                                  </span>
+                              <div style={{ padding: '0.875rem 1rem', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+                                <div style={{
+                                  width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
+                                  backgroundColor: `${catColor}18`,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                  <Zap size={16} style={{ color: catColor }} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
+                                    {action.title}
+                                  </p>
+                                  <div style={{ display: 'flex', gap: '0.625rem', marginTop: '0.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <span style={{
+                                      fontSize: '0.6875rem', fontWeight: 500, padding: '0.125rem 0.5rem',
+                                      borderRadius: '999px', backgroundColor: `${catColor}15`, color: catColor,
+                                    }}>
+                                      {action.category}
+                                    </span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.6875rem', color: '#9CA3AF' }}>
+                                      <Clock size={11} /> {action.estimatedMinutes} min
+                                    </span>
+                                    {action.reasoning && (
+                                      <button
+                                        onClick={() => toggleReasoning(action.id)}
+                                        style={{
+                                          display: 'flex', alignItems: 'center', gap: '0.15rem',
+                                          fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 500,
+                                          background: 'none', border: 'none', cursor: 'pointer',
+                                          padding: 0, fontFamily: 'inherit',
+                                        }}
+                                      >
+                                        {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                        Why this?
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0 }}>
+                                  <button
+                                    onClick={() => completeAction(action.id)}
+                                    style={{
+                                      padding: '0.5rem', borderRadius: '10px', border: 'none',
+                                      backgroundColor: '#F0FDF4', color: '#16A34A', cursor: 'pointer', display: 'flex',
+                                    }}
+                                    title="Mark done"
+                                  >
+                                    <CheckCircle2 size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => setSkipConfirmId(action.id)}
+                                    title="Skip"
+                                    style={{
+                                      padding: '0.5rem', borderRadius: '10px', border: 'none',
+                                      backgroundColor: skipConfirmId === action.id ? '#FEF3C7' : '#F9FAFB',
+                                      color: skipConfirmId === action.id ? '#D97706' : '#9CA3AF',
+                                      cursor: 'pointer', display: 'flex',
+                                    }}
+                                  >
+                                    <SkipForward size={16} />
+                                  </button>
                                 </div>
                               </div>
-                              <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0 }}>
-                                <button
-                                  onClick={() => completeAction(action.id)}
-                                  style={{
-                                    padding: '0.5rem', borderRadius: '10px', border: 'none',
-                                    backgroundColor: '#F0FDF4', color: '#16A34A', cursor: 'pointer', display: 'flex',
-                                  }}
-                                  title="Mark done"
-                                >
-                                  <CheckCircle2 size={16} />
-                                </button>
-                                <button
-                                  onClick={() => skipAction(action.id)}
-                                  style={{
-                                    padding: '0.5rem', borderRadius: '10px', border: 'none',
-                                    backgroundColor: '#F9FAFB', color: '#9CA3AF', cursor: 'pointer', display: 'flex',
-                                  }}
-                                  title="Skip"
-                                >
-                                  <SkipForward size={16} />
-                                </button>
-                              </div>
+                              {/* Skip confirmation panel */}
+                              <AnimatePresence>
+                                {skipConfirmId === action.id && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.18 }}
+                                    style={{ overflow: 'hidden' }}
+                                  >
+                                    <div style={{
+                                      padding: '0.625rem 1.125rem 0.75rem',
+                                      borderTop: '1px solid #FDE68A',
+                                      backgroundColor: '#FFFBEB',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
+                                    }}>
+                                      <p style={{ fontSize: '0.8125rem', color: '#92400E', margin: 0 }}>
+                                        Skip this action?
+                                      </p>
+                                      <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                                        <button
+                                          onClick={() => { dismissAction(action.id); setSkipConfirmId(null); }}
+                                          style={{
+                                            fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem',
+                                            borderRadius: '6px', border: '1px solid #FCD34D',
+                                            backgroundColor: 'white', color: '#92400E', cursor: 'pointer', fontFamily: 'inherit',
+                                          }}
+                                        >
+                                          Skip for now
+                                        </button>
+                                        <button
+                                          onClick={() => { skipAction(action.id); setSkipConfirmId(null); }}
+                                          style={{
+                                            fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem',
+                                            borderRadius: '6px', border: 'none',
+                                            backgroundColor: '#F59E0B', color: 'white', cursor: 'pointer', fontFamily: 'inherit',
+                                          }}
+                                        >
+                                          Skip forever
+                                        </button>
+                                        <button
+                                          onClick={() => setSkipConfirmId(null)}
+                                          style={{
+                                            fontSize: '0.75rem', color: '#9CA3AF', background: 'none',
+                                            border: 'none', cursor: 'pointer', padding: '0.3rem 0.25rem', fontFamily: 'inherit',
+                                          }}
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+
+                              {/* Reasoning panel */}
+                              <AnimatePresence>
+                                {isExpanded && action.reasoning && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                    style={{ overflow: 'hidden' }}
+                                  >
+                                    <div style={{
+                                      padding: '0.5rem 1rem 0.75rem',
+                                      borderTop: `1px solid ${catColor}20`,
+                                      backgroundColor: `${catColor}06`,
+                                      display: 'flex', alignItems: 'flex-start', gap: '0.4rem',
+                                    }}>
+                                      <TrendingUp size={12} style={{ color: catColor, flexShrink: 0, marginTop: '0.15rem' }} />
+                                      <p style={{ fontSize: '0.75rem', color: '#6B7280', lineHeight: 1.5, margin: 0 }}>
+                                        {action.reasoning}
+                                      </p>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
                             </motion.div>
                           );
                         })}

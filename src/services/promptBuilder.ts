@@ -1,4 +1,4 @@
-import type { EmotionEntry, CareerEvent, MicroAction, UserProfile, ActionCategory, EmotionType } from '../types';
+import type { EmotionEntry, CareerEvent, MicroAction, UserProfile, ActionCategory, EmotionType, Goal, EmotionalIntelligenceGoal } from '../types';
 import type { LLMActionResponse, LLMGeneratedAction, MemoryStore } from '../types/llm';
 
 export const SYSTEM_PROMPT = `You are an emotionally intelligent career coach embedded in a personal development app called Hello-EQ. Your role is to suggest 3-5 personalized micro-actions (each under 15 minutes) that help a professional navigate their current emotional state in the context of their career.
@@ -40,6 +40,7 @@ export function buildUserMessage(
   recentEvents: CareerEvent[],
   memory: MemoryStore,
   currentActions: MicroAction[],
+  goals: Goal[] = [],
 ): string {
   const sections: string[] = [];
 
@@ -50,7 +51,19 @@ Role: ${user.role || 'Not specified'}
 Goals: ${user.goals || 'Not specified'}
 Using app since: ${new Date(user.createdAt).toLocaleDateString()}`);
 
-  // Section 2: Recent emotions (last 7 days, max 15)
+  // Section 2: Active goals
+  const activeGoals = goals.filter(g => g.status === 'active');
+  if (activeGoals.length > 0) {
+    const goalLines = activeGoals.map(g => {
+      const isEQ = 'focusArea' in g;
+      const type = isEQ ? `EQ (${(g as EmotionalIntelligenceGoal).focusArea})` : 'Career';
+      const due = new Date(g.targetDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      return `- [${type}] "${g.title}" — ${g.description} | Progress: ${g.progress}% | Target: ${due}`;
+    });
+    sections.push(`## ACTIVE GOALS\n${goalLines.join('\n')}\n\nIMPORTANT: Suggested actions should directly help this person make progress toward these goals, not just manage their current emotional state.`);
+  }
+
+  // Section 3: Recent emotions (last 7 days, max 15)
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const recent = recentEmotions
     .filter(e => new Date(e.timestamp).getTime() >= weekAgo)
@@ -82,23 +95,23 @@ Using app since: ${new Date(user.createdAt).toLocaleDateString()}`);
     sections.push(`## RECENT CAREER EVENTS\n${eventLines.join('\n')}`);
   }
 
-  // Section 4: Action history from memory
+  // Section 4: Action history from memory (titles + categories)
   if (memory.actionOutcomes.length > 0) {
     const completed = memory.actionOutcomes.filter(a => a.wasCompleted);
     const skipped = memory.actionOutcomes.filter(a => !a.wasCompleted);
 
     const lines: string[] = [];
     if (completed.length > 0) {
+      const recentTitles = completed.slice(0, 5).map(a => `"${a.actionTitle}"`).join(', ');
+      lines.push(`Recently completed: ${recentTitles}`);
       const catCounts = new Map<string, number>();
       completed.forEach(a => catCounts.set(a.category, (catCounts.get(a.category) || 0) + 1));
       const sorted = [...catCounts.entries()].sort((a, b) => b[1] - a[1]);
-      lines.push(`Completed (preferred): ${sorted.map(([cat, n]) => `${cat} (${n}x)`).join(', ')}`);
+      lines.push(`Preferred categories: ${sorted.map(([cat, n]) => `${cat} (${n}x)`).join(', ')}`);
     }
     if (skipped.length > 0) {
-      const catCounts = new Map<string, number>();
-      skipped.forEach(a => catCounts.set(a.category, (catCounts.get(a.category) || 0) + 1));
-      const sorted = [...catCounts.entries()].sort((a, b) => b[1] - a[1]);
-      lines.push(`Often skipped: ${sorted.map(([cat, n]) => `${cat} (${n}x)`).join(', ')}`);
+      const skippedTitles = skipped.slice(0, 8).map(a => `"${a.actionTitle}"`).join(', ');
+      lines.push(`SKIPPED (do NOT suggest these or very similar actions): ${skippedTitles}`);
     }
     sections.push(`## ACTION HISTORY\n${lines.join('\n')}`);
   }
@@ -115,8 +128,13 @@ Using app since: ${new Date(user.createdAt).toLocaleDateString()}`);
     sections.push(`## EMOTIONAL PATTERNS (${latestPattern.period})\nDominant: ${patternLine}${triggerLine}`);
   }
 
-  // Section 6: Rolling conversation summary
-  if (memory.conversationSummary) {
+  // Section 6: Recent AI insights (structured)
+  if (memory.recentInsights && memory.recentInsights.length > 0) {
+    const insightLines = memory.recentInsights
+      .slice(0, 4)
+      .map(i => `- [${i.date}] ${i.insight} (suggested: ${i.suggestedTitles.slice(0, 3).join(', ')})`);
+    sections.push(`## PRIOR COACHING HISTORY\n${insightLines.join('\n')}`);
+  } else if (memory.conversationSummary) {
     sections.push(`## PRIOR CONTEXT\n${memory.conversationSummary}`);
   }
 

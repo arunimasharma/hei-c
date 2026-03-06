@@ -1,5 +1,5 @@
 import type { MicroAction, EmotionEntry, EmotionType } from '../types';
-import type { ActionOutcome, EmotionPattern, MemoryStore } from '../types/llm';
+import type { ActionOutcome, EmotionPattern, MemoryInsight, MemoryStore } from '../types/llm';
 
 const STORAGE_KEY = 'eicos_llm_memory';
 const MAX_OUTCOMES = 100;
@@ -8,7 +8,12 @@ const MAX_PATTERNS = 12;
 export function loadMemory(): MemoryStore {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as MemoryStore;
+    if (raw) {
+      const parsed = JSON.parse(raw) as MemoryStore;
+      // Backwards compat: older stored data may not have recentInsights
+      if (!parsed.recentInsights) parsed.recentInsights = [];
+      return parsed;
+    }
   } catch {
     console.warn('Failed to load LLM memory');
   }
@@ -17,6 +22,7 @@ export function loadMemory(): MemoryStore {
     emotionPatterns: [],
     lastSummaryTimestamp: '',
     conversationSummary: '',
+    recentInsights: [],
   };
 }
 
@@ -103,23 +109,37 @@ export function updateConversationSummary(
   actionTitles: string[],
 ): void {
   const memory = loadMemory();
-  const date = new Date().toLocaleDateString();
-  const newEntry = `[${date}] Insight: ${insight}. Suggested: ${actionTitles.join(', ')}.`;
 
-  let summary = memory.conversationSummary
-    ? `${memory.conversationSummary} ${newEntry}`
-    : newEntry;
+  const newInsight: MemoryInsight = {
+    date: new Date().toLocaleDateString(),
+    insight,
+    suggestedTitles: actionTitles,
+  };
 
-  if (summary.length > 500) {
-    summary = summary.slice(summary.length - 480);
-    const firstPeriod = summary.indexOf('.');
-    if (firstPeriod > 0 && firstPeriod < 100) {
-      summary = summary.slice(firstPeriod + 2);
-    }
-  }
+  memory.recentInsights = [newInsight, ...(memory.recentInsights ?? [])].slice(0, 8);
 
-  memory.conversationSummary = summary;
+  // Keep legacy conversationSummary in sync for any external readers
+  memory.conversationSummary = memory.recentInsights
+    .map(i => `[${i.date}] ${i.insight}`)
+    .join(' | ');
+
   saveMemory(memory);
+}
+
+export function getSkippedActionTitles(limit = 30): string[] {
+  const memory = loadMemory();
+  return memory.actionOutcomes
+    .filter(a => !a.wasCompleted)
+    .slice(0, limit)
+    .map(a => a.actionTitle);
+}
+
+export function getCompletedActionTitles(limit = 30): string[] {
+  const memory = loadMemory();
+  return memory.actionOutcomes
+    .filter(a => a.wasCompleted)
+    .slice(0, limit)
+    .map(a => a.actionTitle);
 }
 
 export function clearMemory(): void {

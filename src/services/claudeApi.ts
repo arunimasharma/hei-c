@@ -22,15 +22,12 @@ export class ClaudeApiError extends Error {
 
 /**
  * Calls the Claude API through the Vite proxy.
- * The API key is sent as a standard Authorization: Bearer token.
- * The proxy extracts the Bearer token and re-maps it to Anthropic's
- * x-api-key header server-side — the raw key never appears in a
- * custom header on the client-side request.
+ * The API key is injected server-side by the proxy from the ANTHROPIC_API_KEY
+ * environment variable — it never touches the client.
  */
 export async function callClaude(
   systemPrompt: string,
   userMessage: string,
-  apiKey: string,
 ): Promise<ClaudeResponse> {
   const body: ClaudeRequest = {
     model: MODEL,
@@ -43,7 +40,6 @@ export async function callClaude(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
   });
@@ -67,7 +63,7 @@ export function parseActionResponse(raw: ClaudeResponse): string {
   return textBlock.text;
 }
 
-export async function testConnection(apiKey: string): Promise<{ ok: boolean; statusCode?: number }> {
+export async function testConnection(): Promise<{ ok: boolean; statusCode?: number }> {
   try {
     const body: ClaudeRequest = {
       model: MODEL,
@@ -78,10 +74,7 @@ export async function testConnection(apiKey: string): Promise<{ ok: boolean; sta
 
     const response = await fetch(PROXY_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
 

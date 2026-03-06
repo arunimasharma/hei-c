@@ -53,11 +53,18 @@ export interface EmotionPattern {
   triggers: string[];
 }
 
+export interface MemoryInsight {
+  date: string;
+  insight: string;
+  suggestedTitles: string[];
+}
+
 export interface MemoryStore {
   actionOutcomes: ActionOutcome[];
   emotionPatterns: EmotionPattern[];
   lastSummaryTimestamp: string;
   conversationSummary: string;
+  recentInsights: MemoryInsight[];
 }
 
 // ---- Hook state ----

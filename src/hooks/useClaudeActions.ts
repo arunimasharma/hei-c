@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { MicroAction, EmotionEntry, CareerEvent, UserProfile } from '../types';
+import type { MicroAction, EmotionEntry, CareerEvent, UserProfile, Goal } from '../types';
 import type { LLMActionState } from '../types/llm';
 import { callClaude, parseActionResponse, ClaudeApiError } from '../services/claudeApi';
 import { SYSTEM_PROMPT, buildUserMessage, parseAndValidateResponse } from '../services/promptBuilder';
@@ -20,18 +20,12 @@ export function useClaudeActions() {
   });
 
   const generateActions = useCallback(async (
-    apiKey: string | undefined,
     user: UserProfile,
     emotions: EmotionEntry[],
     events: CareerEvent[],
     currentActions: MicroAction[],
+    goals: Goal[] = [],
   ): Promise<MicroAction[]> => {
-
-    // If no API key, fall back immediately
-    if (!apiKey) {
-      setLlmState({ isLoading: false, error: null, isAiGenerated: false, insight: null });
-      return generateSuggestedActions(emotions, currentActions);
-    }
 
     setLlmState({ isLoading: true, error: null, isAiGenerated: false, insight: null });
 
@@ -40,12 +34,13 @@ export function useClaudeActions() {
       updateEmotionPatterns(emotions);
 
       const memory = loadMemory();
-      const userMessage = buildUserMessage(user, emotions, events, memory, currentActions);
-      const response = await callClaude(SYSTEM_PROMPT, userMessage, apiKey);
+      const userMessage = buildUserMessage(user, emotions, events, memory, currentActions, goals);
+      const response = await callClaude(SYSTEM_PROMPT, userMessage);
       const rawText = parseActionResponse(response);
       const parsed = parseAndValidateResponse(rawText);
 
       // Convert LLMGeneratedAction[] to MicroAction[]
+      const now = new Date().toISOString();
       const actions: MicroAction[] = parsed.actions.map(a => ({
         id: generateId(),
         title: a.title,
@@ -54,6 +49,8 @@ export function useClaudeActions() {
         estimatedMinutes: a.estimatedMinutes,
         completed: false,
         suggestedFor: a.suggestedFor,
+        reasoning: a.reasoning,
+        generatedAt: now,
       }));
 
       // Update memory with this interaction
@@ -74,7 +71,7 @@ export function useClaudeActions() {
       setLlmState({ isLoading: false, error: message, isAiGenerated: false, insight: null });
 
       // Graceful fallback to static generation
-      return generateSuggestedActions(emotions, currentActions);
+      return generateSuggestedActions(emotions, currentActions, goals);
     }
   }, []);
 

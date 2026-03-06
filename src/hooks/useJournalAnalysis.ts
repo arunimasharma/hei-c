@@ -16,15 +16,9 @@ export function useJournalAnalysis() {
 
   const analyzeJournal = useCallback(async (
     text: string,
-    apiKey: string,
     user?: UserProfile | null,
     recentReflections?: JournalReflection[],
   ): Promise<JournalAnalysisResult | null> => {
-    if (!apiKey) {
-      setAnalysisState({ isAnalyzing: false, error: 'Add your API key in Settings to use AI analysis.', result: null });
-      return null;
-    }
-
     if (!text.trim()) {
       setAnalysisState({ isAnalyzing: false, error: 'Please write something before analyzing.', result: null });
       return null;
@@ -35,7 +29,7 @@ export function useJournalAnalysis() {
     try {
       const memory = loadMemory();
       const userMessage = buildJournalMessage(text, user, recentReflections, memory);
-      const response = await callClaude(JOURNAL_SYSTEM_PROMPT, userMessage, apiKey);
+      const response = await callClaude(JOURNAL_SYSTEM_PROMPT, userMessage);
       const rawText = parseActionResponse(response);
       const result = parseJournalResponse(rawText);
 

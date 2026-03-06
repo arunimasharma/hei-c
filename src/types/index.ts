@@ -40,6 +40,8 @@ export interface MicroAction {
   completedAt?: string;
   skipped?: boolean;
   suggestedFor?: EmotionType[];
+  reasoning?: string;
+  generatedAt?: string;
 }
 
 export type EmotionType =

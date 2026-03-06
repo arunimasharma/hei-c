@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Edit2, Save, RotateCw, Bell, Moon, Trash2, Key, Loader2 } from 'lucide-react';
+import { Edit2, Save, RotateCw, Bell, Moon, Trash2 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
@@ -8,19 +8,13 @@ import Input from '../components/common/Input';
 import TextArea from '../components/common/TextArea';
 import EmotionGame from '../components/onboarding/EmotionGame';
 import { useApp } from '../context/AppContext';
-import { testConnection } from '../services/claudeApi';
 
 export default function AccountPage() {
-  const { state, updateUserProfile, updateSettings, clearAllData, saveApiKey, clearApiKey, getApiKey } = useApp();
+  const { state, updateUserProfile, updateSettings, clearAllData } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [showEmotionGame, setShowEmotionGame] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('settings');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [apiKey, setApiKey] = useState(getApiKey());
-  const [keySaved, setKeySaved] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'success' | 'failed' | null>(null);
-  const [connectionError, setConnectionError] = useState<string>('');
 
   const user = state.user;
 
@@ -50,40 +44,6 @@ export default function AccountPage() {
       checkInFrequency: (user?.checkInFrequency || 'as-needed') as 'daily' | 'weekly' | 'as-needed',
     });
     setIsEditing(false);
-  };
-
-  const handleSaveApiKey = () => {
-    saveApiKey(apiKey.trim());
-    setKeySaved(true);
-    setConnectionStatus(null);
-    setTimeout(() => setKeySaved(false), 2000);
-  };
-
-  const handleTestConnection = async () => {
-    setTesting(true);
-    setConnectionStatus(null);
-    setConnectionError('');
-    const result = await testConnection(apiKey.trim());
-    setConnectionStatus(result.ok ? 'success' : 'failed');
-    if (!result.ok) {
-      if (result.statusCode === 401) {
-        setConnectionError('Invalid API key. Only Anthropic API keys (starting with sk-ant-) are supported.');
-      } else if (result.statusCode === 403) {
-        setConnectionError('Access denied. Please check your Anthropic API key permissions.');
-      } else if (result.statusCode) {
-        setConnectionError(`Request failed (${result.statusCode}). Please check your key and try again.`);
-      } else {
-        setConnectionError('Could not reach the API. Check your network connection.');
-      }
-    }
-    setTesting(false);
-  };
-
-  const handleClearApiKey = () => {
-    clearApiKey();
-    setApiKey('');
-    setConnectionStatus(null);
-    setKeySaved(false);
   };
 
   if (showEmotionGame) {
@@ -534,99 +494,6 @@ export default function AccountPage() {
                     opacity: 0.5,
                   }}
                 />
-              </div>
-            </Card>
-
-            {/* API Key Settings */}
-            <Card>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    backgroundColor: 'rgba(245,158,11,0.1)',
-                    borderRadius: '10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Key size={20} color="#F59E0B" />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
-                    AI-Powered Actions
-                  </h3>
-                  <p style={{ fontSize: '0.75rem', color: '#6B7280', margin: '0.25rem 0 0 0' }}>
-                    Uses Claude to generate personalized micro-actions
-                  </p>
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <Input
-                  label="Anthropic API Key"
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => { setApiKey(e.target.value); setConnectionStatus(null); setConnectionError(''); setKeySaved(false); }}
-                  placeholder="sk-ant-api03-..."
-                />
-                <p style={{ fontSize: '0.75rem', color: '#6B7280', margin: '0' }}>
-                  Only Anthropic API keys are supported (starting with <code style={{ fontFamily: 'monospace', fontSize: '0.7rem', backgroundColor: '#F3F4F6', padding: '0.1rem 0.3rem', borderRadius: '4px' }}>sk-ant-</code>). Your key is stored locally in this browser only.
-                </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
-                  <Button onClick={handleSaveApiKey} disabled={!apiKey.trim()}>
-                    Save Key
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleTestConnection}
-                    disabled={!apiKey.trim() || testing}
-                  >
-                    {testing ? (
-                      <>
-                        <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Testing...
-                      </>
-                    ) : (
-                      'Test Connection'
-                    )}
-                  </Button>
-                  {apiKey && (
-                    <Button variant="ghost" onClick={handleClearApiKey}>
-                      Clear
-                    </Button>
-                  )}
-                </div>
-                {keySaved && (
-                  <p style={{ fontSize: '0.875rem', color: '#16A34A', fontWeight: 500 }}>Key saved!</p>
-                )}
-                {connectionStatus === 'success' && (
-                  <div
-                    style={{
-                      padding: '0.75rem 1rem',
-                      borderRadius: '10px',
-                      backgroundColor: '#F0FDF4',
-                      border: '1px solid #BBF7D0',
-                    }}
-                  >
-                    <p style={{ fontSize: '0.875rem', color: '#16A34A', fontWeight: 500, margin: 0 }}>
-                      Connection successful! AI-powered actions are now enabled.
-                    </p>
-                  </div>
-                )}
-                {connectionStatus === 'failed' && (
-                  <div
-                    style={{
-                      padding: '0.75rem 1rem',
-                      borderRadius: '10px',
-                      backgroundColor: '#FEF2F2',
-                      border: '1px solid #FECACA',
-                    }}
-                  >
-                    <p style={{ fontSize: '0.875rem', color: '#DC2626', fontWeight: 500, margin: 0 }}>
-                      {connectionError || 'Connection failed. Please check your API key and try again.'}
-                    </p>
-                  </div>
-                )}
               </div>
             </Card>
 
