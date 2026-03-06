@@ -1,7 +1,7 @@
-import type { UserProfile, EmotionType, EventType } from '../types';
-import type { JournalAnalysisResult } from '../types/llm';
+import type { UserProfile, EmotionType, EventType, JournalReflection } from '../types';
+import type { JournalAnalysisResult, MemoryStore } from '../types/llm';
 
-export const JOURNAL_SYSTEM_PROMPT = `You are an emotional intelligence analyst embedded in a career wellness app called HEI-C. Your job is to analyze a user's journal entry and extract structured emotional and career data.
+export const JOURNAL_SYSTEM_PROMPT = `You are an emotional intelligence analyst embedded in a career wellness app called Hello-EQ. Your job is to analyze a user's journal entry and extract structured emotional and career data.
 
 TASK:
 1. Detect the PRIMARY emotion expressed in the journal entry.
@@ -30,6 +30,7 @@ GUIDELINES:
 - Triggers should be specific and drawn from the text (e.g., "tight deadline", "manager feedback", "team conflict").
 - The summary should be warm and validating, not clinical.
 - Be honest about your confidence — lower confidence for vague or ambiguous entries.
+- If PRIOR REFLECTION CONTEXT or EMOTIONAL PATTERNS sections are provided, use them to enrich your empathetic summary — for example, acknowledging when an emotion is recurring ("This seems to be a pattern lately…") or when something has shifted. Still analyze the CURRENT entry as the primary source.
 
 You MUST respond with ONLY valid JSON matching this exact schema (no markdown, no code fences, no commentary):
 {
@@ -46,6 +47,8 @@ You MUST respond with ONLY valid JSON matching this exact schema (no markdown, n
 export function buildJournalMessage(
   journalText: string,
   user?: UserProfile | null,
+  recentReflections?: JournalReflection[],
+  memory?: MemoryStore,
 ): string {
   const sections: string[] = [];
 
@@ -56,8 +59,35 @@ Role: ${user.role || 'Not specified'}
 Goals: ${user.goals || 'Not specified'}`);
   }
 
-  sections.push(`## JOURNAL ENTRY
-${journalText}`);
+  // Prior reflection summaries for pattern awareness
+  const priorReflections = recentReflections
+    ?.filter(r => r.status === 'approved' && r.detectedSummary)
+    .slice(0, 4);
+
+  if (priorReflections && priorReflections.length > 0) {
+    const lines = priorReflections.map(r => {
+      const date = new Date(r.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const emotion = r.approvedEmotion ? `${r.approvedEmotion}` : 'unknown';
+      const triggers = r.detectedTriggers?.length ? ` | triggers: ${r.detectedTriggers.slice(0, 3).join(', ')}` : '';
+      return `- [${date}] ${emotion}: "${r.detectedSummary}"${triggers}`;
+    });
+    sections.push(`## PRIOR REFLECTION CONTEXT (most recent first — for pattern awareness only)\n${lines.join('\n')}`);
+  }
+
+  // Weekly emotion patterns from memory
+  if (memory?.emotionPatterns.length) {
+    const latest = memory.emotionPatterns[memory.emotionPatterns.length - 1];
+    const patternLine = latest.dominantEmotions
+      .slice(0, 3)
+      .map(d => `${d.emotion} (${d.count}x, avg intensity ${d.avgIntensity.toFixed(1)})`)
+      .join(', ');
+    const triggerLine = latest.triggers.length
+      ? `\nRecurring triggers: ${latest.triggers.slice(0, 5).join(', ')}`
+      : '';
+    sections.push(`## EMOTIONAL PATTERNS (week ${latest.period})\nDominant: ${patternLine}${triggerLine}`);
+  }
+
+  sections.push(`## JOURNAL ENTRY\n${journalText}`);
 
   sections.push(`## REQUEST
 Analyze the journal entry above and respond with JSON only.`);

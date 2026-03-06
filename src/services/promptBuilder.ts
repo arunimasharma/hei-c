@@ -1,7 +1,7 @@
 import type { EmotionEntry, CareerEvent, MicroAction, UserProfile, ActionCategory, EmotionType } from '../types';
 import type { LLMActionResponse, LLMGeneratedAction, MemoryStore } from '../types/llm';
 
-export const SYSTEM_PROMPT = `You are an emotionally intelligent career coach embedded in a personal development app called HEI-C. Your role is to suggest 3-5 personalized micro-actions (each under 15 minutes) that help a professional navigate their current emotional state in the context of their career.
+export const SYSTEM_PROMPT = `You are an emotionally intelligent career coach embedded in a personal development app called Hello-EQ. Your role is to suggest 3-5 personalized micro-actions (each under 15 minutes) that help a professional navigate their current emotional state in the context of their career.
 
 GUIDELINES:
 - Each action must be specific, actionable, and completable in the stated time.

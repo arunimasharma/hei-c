@@ -244,7 +244,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshActions = useCallback(() => {
-    const apiKey = localStorage.getItem(API_KEY_STORAGE) || undefined;
+    const apiKey = getApiKey() || undefined;
 
     if (!apiKey || !state.user) {
       const suggested = generateSuggestedActions(state.emotions, state.actions);

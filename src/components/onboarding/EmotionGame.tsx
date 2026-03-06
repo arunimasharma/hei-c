@@ -145,7 +145,7 @@ export default function EmotionGame({ onComplete }: EmotionGameProps) {
         </div>
 
         <p style={{ fontSize: '0.875rem', opacity: 0.9, marginBottom: '1.5rem' }}>
-          HEI-C helps you understand these patterns, build EI, and make smarter career decisions.
+          Hello-EQ helps you understand these patterns, build EI, and make smarter career decisions.
         </p>
 
         <Button

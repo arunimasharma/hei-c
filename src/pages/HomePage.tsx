@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles, Send, ChevronDown, ChevronUp, AlertTriangle,
   CheckCircle2, Edit3, ArrowRight, BookOpen, Settings,
+  Zap, Clock, SkipForward, RefreshCw,
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Button from '../components/common/Button';
@@ -17,15 +18,64 @@ const EVENT_TYPES: EventType[] = [
   'Feedback', 'Presentation', 'Deadline', 'Conflict', 'Achievement', 'Learning', 'Other',
 ];
 
+const COMPANION_QUESTIONS = [
+  "What's been on your mind at work?",
+  "How did things go today?",
+  "What's been draining your energy lately?",
+  "Anything you're proud of recently?",
+  "What's making you feel uncertain right now?",
+  "How are you really feeling about your work?",
+];
+
+const STARTER_PROMPTS = [
+  { label: 'Tough meeting', text: 'I had a tough meeting today — ', icon: '📅' },
+  { label: 'Feeling proud', text: "I'm feeling proud because ", icon: '🌟' },
+  { label: 'Anxious about', text: "I've been anxious about ", icon: '😟' },
+  { label: 'Got feedback', text: 'I received feedback today that ', icon: '💬' },
+  { label: 'Low energy', text: 'My energy has been low because ', icon: '🔋' },
+  { label: 'Big win', text: 'Something went really well — ', icon: '🎉' },
+  { label: 'Deadline stress', text: "There's a deadline coming up and ", icon: '⏰' },
+  { label: 'Team tension', text: "There's tension with someone at work — ", icon: '🤝' },
+];
+
+function getEncouragement(words: number): { text: string; color: string } {
+  if (words === 0) return { text: '', color: '#9CA3AF' };
+  if (words < 5) return { text: 'Just getting started...', color: '#9CA3AF' };
+  if (words < 15) return { text: 'Nice, keep going', color: '#6B7280' };
+  if (words < 30) return { text: "You're doing great", color: '#7C3AED' };
+  if (words < 50) return { text: "That's a solid reflection", color: '#8B5CF6' };
+  return { text: 'Ready when you are', color: '#10B981' };
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  'Stress Relief': '#34D399',
+  'Confidence Building': '#8B5CF6',
+  'Energy Boost': '#F59E0B',
+  'Reflection': '#3B82F6',
+  'Grounding': '#6EE7B7',
+  'Gratitude': '#84CC16',
+  'Self-Care': '#EC4899',
+};
+
 type Phase = 'writing' | 'analyzing' | 'review' | 'success';
 
 export default function HomePage() {
-  const { state, getApiKey, addEmotion, addEvent, addReflection, updateReflection } = useApp();
+  const { state, getApiKey, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, refreshActions, llmState } = useApp();
   const { analysisState, analyzeJournal, resetAnalysis } = useJournalAnalysis();
 
   const [phase, setPhase] = useState<Phase>('writing');
   const [journalText, setJournalText] = useState('');
   const [showManual, setShowManual] = useState(false);
+  const [questionIdx, setQuestionIdx] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (journalText) return;
+    const timer = setInterval(() => {
+      setQuestionIdx(i => (i + 1) % COMPANION_QUESTIONS.length);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, [journalText]);
 
   // Manual overrides
   const [manualEmotion, setManualEmotion] = useState<EmotionType | null>(null);
@@ -60,7 +110,8 @@ export default function HomePage() {
     };
     addReflection(draft);
 
-    const result = await analyzeJournal(journalText, apiKey, state.user);
+    const approvedReflections = state.reflections.filter(r => r.status === 'approved');
+    const result = await analyzeJournal(journalText, apiKey, state.user, approvedReflections);
 
     if (result) {
       // Use manual overrides if provided, otherwise use detected
@@ -197,35 +248,91 @@ export default function HomePage() {
                 boxShadow: '0 4px 24px rgba(0,0,0,0.04)',
                 overflow: 'hidden',
               }}>
-                {/* Card header */}
+                {/* Companion header */}
                 <div style={{
-                  padding: '1.25rem 1.5rem 0.75rem',
-                  display: 'flex', alignItems: 'center', gap: '0.75rem',
+                  padding: '1.25rem 1.5rem 1rem',
+                  background: 'linear-gradient(135deg, rgba(74,95,193,0.05) 0%, rgba(139,126,200,0.08) 100%)',
                   borderBottom: '1px solid #F3F4F6',
                 }}>
-                  <div style={{
-                    width: '40px', height: '40px', borderRadius: '12px',
-                    background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <BookOpen size={20} color="white" />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.375rem' }}>
+                    <div style={{
+                      width: '32px', height: '32px', borderRadius: '10px', flexShrink: 0,
+                      background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Sparkles size={15} color="white" />
+                    </div>
+                    <AnimatePresence mode="wait">
+                      <motion.p
+                        key={questionIdx}
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        transition={{ duration: 0.3 }}
+                        style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#1F2937' }}
+                      >
+                        {COMPANION_QUESTIONS[questionIdx]}
+                      </motion.p>
+                    </AnimatePresence>
                   </div>
-                  <div>
-                    <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937' }}>Daily Reflection</h2>
-                    <p style={{ fontSize: '0.8125rem', color: '#9CA3AF' }}>Write freely — AI will understand the rest</p>
-                  </div>
+                  <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', paddingLeft: '2.625rem' }}>
+                    A few words is all it takes — I'll handle the rest.
+                  </p>
                 </div>
 
+                {/* Starter prompt chips */}
+                {!journalText && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.15 }}
+                    style={{ padding: '0.875rem 1.25rem 0.375rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}
+                  >
+                    {STARTER_PROMPTS.map((prompt) => (
+                      <button
+                        key={prompt.label}
+                        onClick={() => {
+                          setJournalText(prompt.text);
+                          setTimeout(() => {
+                            const ta = textareaRef.current;
+                            if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+                          }, 0);
+                        }}
+                        style={{
+                          padding: '0.375rem 0.75rem', borderRadius: '999px',
+                          border: '1.5px solid #E5E7EB', backgroundColor: 'white',
+                          fontSize: '0.8125rem', color: '#6B7280', cursor: 'pointer',
+                          fontFamily: 'inherit', transition: 'all 0.15s',
+                          display: 'flex', alignItems: 'center', gap: '0.3rem',
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = '#8B7EC8';
+                          e.currentTarget.style.color = '#4A5FC1';
+                          e.currentTarget.style.backgroundColor = 'rgba(74,95,193,0.04)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderColor = '#E5E7EB';
+                          e.currentTarget.style.color = '#6B7280';
+                          e.currentTarget.style.backgroundColor = 'white';
+                        }}
+                      >
+                        <span>{prompt.icon}</span> {prompt.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+
                 {/* Textarea */}
-                <div style={{ padding: '1rem 1.5rem 0.75rem' }}>
+                <div style={{ padding: '0.75rem 1.5rem' }}>
                   <textarea
+                    ref={textareaRef}
                     value={journalText}
                     onChange={(e) => setJournalText(e.target.value)}
-                    placeholder="What's on your mind today? How are you feeling about your work, your career, your goals...?"
+                    placeholder="Or just start typing freely..."
                     style={{
-                      width: '100%', minHeight: '180px', border: 'none', outline: 'none',
+                      width: '100%', minHeight: '110px', border: 'none', outline: 'none',
                       fontSize: '1rem', lineHeight: 1.7, color: '#1F2937',
-                      resize: 'vertical', fontFamily: 'inherit',
+                      resize: 'none', fontFamily: 'inherit',
                       backgroundColor: 'transparent',
                     }}
                   />
@@ -237,9 +344,18 @@ export default function HomePage() {
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   borderTop: '1px solid #F3F4F6', backgroundColor: '#FAFBFC',
                 }}>
-                  <span style={{ fontSize: '0.8125rem', color: '#9CA3AF' }}>
-                    {wordCount} {wordCount === 1 ? 'word' : 'words'}
-                  </span>
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={getEncouragement(wordCount).text}
+                      initial={{ opacity: 0, x: -4 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      style={{ fontSize: '0.8125rem', color: getEncouragement(wordCount).color }}
+                    >
+                      {getEncouragement(wordCount).text || `${wordCount} words`}
+                    </motion.span>
+                  </AnimatePresence>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     {!apiKey && (
                       <Link to="/settings" style={{
@@ -403,6 +519,152 @@ export default function HomePage() {
                   </div>
                 </div>
               )}
+
+              {/* ---- MICRO-ACTIONS ---- */}
+              {(() => {
+                const activeActions = state.actions.filter(a => !a.completed && !a.skipped);
+                const shown = activeActions.slice(0, 3);
+                return (
+                  <div>
+                    {/* Section header */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Zap size={15} color="#F59E0B" />
+                        <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
+                          Suggested Actions
+                        </h3>
+                        {llmState.isAiGenerated && (
+                          <span style={{
+                            fontSize: '0.625rem', fontWeight: 700, padding: '0.125rem 0.5rem',
+                            borderRadius: '999px', backgroundColor: 'rgba(139,92,246,0.1)', color: '#7C3AED',
+                          }}>
+                            AI
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {activeActions.length > 3 && (
+                          <Link to="/growth" style={{ fontSize: '0.8125rem', color: '#4A5FC1', textDecoration: 'none', fontWeight: 500 }}>
+                            View all ({activeActions.length})
+                          </Link>
+                        )}
+                        <button
+                          onClick={refreshActions}
+                          disabled={llmState.isLoading}
+                          style={{
+                            padding: '0.25rem', borderRadius: '8px', border: 'none',
+                            backgroundColor: 'transparent', cursor: llmState.isLoading ? 'default' : 'pointer',
+                            color: '#9CA3AF', display: 'flex',
+                          }}
+                          title="Refresh actions"
+                        >
+                          <RefreshCw size={14} style={{ animation: llmState.isLoading ? 'spin 1s linear infinite' : 'none' }} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Loading state */}
+                    {llmState.isLoading && (
+                      <div style={{
+                        padding: '1.25rem', borderRadius: '14px', backgroundColor: 'white',
+                        border: '1px solid #F3F4F6', textAlign: 'center',
+                      }}>
+                        <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
+                          Generating personalized suggestions...
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Action cards */}
+                    {!llmState.isLoading && shown.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {shown.map(action => {
+                          const catColor = CATEGORY_COLORS[action.category] || '#6B7280';
+                          return (
+                            <motion.div
+                              key={action.id}
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              style={{
+                                backgroundColor: 'white', borderRadius: '14px',
+                                border: '1px solid #F3F4F6', padding: '0.875rem 1rem',
+                                display: 'flex', alignItems: 'center', gap: '0.875rem',
+                              }}
+                            >
+                              <div style={{
+                                width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
+                                backgroundColor: `${catColor}18`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                <Zap size={16} style={{ color: catColor }} />
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
+                                  {action.title}
+                                </p>
+                                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem', alignItems: 'center' }}>
+                                  <span style={{
+                                    fontSize: '0.6875rem', fontWeight: 500, padding: '0.125rem 0.5rem',
+                                    borderRadius: '999px', backgroundColor: `${catColor}15`, color: catColor,
+                                  }}>
+                                    {action.category}
+                                  </span>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.6875rem', color: '#9CA3AF' }}>
+                                    <Clock size={11} /> {action.estimatedMinutes} min
+                                  </span>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0 }}>
+                                <button
+                                  onClick={() => completeAction(action.id)}
+                                  style={{
+                                    padding: '0.5rem', borderRadius: '10px', border: 'none',
+                                    backgroundColor: '#F0FDF4', color: '#16A34A', cursor: 'pointer', display: 'flex',
+                                  }}
+                                  title="Mark done"
+                                >
+                                  <CheckCircle2 size={16} />
+                                </button>
+                                <button
+                                  onClick={() => skipAction(action.id)}
+                                  style={{
+                                    padding: '0.5rem', borderRadius: '10px', border: 'none',
+                                    backgroundColor: '#F9FAFB', color: '#9CA3AF', cursor: 'pointer', display: 'flex',
+                                  }}
+                                  title="Skip"
+                                >
+                                  <SkipForward size={16} />
+                                </button>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Empty state */}
+                    {!llmState.isLoading && shown.length === 0 && (
+                      <div style={{
+                        padding: '1.25rem', borderRadius: '14px', backgroundColor: 'white',
+                        border: '1px dashed #E5E7EB', textAlign: 'center',
+                      }}>
+                        <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: '0 0 0.625rem' }}>
+                          Log a reflection to get personalized action suggestions.
+                        </p>
+                        <button
+                          onClick={refreshActions}
+                          style={{
+                            fontSize: '0.8125rem', color: '#4A5FC1', fontWeight: 500,
+                            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                          }}
+                        >
+                          Generate suggestions →
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </motion.div>
           )}
 

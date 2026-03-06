@@ -256,7 +256,7 @@ export default function SettingsPage() {
 
         <Card>
           <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
-            <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#4A5FC1' }}>HEI-C</p>
+            <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#4A5FC1' }}>Hello-EQ</p>
             <p style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Emotional Intelligence Career Operating System</p>
             <p style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '0.25rem' }}>v1.0.0</p>
           </div>

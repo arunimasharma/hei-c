@@ -58,13 +58,13 @@ export default function OnboardingPage() {
               transition={{ duration: 0.4, ease: 'easeOut' }}
               style={{ textAlign: 'center' }}
             >
-              <img src="/logo.svg" alt="HEI-C" style={{
+              <img src="/logo.svg" alt="Hello-EQ" style={{
                 width: '88px', height: '88px', margin: '0 auto 2rem', display: 'block',
                 boxShadow: '0 12px 40px rgba(74, 95, 193, 0.3)', borderRadius: '20px',
               }} />
 
               <h1 style={{ fontSize: '2.5rem', fontWeight: 700, color: '#1F2937', marginBottom: '0.75rem', lineHeight: 1.2 }}>
-                Welcome to HEI-C
+                Welcome to Hello-EQ
               </h1>
               <p style={{ fontSize: '1.15rem', color: '#6B7280', marginBottom: '0.5rem' }}>
                 Your Emotional Intelligence Career Operating System

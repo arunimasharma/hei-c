@@ -67,7 +67,7 @@ export function parseActionResponse(raw: ClaudeResponse): string {
   return textBlock.text;
 }
 
-export async function testConnection(apiKey: string): Promise<boolean> {
+export async function testConnection(apiKey: string): Promise<{ ok: boolean; statusCode?: number }> {
   try {
     const body: ClaudeRequest = {
       model: MODEL,
@@ -85,8 +85,8 @@ export async function testConnection(apiKey: string): Promise<boolean> {
       body: JSON.stringify(body),
     });
 
-    return response.ok;
+    return { ok: response.ok, statusCode: response.status };
   } catch {
-    return false;
+    return { ok: false };
   }
 }

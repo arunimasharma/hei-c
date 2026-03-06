@@ -32,8 +32,8 @@ export default function Header() {
       <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '0 1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px' }}>
           <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', textDecoration: 'none', flexShrink: 0 }}>
-            <img src="/logo.svg" alt="HEI-C" style={{ width: '36px', height: '36px' }} />
-            <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#4A5FC1', letterSpacing: '-0.01em' }}>HEI-C</span>
+            <img src="/logo.svg" alt="Hello-EQ" style={{ width: '36px', height: '36px' }} />
+            <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#4A5FC1', letterSpacing: '-0.01em' }}>Hello-EQ</span>
           </Link>
 
           {state.user && (

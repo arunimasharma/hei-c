@@ -20,6 +20,7 @@ export default function AccountPage() {
   const [keySaved, setKeySaved] = useState(false);
   const [testing, setTesting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'success' | 'failed' | null>(null);
+  const [connectionError, setConnectionError] = useState<string>('');
 
   const user = state.user;
 
@@ -61,8 +62,20 @@ export default function AccountPage() {
   const handleTestConnection = async () => {
     setTesting(true);
     setConnectionStatus(null);
-    const ok = await testConnection(apiKey.trim());
-    setConnectionStatus(ok ? 'success' : 'failed');
+    setConnectionError('');
+    const result = await testConnection(apiKey.trim());
+    setConnectionStatus(result.ok ? 'success' : 'failed');
+    if (!result.ok) {
+      if (result.statusCode === 401) {
+        setConnectionError('Invalid API key. Only Anthropic API keys (starting with sk-ant-) are supported.');
+      } else if (result.statusCode === 403) {
+        setConnectionError('Access denied. Please check your Anthropic API key permissions.');
+      } else if (result.statusCode) {
+        setConnectionError(`Request failed (${result.statusCode}). Please check your key and try again.`);
+      } else {
+        setConnectionError('Could not reach the API. Check your network connection.');
+      }
+    }
     setTesting(false);
   };
 
@@ -554,11 +567,11 @@ export default function AccountPage() {
                   label="Anthropic API Key"
                   type="password"
                   value={apiKey}
-                  onChange={(e) => { setApiKey(e.target.value); setConnectionStatus(null); setKeySaved(false); }}
-                  placeholder="sk-ant-..."
+                  onChange={(e) => { setApiKey(e.target.value); setConnectionStatus(null); setConnectionError(''); setKeySaved(false); }}
+                  placeholder="sk-ant-api03-..."
                 />
                 <p style={{ fontSize: '0.75rem', color: '#6B7280', margin: '0' }}>
-                  Your key is stored only in this browser and sent directly to Anthropic's API.
+                  Only Anthropic API keys are supported (starting with <code style={{ fontFamily: 'monospace', fontSize: '0.7rem', backgroundColor: '#F3F4F6', padding: '0.1rem 0.3rem', borderRadius: '4px' }}>sk-ant-</code>). Your key is stored locally in this browser only.
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
                   <Button onClick={handleSaveApiKey} disabled={!apiKey.trim()}>
@@ -610,7 +623,7 @@ export default function AccountPage() {
                     }}
                   >
                     <p style={{ fontSize: '0.875rem', color: '#DC2626', fontWeight: 500, margin: 0 }}>
-                      Connection failed. Please check your API key and try again.
+                      {connectionError || 'Connection failed. Please check your API key and try again.'}
                     </p>
                   </div>
                 )}

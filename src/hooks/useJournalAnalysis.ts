@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
-import type { UserProfile } from '../types';
+import type { UserProfile, JournalReflection } from '../types';
 import type { JournalAnalysisResult, JournalAnalysisState } from '../types/llm';
 import { callClaude, parseActionResponse } from '../services/claudeApi';
 import { JOURNAL_SYSTEM_PROMPT, buildJournalMessage, parseJournalResponse } from '../services/journalPromptBuilder';
+import { loadMemory } from '../services/memoryManager';
 
 const initialState: JournalAnalysisState = {
   isAnalyzing: false,
@@ -17,6 +18,7 @@ export function useJournalAnalysis() {
     text: string,
     apiKey: string,
     user?: UserProfile | null,
+    recentReflections?: JournalReflection[],
   ): Promise<JournalAnalysisResult | null> => {
     if (!apiKey) {
       setAnalysisState({ isAnalyzing: false, error: 'Add your API key in Settings to use AI analysis.', result: null });
@@ -31,7 +33,8 @@ export function useJournalAnalysis() {
     setAnalysisState({ isAnalyzing: true, error: null, result: null });
 
     try {
-      const userMessage = buildJournalMessage(text, user);
+      const memory = loadMemory();
+      const userMessage = buildJournalMessage(text, user, recentReflections, memory);
       const response = await callClaude(JOURNAL_SYSTEM_PROMPT, userMessage, apiKey);
       const rawText = parseActionResponse(response);
       const result = parseJournalResponse(rawText);
