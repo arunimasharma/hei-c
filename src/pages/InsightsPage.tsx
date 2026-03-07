@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router';
 import { motion } from 'motion/react';
-import { Calendar, BarChart3 } from 'lucide-react';
+import { Calendar, BarChart3, BookOpen } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
@@ -11,7 +12,12 @@ import { calculateStreak } from '../utils/dateHelpers';
 
 export default function InsightsPage() {
   const { state } = useApp();
-  const [view, setView] = useState<'dashboard' | 'timeline'>('dashboard');
+  const [searchParams] = useSearchParams();
+  const [view, setView] = useState<'dashboard' | 'timeline' | 'reflections'>('dashboard');
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'reflections') setView('reflections');
+  }, [searchParams]);
   const { emotions, events } = state;
 
   const latestEmotion = emotions[0];
@@ -66,6 +72,14 @@ export default function InsightsPage() {
               style={{ cursor: 'pointer' }}
             >
               <Calendar size={16} /> Timeline
+            </Button>
+            <Button
+              size="sm"
+              variant={view === 'reflections' ? 'primary' : 'ghost'}
+              onClick={() => setView('reflections')}
+              style={{ cursor: 'pointer' }}
+            >
+              <BookOpen size={16} /> Reflections
             </Button>
           </div>
         </div>
@@ -265,6 +279,101 @@ export default function InsightsPage() {
             )}
           </motion.div>
         )}
+
+        {/* Reflections View */}
+        {view === 'reflections' && (() => {
+          const approved = state.reflections.filter(r => r.status === 'approved');
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
+                  All Reflections ({approved.length})
+                </h2>
+              </div>
+
+              {approved.length > 0 ? (
+                approved.map(r => (
+                  <div key={r.id} style={{
+                    backgroundColor: 'white', borderRadius: '16px',
+                    border: '1px solid #F3F4F6', padding: '1.25rem',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
+                      <div style={{
+                        width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0,
+                        backgroundColor: r.approvedEmotion
+                          ? `${getEmotionColor(r.approvedEmotion)}18`
+                          : '#F3F4F6',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1.25rem',
+                      }}>
+                        {r.approvedEmotion ? getEmotionIcon(r.approvedEmotion) : '📝'}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.375rem', flexWrap: 'wrap' }}>
+                          {r.approvedEmotion && (
+                            <span style={{
+                              fontSize: '0.75rem', fontWeight: 600,
+                              color: getEmotionColor(r.approvedEmotion),
+                              backgroundColor: `${getEmotionColor(r.approvedEmotion)}15`,
+                              padding: '0.125rem 0.5rem', borderRadius: '999px',
+                            }}>
+                              {r.approvedEmotion}
+                              {r.approvedIntensity ? ` · ${r.approvedIntensity}/10` : ''}
+                            </span>
+                          )}
+                          {r.approvedEventType && (
+                            <span style={{
+                              fontSize: '0.75rem', color: '#6B7280',
+                              backgroundColor: '#F3F4F6',
+                              padding: '0.125rem 0.5rem', borderRadius: '999px',
+                            }}>
+                              {r.approvedEventType}
+                              {r.approvedCompanyName ? ` at ${r.approvedCompanyName}` : ''}
+                            </span>
+                          )}
+                          <span style={{ fontSize: '0.75rem', color: '#9CA3AF', marginLeft: 'auto' }}>
+                            {new Date(r.timestamp).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        </div>
+                        <p style={{
+                          fontSize: '0.875rem', color: '#374151', lineHeight: 1.6,
+                          margin: 0, whiteSpace: 'pre-wrap',
+                        }}>
+                          {r.text}
+                        </p>
+                        {r.detectedSummary && (
+                          <p style={{
+                            fontSize: '0.8125rem', color: '#7C3AED', fontStyle: 'italic',
+                            marginTop: '0.625rem', lineHeight: 1.5,
+                            padding: '0.5rem 0.75rem', borderRadius: '8px',
+                            backgroundColor: 'rgba(139,92,246,0.06)',
+                          }}>
+                            "{r.detectedSummary}"
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <Card>
+                  <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                    <BookOpen size={36} style={{ color: '#D1D5DB', margin: '0 auto 0.75rem', display: 'block' }} />
+                    <p style={{ color: '#6B7280', margin: 0 }}>
+                      No reflections yet. Write your first one on the home page.
+                    </p>
+                  </div>
+                </Card>
+              )}
+            </motion.div>
+          );
+        })()}
       </div>
     </DashboardLayout>
   );

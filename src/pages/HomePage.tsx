@@ -491,9 +491,17 @@ export default function HomePage() {
               {/* Recent reflections */}
               {state.reflections.filter(r => r.status === 'approved').length > 0 && (
                 <div>
-                  <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#6B7280', marginBottom: '0.75rem' }}>
-                    Recent Reflections
-                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                    <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#6B7280', margin: 0 }}>
+                      Recent Reflections
+                    </h3>
+                    <Link
+                      to="/insights?tab=reflections"
+                      style={{ fontSize: '0.8125rem', color: '#4A5FC1', textDecoration: 'none', fontWeight: 500 }}
+                    >
+                      View all ({state.reflections.filter(r => r.status === 'approved').length})
+                    </Link>
+                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {state.reflections.filter(r => r.status === 'approved').slice(0, 3).map(r => (
                       <div key={r.id} style={{
