@@ -12,8 +12,27 @@ import Button from '../components/common/Button';
 import { useApp } from '../context/AppContext';
 import { useJournalAnalysis } from '../hooks/useJournalAnalysis';
 import { useTasteExercise } from '../hooks/useTasteExercise';
+import { callClaudeMessages, parseActionResponse } from '../services/claudeApi';
 import { EMOTIONS, getEmotionColor, getEmotionIcon } from '../utils/emotionHelpers';
 import type { EmotionType, EventType, JournalReflection, TasteExercise } from '../types';
+
+type ChatMessage = { role: 'user' | 'assistant'; content: string };
+
+const INITIAL_CHAT_MESSAGE: ChatMessage = {
+  role: 'assistant',
+  content: "Hey! I'm here to listen. What's been on your mind at work lately? Share anything — big or small, and we'll make sense of it together.",
+};
+
+const CHAT_FOLLOWUP_SYSTEM_PROMPT = `You are Hello-EQ, an empathetic AI journaling coach helping someone reflect on their work emotions and career experiences.
+
+Based on what the user has shared so far in this journaling session, ask ONE thoughtful follow-up question that:
+- Helps them go deeper into their emotional experience at work
+- Is specific and personal to what they've shared (not generic)
+- Is empathetic, curious, and non-judgmental
+- Opens up a new dimension of reflection they haven't yet explored
+- Is concise (1–2 sentences max)
+
+Respond with ONLY the question text. No preamble, no sign-off, no explanation.`;
 
 const EVENT_TYPES: EventType[] = [
   'Meeting', 'Project', 'Review', 'Interview', 'Promotion',
@@ -78,6 +97,16 @@ export default function HomePage() {
   const [teProductInput, setTeProductInput] = useState('');
   const [teCurrentAnswer, setTeCurrentAnswer] = useState('');
 
+  // Chat journal state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([INITIAL_CHAT_MESSAGE]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
   const toggleReasoning = (id: string) => {
     setExpandedReasoning(prev => {
       const next = new Set(prev);
@@ -112,7 +141,10 @@ export default function HomePage() {
   const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const wordCount = journalText.trim() ? journalText.trim().split(/\s+/).length : 0;
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = async (textOverride?: string) => {
+    const text = textOverride ?? journalText;
+    if (!text.trim()) return;
+    if (textOverride) setJournalText(textOverride);
     setPhase('analyzing');
 
     const id = `ref_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -211,8 +243,45 @@ export default function HomePage() {
     setManualEventType(null);
     setManualCompany('');
     setShowManual(false);
+    setChatMessages([INITIAL_CHAT_MESSAGE]);
+    setChatInput('');
+    setChatLoading(false);
     resetAnalysis();
     setPhase('writing');
+  };
+
+  const handleChatSend = async () => {
+    const text = chatInput.trim();
+    if (!text || chatLoading) return;
+    const updatedMessages: ChatMessage[] = [...chatMessages, { role: 'user', content: text }];
+    setChatMessages(updatedMessages);
+    setChatInput('');
+    setChatLoading(true);
+    try {
+      const response = await callClaudeMessages(
+        CHAT_FOLLOWUP_SYSTEM_PROMPT,
+        updatedMessages.map(m => ({ role: m.role, content: m.content })),
+        180,
+      );
+      const question = parseActionResponse(response).trim();
+      setChatMessages(prev => [...prev, { role: 'assistant', content: question }]);
+    } catch {
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: "What else is on your mind about this?",
+      }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleFinishEntry = () => {
+    const allUserText = chatMessages
+      .filter(m => m.role === 'user')
+      .map(m => m.content)
+      .join('\n\n');
+    if (!allUserText.trim()) return;
+    handleAnalyze(allUserText);
   };
 
   const handleTeStart = () => {
@@ -665,8 +734,8 @@ export default function HomePage() {
                   </p>
                 </div>
 
-                {/* Starter prompt chips */}
-                {!journalText && (
+                {/* Starter prompt chips — shown only before first user message */}
+                {!chatMessages.some(m => m.role === 'user') && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -676,13 +745,7 @@ export default function HomePage() {
                     {STARTER_PROMPTS.map((prompt) => (
                       <button
                         key={prompt.label}
-                        onClick={() => {
-                          setJournalText(prompt.text);
-                          setTimeout(() => {
-                            const ta = textareaRef.current;
-                            if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
-                          }, 0);
-                        }}
+                        onClick={() => setChatInput(chatInput ? chatInput : prompt.text)}
                         style={{
                           padding: '0.375rem 0.75rem', borderRadius: '999px',
                           border: '1.5px solid #E5E7EB', backgroundColor: 'white',
@@ -707,51 +770,147 @@ export default function HomePage() {
                   </motion.div>
                 )}
 
-                {/* Textarea */}
-                <div style={{ padding: '0.75rem 1.5rem' }}>
+                {/* Chat messages area */}
+                {chatMessages.length > 0 && (
+                  <div style={{
+                    maxHeight: '320px', overflowY: 'auto',
+                    padding: '0.875rem 1.25rem',
+                    display: 'flex', flexDirection: 'column', gap: '0.75rem',
+                  }}>
+                    <AnimatePresence initial={false}>
+                      {chatMessages.map((msg, i) => (
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2 }}
+                          style={{
+                            display: 'flex',
+                            justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                            alignItems: 'flex-end', gap: '0.5rem',
+                          }}
+                        >
+                          {msg.role === 'assistant' && (
+                            <div style={{
+                              width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0,
+                              background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              <Sparkles size={13} color="white" />
+                            </div>
+                          )}
+                          <div style={{
+                            maxWidth: '78%',
+                            padding: '0.625rem 0.875rem',
+                            borderRadius: msg.role === 'user'
+                              ? '14px 14px 4px 14px'
+                              : '14px 14px 14px 4px',
+                            backgroundColor: msg.role === 'user'
+                              ? '#4A5FC1'
+                              : '#F3F4F6',
+                            color: msg.role === 'user' ? 'white' : '#1F2937',
+                            fontSize: '0.9rem', lineHeight: 1.55,
+                          }}>
+                            {msg.content}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                    {chatLoading && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}
+                      >
+                        <div style={{
+                          width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0,
+                          background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Sparkles size={13} color="white" />
+                        </div>
+                        <div style={{
+                          padding: '0.625rem 0.875rem', borderRadius: '14px 14px 14px 4px',
+                          backgroundColor: '#F3F4F6', display: 'flex', gap: '0.25rem', alignItems: 'center',
+                        }}>
+                          {[0, 1, 2].map(d => (
+                            <motion.span
+                              key={d}
+                              animate={{ opacity: [0.3, 1, 0.3] }}
+                              transition={{ duration: 1.2, repeat: Infinity, delay: d * 0.2 }}
+                              style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#9CA3AF', display: 'inline-block' }}
+                            />
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+                )}
+
+                {/* Chat input row */}
+                <div style={{
+                  padding: '0.625rem 1rem',
+                  borderTop: chatMessages.length > 0 ? '1px solid #F3F4F6' : 'none',
+                  display: 'flex', gap: '0.5rem', alignItems: 'flex-end',
+                }}>
                   <textarea
                     ref={textareaRef}
-                    value={journalText}
-                    onChange={(e) => setJournalText(e.target.value)}
-                    placeholder="Or just start typing freely..."
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleChatSend();
+                      }
+                    }}
+                    placeholder="Share what's on your mind… (Enter to send)"
+                    rows={2}
                     style={{
-                      width: '100%', minHeight: '110px', border: 'none', outline: 'none',
-                      fontSize: '1rem', lineHeight: 1.7, color: '#1F2937',
-                      resize: 'none', fontFamily: 'inherit',
-                      backgroundColor: 'transparent',
+                      flex: 1, border: '1px solid #E5E7EB', borderRadius: '12px',
+                      padding: '0.625rem 0.875rem', fontSize: '0.9375rem', lineHeight: 1.6,
+                      color: '#1F2937', resize: 'none', fontFamily: 'inherit',
+                      outline: 'none', backgroundColor: 'white',
                     }}
                   />
+                  <button
+                    onClick={handleChatSend}
+                    disabled={!chatInput.trim() || chatLoading}
+                    style={{
+                      width: '40px', height: '40px', borderRadius: '12px', border: 'none',
+                      background: chatInput.trim() && !chatLoading
+                        ? 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)'
+                        : '#E5E7EB',
+                      cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}
+                  >
+                    <Send size={16} color={chatInput.trim() && !chatLoading ? 'white' : '#9CA3AF'} />
+                  </button>
                 </div>
 
-                {/* Footer */}
-                <div style={{
-                  padding: '0.75rem 1.5rem',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  borderTop: '1px solid #F3F4F6', backgroundColor: '#FAFBFC',
-                }}>
-                  <AnimatePresence mode="wait">
-                    <motion.span
-                      key={getEncouragement(wordCount).text}
-                      initial={{ opacity: 0, x: -4 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      style={{ fontSize: '0.8125rem', color: getEncouragement(wordCount).color }}
+                {/* Action buttons — shown after first message */}
+                {chatMessages.some(m => m.role === 'user') && (
+                  <div style={{
+                    padding: '0.5rem 1rem 0.875rem',
+                    display: 'flex', gap: '0.625rem',
+                  }}>
+                    <button
+                      onClick={handleFinishEntry}
+                      disabled={chatLoading}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '0.375rem',
+                        padding: '0.5rem 1rem', borderRadius: '10px', border: 'none',
+                        background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
+                        color: 'white', fontSize: '0.8125rem', fontWeight: 600,
+                        cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit',
+                        opacity: chatLoading ? 0.6 : 1,
+                      }}
                     >
-                      {getEncouragement(wordCount).text || `${wordCount} words`}
-                    </motion.span>
-                  </AnimatePresence>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <Button
-                      size="sm"
-                      onClick={handleAnalyze}
-                      disabled={!journalText.trim()}
-                    >
-                      <Sparkles size={14} /> Analyze
-                      <Send size={14} />
-                    </Button>
+                      <CheckCircle2 size={14} /> Finish Entry
+                    </button>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Error banner */}
