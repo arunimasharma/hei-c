@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef, type ReactNode } from 'react';
-import type { UserProfile, EmotionEntry, CareerEvent, MicroAction, AppSettings, JournalReflection, Goal } from '../types';
+import type { UserProfile, EmotionEntry, CareerEvent, MicroAction, AppSettings, JournalReflection, Goal, TasteExercise } from '../types';
 import type { LLMActionState } from '../types/llm';
 import { generateSuggestedActions } from '../utils/actionGenerator';
 import { useClaudeActions } from '../hooks/useClaudeActions';
@@ -12,6 +12,7 @@ interface AppState {
   actions: MicroAction[];
   reflections: JournalReflection[];
   goals: Goal[];
+  tasteExercises: TasteExercise[];
   settings: AppSettings;
 }
 
@@ -33,6 +34,7 @@ type Action =
   | { type: 'ADD_GOAL'; payload: Goal }
   | { type: 'UPDATE_GOAL'; payload: { id: string; updates: Partial<Goal> } }
   | { type: 'DELETE_GOAL'; payload: string }
+  | { type: 'ADD_TASTE_EXERCISE'; payload: TasteExercise }
   | { type: 'LOAD_STATE'; payload: Partial<AppState> }
   | { type: 'CLEAR_ALL' };
 
@@ -49,6 +51,7 @@ const initialState: AppState = {
   actions: [],
   reflections: [],
   goals: [],
+  tasteExercises: [],
   settings: defaultSettings,
 };
 
@@ -116,6 +119,8 @@ function appReducer(state: AppState, action: Action): AppState {
       };
     case 'DELETE_GOAL':
       return { ...state, goals: state.goals.filter(g => g.id !== action.payload) };
+    case 'ADD_TASTE_EXERCISE':
+      return { ...state, tasteExercises: [action.payload, ...state.tasteExercises] };
     case 'UPDATE_SETTINGS':
       return { ...state, settings: { ...state.settings, ...action.payload } };
     case 'LOAD_STATE':
@@ -147,6 +152,7 @@ interface AppContextType {
   addGoal: (goal: Goal) => void;
   updateGoal: (id: string, updates: Partial<Goal>) => void;
   deleteGoal: (id: string) => void;
+  addTasteExercise: (exercise: TasteExercise) => void;
   clearAllData: () => void;
   logout: () => void;
   llmState: LLMActionState;
@@ -161,6 +167,7 @@ const STORAGE_KEYS = {
   actions: 'eicos_actions',
   reflections: 'eicos_reflections',
   goals: 'eicos_goals',
+  tasteExercises: 'eicos_taste_exercises',
   settings: 'eicos_settings',
 };
 
@@ -173,6 +180,7 @@ function loadFromStorage(): Partial<AppState> {
     const actions = localStorage.getItem(STORAGE_KEYS.actions);
     const reflections = localStorage.getItem(STORAGE_KEYS.reflections);
     const goals = localStorage.getItem(STORAGE_KEYS.goals);
+    const tasteExercises = localStorage.getItem(STORAGE_KEYS.tasteExercises);
     const settings = localStorage.getItem(STORAGE_KEYS.settings);
 
     return {
@@ -182,6 +190,7 @@ function loadFromStorage(): Partial<AppState> {
       actions: actions ? JSON.parse(actions) : [],
       reflections: reflections ? JSON.parse(reflections) : [],
       goals: goals ? JSON.parse(goals) : [],
+      tasteExercises: tasteExercises ? JSON.parse(tasteExercises) : [],
       settings: settings ? { ...defaultSettings, ...JSON.parse(settings) } : defaultSettings,
     };
   } catch {
@@ -198,6 +207,7 @@ function saveToStorage(state: AppState) {
     localStorage.setItem(STORAGE_KEYS.actions, JSON.stringify(state.actions));
     localStorage.setItem(STORAGE_KEYS.reflections, JSON.stringify(state.reflections));
     localStorage.setItem(STORAGE_KEYS.goals, JSON.stringify(state.goals));
+    localStorage.setItem(STORAGE_KEYS.tasteExercises, JSON.stringify(state.tasteExercises));
     localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(state.settings));
   } catch {
     console.warn('Failed to save data to localStorage');
@@ -277,6 +287,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addReflection = (reflection: JournalReflection) => dispatch({ type: 'ADD_REFLECTION', payload: reflection });
   const updateReflection = (id: string, updates: Partial<JournalReflection>) => dispatch({ type: 'UPDATE_REFLECTION', payload: { id, updates } });
+  const addTasteExercise = (exercise: TasteExercise) => dispatch({ type: 'ADD_TASTE_EXERCISE', payload: exercise });
 
   const addGoal = (goal: Goal) => dispatch({ type: 'ADD_GOAL', payload: goal });
   const updateGoal = (id: string, updates: Partial<Goal>) => dispatch({ type: 'UPDATE_GOAL', payload: { id, updates } });
@@ -318,6 +329,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addGoal,
       updateGoal,
       deleteGoal,
+      addTasteExercise,
       clearAllData,
       logout,
       llmState,

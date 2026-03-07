@@ -5,13 +5,15 @@ import {
   Sparkles, Send, ChevronDown, ChevronUp, AlertTriangle,
   CheckCircle2, Edit3, ArrowRight, BookOpen,
   Zap, Clock, SkipForward, RefreshCw, TrendingUp,
+  FlaskConical, Star, ChevronRight,
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Button from '../components/common/Button';
 import { useApp } from '../context/AppContext';
 import { useJournalAnalysis } from '../hooks/useJournalAnalysis';
+import { useTasteExercise } from '../hooks/useTasteExercise';
 import { EMOTIONS, getEmotionColor, getEmotionIcon } from '../utils/emotionHelpers';
-import type { EmotionType, EventType, JournalReflection } from '../types';
+import type { EmotionType, EventType, JournalReflection, TasteExercise } from '../types';
 
 const EVENT_TYPES: EventType[] = [
   'Meeting', 'Project', 'Review', 'Interview', 'Promotion',
@@ -60,8 +62,9 @@ const CATEGORY_COLORS: Record<string, string> = {
 type Phase = 'writing' | 'analyzing' | 'review' | 'success';
 
 export default function HomePage() {
-  const { state, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, dismissAction, refreshActions, llmState } = useApp();
+  const { state, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, dismissAction, refreshActions, addTasteExercise, llmState } = useApp();
   const { analysisState, analyzeJournal, resetAnalysis } = useJournalAnalysis();
+  const te = useTasteExercise();
 
   const [phase, setPhase] = useState<Phase>('writing');
   const [journalText, setJournalText] = useState('');
@@ -69,6 +72,11 @@ export default function HomePage() {
   const [questionIdx, setQuestionIdx] = useState(0);
   const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(new Set());
   const [skipConfirmId, setSkipConfirmId] = useState<string | null>(null);
+
+  // Taste Exercise local state
+  const [teOpen, setTeOpen] = useState(false);
+  const [teProductInput, setTeProductInput] = useState('');
+  const [teCurrentAnswer, setTeCurrentAnswer] = useState('');
 
   const toggleReasoning = (id: string) => {
     setExpandedReasoning(prev => {
@@ -207,6 +215,50 @@ export default function HomePage() {
     setPhase('writing');
   };
 
+  const handleTeStart = () => {
+    if (!teProductInput.trim()) return;
+    te.startExercise(teProductInput);
+    setTeCurrentAnswer('');
+  };
+
+  const handleTeNext = () => {
+    if (te.nextQuestion(teCurrentAnswer)) {
+      setTeCurrentAnswer('');
+    }
+  };
+
+  const handleTeFinish = async () => {
+    const data = await te.finishEntry(teCurrentAnswer);
+    if (data) setTeCurrentAnswer('');
+  };
+
+  const handleTeSave = () => {
+    if (!te.result) return;
+    const exercise: TasteExercise = {
+      id: `te_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      userId: state.user?.id || 'anonymous',
+      productName: te.productName,
+      answers: te.answers,
+      summary: te.result.summary,
+      score: te.result.score,
+      scoreComment: te.result.scoreComment,
+      timestamp: new Date().toISOString(),
+      status: 'completed',
+    };
+    addTasteExercise(exercise);
+    te.reset();
+    setTeOpen(false);
+    setTeProductInput('');
+    setTeCurrentAnswer('');
+  };
+
+  const handleTeClose = () => {
+    te.reset();
+    setTeOpen(false);
+    setTeProductInput('');
+    setTeCurrentAnswer('');
+  };
+
   const sentimentBadge = (sentiment: string) => {
     const map: Record<string, { bg: string; color: string; label: string }> = {
       positive: { bg: '#F0FDF4', color: '#16A34A', label: 'Positive' },
@@ -251,6 +303,330 @@ export default function HomePage() {
               transition={{ duration: 0.3 }}
               style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
             >
+              {/* ---- PRODUCT TASTE EXERCISE ---- */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FlaskConical size={15} color="#7C3AED" />
+                    <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
+                      Product Taste Exercise
+                    </h3>
+                  </div>
+                  {teOpen && te.tePhase !== 'analyzing' && (
+                    <button
+                      onClick={handleTeClose}
+                      style={{ fontSize: '0.8125rem', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                      Close
+                    </button>
+                  )}
+                </div>
+
+                <AnimatePresence mode="wait">
+                  {/* CTA when closed */}
+                  {!teOpen && (
+                    <motion.div
+                      key="te-cta"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      style={{
+                        padding: '1rem 1.25rem', borderRadius: '14px', backgroundColor: 'white',
+                        border: '1px dashed rgba(124,58,237,0.3)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem',
+                      }}
+                    >
+                      <div>
+                        <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#1F2937', margin: '0 0 0.25rem' }}>
+                          Sharpen your product instincts
+                        </p>
+                        <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
+                          Pick any product and answer 6 questions. Get an AI score on your product taste.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setTeOpen(true)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '0.375rem',
+                          padding: '0.5rem 1rem', borderRadius: '10px', border: 'none',
+                          background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)',
+                          color: 'white', fontSize: '0.8125rem', fontWeight: 600,
+                          cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit',
+                        }}
+                      >
+                        Start <ChevronRight size={14} />
+                      </button>
+                    </motion.div>
+                  )}
+
+                  {/* Product select */}
+                  {teOpen && te.tePhase === 'product-select' && (
+                    <motion.div
+                      key="te-product-select"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      style={{
+                        backgroundColor: 'white', borderRadius: '16px',
+                        border: '1px solid rgba(124,58,237,0.15)', padding: '1.25rem',
+                      }}
+                    >
+                      <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: '0 0 0.875rem' }}>
+                        What product or service would you like to analyze?
+                      </p>
+                      <div style={{ display: 'flex', gap: '0.625rem' }}>
+                        <input
+                          type="text"
+                          value={teProductInput}
+                          onChange={e => setTeProductInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleTeStart(); }}
+                          placeholder="e.g. Notion, Spotify, Apple Maps..."
+                          autoFocus
+                          style={{
+                            flex: 1, padding: '0.625rem 0.875rem', borderRadius: '10px',
+                            border: '1px solid #E5E7EB', fontSize: '0.875rem', fontFamily: 'inherit',
+                            color: '#1F2937', outline: 'none',
+                          }}
+                        />
+                        <button
+                          onClick={handleTeStart}
+                          disabled={!teProductInput.trim()}
+                          style={{
+                            padding: '0.625rem 1.125rem', borderRadius: '10px', border: 'none',
+                            background: teProductInput.trim()
+                              ? 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)'
+                              : '#E5E7EB',
+                            color: teProductInput.trim() ? 'white' : '#9CA3AF',
+                            fontSize: '0.875rem', fontWeight: 600, cursor: teProductInput.trim() ? 'pointer' : 'default',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          Start
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Questioning */}
+                  {teOpen && te.tePhase === 'questioning' && (
+                    <motion.div
+                      key="te-questioning"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      style={{
+                        backgroundColor: 'white', borderRadius: '16px',
+                        border: '1px solid rgba(124,58,237,0.15)', overflow: 'hidden',
+                      }}
+                    >
+                      {/* Progress header */}
+                      <div style={{
+                        padding: '0.875rem 1.25rem',
+                        background: 'linear-gradient(135deg, rgba(124,58,237,0.05) 0%, rgba(139,126,200,0.08) 100%)',
+                        borderBottom: '1px solid rgba(124,58,237,0.1)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <FlaskConical size={14} color="#7C3AED" />
+                          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#7C3AED' }}>
+                            {te.productName}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
+                          Q{te.questionIdx + 1} of {te.totalQuestions}
+                        </span>
+                      </div>
+                      {/* Progress bar */}
+                      <div style={{ height: '2px', backgroundColor: '#F3F4F6' }}>
+                        <div style={{
+                          height: '100%', backgroundColor: '#7C3AED',
+                          width: `${((te.questionIdx) / te.totalQuestions) * 100}%`,
+                          transition: 'width 0.3s ease',
+                        }} />
+                      </div>
+                      {/* Question & answer */}
+                      <div style={{ padding: '1.25rem' }}>
+                        <p style={{ fontSize: '0.9375rem', fontWeight: 500, color: '#1F2937', lineHeight: 1.5, margin: '0 0 0.875rem' }}>
+                          {te.currentQuestion}
+                        </p>
+                        <textarea
+                          value={teCurrentAnswer}
+                          onChange={e => setTeCurrentAnswer(e.target.value)}
+                          placeholder="Type your answer here..."
+                          autoFocus
+                          style={{
+                            width: '100%', minHeight: '90px', border: '1px solid #E5E7EB',
+                            borderRadius: '10px', padding: '0.75rem', fontSize: '0.875rem',
+                            lineHeight: 1.6, color: '#1F2937', resize: 'none',
+                            fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+                          }}
+                        />
+                        {te.error && (
+                          <p style={{ fontSize: '0.8125rem', color: '#DC2626', margin: '0.5rem 0 0' }}>
+                            {te.error}
+                          </p>
+                        )}
+                        <div style={{ display: 'flex', gap: '0.625rem', marginTop: '0.875rem', justifyContent: 'flex-end' }}>
+                          {!te.isLastQuestion && (
+                            <button
+                              onClick={handleTeNext}
+                              disabled={!teCurrentAnswer.trim()}
+                              style={{
+                                padding: '0.5rem 1.125rem', borderRadius: '10px', border: 'none',
+                                backgroundColor: teCurrentAnswer.trim() ? '#7C3AED' : '#E5E7EB',
+                                color: teCurrentAnswer.trim() ? 'white' : '#9CA3AF',
+                                fontSize: '0.875rem', fontWeight: 600,
+                                cursor: teCurrentAnswer.trim() ? 'pointer' : 'default',
+                                fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '0.375rem',
+                              }}
+                            >
+                              Next <ChevronRight size={14} />
+                            </button>
+                          )}
+                          <button
+                            onClick={handleTeFinish}
+                            disabled={te.answers.length === 0 && !teCurrentAnswer.trim()}
+                            style={{
+                              padding: '0.5rem 1.125rem', borderRadius: '10px', border: 'none',
+                              backgroundColor: (te.answers.length > 0 || teCurrentAnswer.trim())
+                                ? 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)'
+                                : '#E5E7EB',
+                              background: (te.answers.length > 0 || teCurrentAnswer.trim())
+                                ? 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)'
+                                : '#E5E7EB',
+                              color: (te.answers.length > 0 || teCurrentAnswer.trim()) ? 'white' : '#9CA3AF',
+                              fontSize: '0.875rem', fontWeight: 600,
+                              cursor: (te.answers.length > 0 || teCurrentAnswer.trim()) ? 'pointer' : 'default',
+                              fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '0.375rem',
+                            }}
+                          >
+                            <Sparkles size={14} /> Analyze
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Analyzing */}
+                  {teOpen && te.tePhase === 'analyzing' && (
+                    <motion.div
+                      key="te-analyzing"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      style={{
+                        backgroundColor: 'white', borderRadius: '16px',
+                        border: '1px solid rgba(124,58,237,0.15)', padding: '2rem 1.25rem',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }}
+                        style={{
+                          width: '48px', height: '48px', borderRadius: '14px',
+                          background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          margin: '0 auto 1rem',
+                        }}
+                      >
+                        <FlaskConical size={22} color="white" />
+                      </motion.div>
+                      <p style={{ fontWeight: 600, color: '#1F2937', margin: '0 0 0.25rem' }}>
+                        Analyzing your product take...
+                      </p>
+                      <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
+                        Evaluating depth, specificity, and product intuition
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {/* Done */}
+                  {teOpen && te.tePhase === 'done' && te.result && (
+                    <motion.div
+                      key="te-done"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      style={{
+                        backgroundColor: 'white', borderRadius: '16px',
+                        border: '1px solid rgba(124,58,237,0.2)', overflow: 'hidden',
+                      }}
+                    >
+                      {/* Score header */}
+                      <div style={{
+                        padding: '1.25rem',
+                        background: 'linear-gradient(135deg, rgba(124,58,237,0.06) 0%, rgba(139,126,200,0.1) 100%)',
+                        borderBottom: '1px solid rgba(124,58,237,0.1)',
+                        display: 'flex', alignItems: 'center', gap: '1rem',
+                      }}>
+                        <div style={{
+                          width: '52px', height: '52px', borderRadius: '14px', flexShrink: 0,
+                          background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <span style={{ fontSize: '1.375rem', fontWeight: 800, color: 'white' }}>
+                            {te.result.score}
+                          </span>
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.25rem' }}>
+                            {Array.from({ length: 5 }, (_, i) => (
+                              <Star
+                                key={i}
+                                size={14}
+                                fill={i < te.result!.score ? '#7C3AED' : 'none'}
+                                color={i < te.result!.score ? '#7C3AED' : '#E5E7EB'}
+                              />
+                            ))}
+                          </div>
+                          <p style={{ fontSize: '0.8125rem', color: '#6B7280', margin: 0 }}>
+                            {te.result.scoreComment}
+                          </p>
+                        </div>
+                      </div>
+                      {/* Summary */}
+                      <div style={{ padding: '1.25rem' }}>
+                        <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#7C3AED', margin: '0 0 0.625rem' }}>
+                          {te.productName} — Analysis
+                        </p>
+                        <p style={{
+                          fontSize: '0.875rem', color: '#374151', lineHeight: 1.65,
+                          margin: '0 0 1.125rem', whiteSpace: 'pre-wrap',
+                        }}>
+                          {te.result.summary}
+                        </p>
+                        <div style={{ display: 'flex', gap: '0.625rem', paddingTop: '0.875rem', borderTop: '1px solid #F3F4F6' }}>
+                          <button
+                            onClick={handleTeSave}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '0.375rem',
+                              padding: '0.625rem 1.125rem', borderRadius: '10px', border: 'none',
+                              background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)',
+                              color: 'white', fontSize: '0.875rem', fontWeight: 600,
+                              cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                          >
+                            <CheckCircle2 size={15} /> Save
+                          </button>
+                          <button
+                            onClick={() => { te.reset(); setTeProductInput(''); setTeCurrentAnswer(''); }}
+                            style={{
+                              padding: '0.625rem 1.125rem', borderRadius: '10px',
+                              border: '1px solid #E5E7EB', backgroundColor: 'white',
+                              color: '#6B7280', fontSize: '0.875rem', fontWeight: 500,
+                              cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                          >
+                            Try Another
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               {/* Journal Card */}
               <div style={{
                 backgroundColor: 'white', borderRadius: '20px', border: '1px solid #E5E7EB',
@@ -771,6 +1147,7 @@ export default function HomePage() {
                   </div>
                 );
               })()}
+
             </motion.div>
           )}
 

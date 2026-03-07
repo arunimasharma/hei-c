@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router';
 import { motion } from 'motion/react';
-import { Calendar, BarChart3, BookOpen } from 'lucide-react';
+import { Calendar, BarChart3, BookOpen, FlaskConical, Star } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
@@ -283,6 +283,8 @@ export default function InsightsPage() {
         {/* Reflections View */}
         {view === 'reflections' && (() => {
           const approved = state.reflections.filter(r => r.status === 'approved');
+          const tasteExercises = state.tasteExercises ?? [];
+          const totalCount = approved.length + tasteExercises.length;
           return (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -290,83 +292,168 @@ export default function InsightsPage() {
               transition={{ duration: 0.2 }}
               style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
-                  All Reflections ({approved.length})
-                </h2>
-              </div>
+              <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
+                All Reflections ({totalCount})
+              </h2>
 
-              {approved.length > 0 ? (
-                approved.map(r => (
-                  <div key={r.id} style={{
-                    backgroundColor: 'white', borderRadius: '16px',
-                    border: '1px solid #F3F4F6', padding: '1.25rem',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
-                      <div style={{
-                        width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0,
-                        backgroundColor: r.approvedEmotion
-                          ? `${getEmotionColor(r.approvedEmotion)}18`
-                          : '#F3F4F6',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '1.25rem',
-                      }}>
-                        {r.approvedEmotion ? getEmotionIcon(r.approvedEmotion) : '📝'}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.375rem', flexWrap: 'wrap' }}>
-                          {r.approvedEmotion && (
-                            <span style={{
-                              fontSize: '0.75rem', fontWeight: 600,
-                              color: getEmotionColor(r.approvedEmotion),
-                              backgroundColor: `${getEmotionColor(r.approvedEmotion)}15`,
-                              padding: '0.125rem 0.5rem', borderRadius: '999px',
-                            }}>
-                              {r.approvedEmotion}
-                              {r.approvedIntensity ? ` · ${r.approvedIntensity}/10` : ''}
-                            </span>
-                          )}
-                          {r.approvedEventType && (
-                            <span style={{
-                              fontSize: '0.75rem', color: '#6B7280',
-                              backgroundColor: '#F3F4F6',
-                              padding: '0.125rem 0.5rem', borderRadius: '999px',
-                            }}>
-                              {r.approvedEventType}
-                              {r.approvedCompanyName ? ` at ${r.approvedCompanyName}` : ''}
-                            </span>
-                          )}
-                          <span style={{ fontSize: '0.75rem', color: '#9CA3AF', marginLeft: 'auto' }}>
-                            {new Date(r.timestamp).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                        </div>
-                        <p style={{
-                          fontSize: '0.875rem', color: '#374151', lineHeight: 1.6,
-                          margin: 0, whiteSpace: 'pre-wrap',
+              {/* Taste Exercises */}
+              {tasteExercises.length > 0 && (
+                <>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>
+                    Taste Exercises ({tasteExercises.length})
+                  </p>
+                  {tasteExercises.map((te, idx) => (
+                    <div key={te.id} style={{
+                      backgroundColor: 'white', borderRadius: '16px',
+                      border: '1px solid rgba(124,58,237,0.15)', padding: '1.25rem',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
+                        <div style={{
+                          width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0,
+                          background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
-                          {r.text}
-                        </p>
-                        {r.detectedSummary && (
-                          <p style={{
-                            fontSize: '0.8125rem', color: '#7C3AED', fontStyle: 'italic',
-                            marginTop: '0.625rem', lineHeight: 1.5,
-                            padding: '0.5rem 0.75rem', borderRadius: '8px',
-                            backgroundColor: 'rgba(139,92,246,0.06)',
-                          }}>
-                            "{r.detectedSummary}"
+                          <FlaskConical size={18} color="white" />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.375rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '0.75rem', fontWeight: 600, color: '#7C3AED',
+                              backgroundColor: 'rgba(124,58,237,0.08)',
+                              padding: '0.125rem 0.5rem', borderRadius: '999px',
+                            }}>
+                              Taste Exercise #{tasteExercises.length - idx}
+                            </span>
+                            <span style={{
+                              fontSize: '0.75rem', fontWeight: 600, color: 'white',
+                              backgroundColor: '#7C3AED',
+                              padding: '0.125rem 0.5rem', borderRadius: '999px',
+                              display: 'flex', alignItems: 'center', gap: '0.25rem',
+                            }}>
+                              <Star size={10} fill="white" />
+                              {te.score}/5
+                            </span>
+                            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>
+                              {te.productName}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: '#9CA3AF', marginLeft: 'auto' }}>
+                              {new Date(te.timestamp).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.8125rem', color: '#6B7280', margin: '0 0 0.75rem' }}>
+                            {te.scoreComment}
                           </p>
-                        )}
+                          <p style={{
+                            fontSize: '0.875rem', color: '#374151', lineHeight: 1.6,
+                            margin: 0, whiteSpace: 'pre-wrap',
+                          }}>
+                            {te.summary}
+                          </p>
+                          {te.answers.length > 0 && (
+                            <details style={{ marginTop: '0.875rem' }}>
+                              <summary style={{ fontSize: '0.8125rem', color: '#7C3AED', cursor: 'pointer', fontWeight: 500 }}>
+                                View answers ({te.answers.length} question{te.answers.length > 1 ? 's' : ''})
+                              </summary>
+                              <div style={{ marginTop: '0.625rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {te.answers.map((a, i) => (
+                                  <div key={i} style={{ paddingLeft: '0.75rem', borderLeft: '2px solid rgba(124,58,237,0.2)' }}>
+                                    <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#7C3AED', margin: '0 0 0.25rem' }}>Q{i + 1}</p>
+                                    <p style={{ fontSize: '0.8125rem', color: '#6B7280', margin: '0 0 0.25rem', fontStyle: 'italic' }}>{a.question}</p>
+                                    <p style={{ fontSize: '0.875rem', color: '#374151', margin: 0 }}>{a.answer}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
-              ) : (
+                  ))}
+                </>
+              )}
+
+              {/* Journal Reflections */}
+              {approved.length > 0 && (
+                <>
+                  {tasteExercises.length > 0 && (
+                    <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>
+                      Journal Reflections ({approved.length})
+                    </p>
+                  )}
+                  {approved.map(r => (
+                    <div key={r.id} style={{
+                      backgroundColor: 'white', borderRadius: '16px',
+                      border: '1px solid #F3F4F6', padding: '1.25rem',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
+                        <div style={{
+                          width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0,
+                          backgroundColor: r.approvedEmotion
+                            ? `${getEmotionColor(r.approvedEmotion)}18`
+                            : '#F3F4F6',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '1.25rem',
+                        }}>
+                          {r.approvedEmotion ? getEmotionIcon(r.approvedEmotion) : '📝'}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.375rem', flexWrap: 'wrap' }}>
+                            {r.approvedEmotion && (
+                              <span style={{
+                                fontSize: '0.75rem', fontWeight: 600,
+                                color: getEmotionColor(r.approvedEmotion),
+                                backgroundColor: `${getEmotionColor(r.approvedEmotion)}15`,
+                                padding: '0.125rem 0.5rem', borderRadius: '999px',
+                              }}>
+                                {r.approvedEmotion}
+                                {r.approvedIntensity ? ` · ${r.approvedIntensity}/10` : ''}
+                              </span>
+                            )}
+                            {r.approvedEventType && (
+                              <span style={{
+                                fontSize: '0.75rem', color: '#6B7280',
+                                backgroundColor: '#F3F4F6',
+                                padding: '0.125rem 0.5rem', borderRadius: '999px',
+                              }}>
+                                {r.approvedEventType}
+                                {r.approvedCompanyName ? ` at ${r.approvedCompanyName}` : ''}
+                              </span>
+                            )}
+                            <span style={{ fontSize: '0.75rem', color: '#9CA3AF', marginLeft: 'auto' }}>
+                              {new Date(r.timestamp).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </div>
+                          <p style={{
+                            fontSize: '0.875rem', color: '#374151', lineHeight: 1.6,
+                            margin: 0, whiteSpace: 'pre-wrap',
+                          }}>
+                            {r.text}
+                          </p>
+                          {r.detectedSummary && (
+                            <p style={{
+                              fontSize: '0.8125rem', color: '#7C3AED', fontStyle: 'italic',
+                              marginTop: '0.625rem', lineHeight: 1.5,
+                              padding: '0.5rem 0.75rem', borderRadius: '8px',
+                              backgroundColor: 'rgba(139,92,246,0.06)',
+                            }}>
+                              "{r.detectedSummary}"
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {totalCount === 0 && (
                 <Card>
                   <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
                     <BookOpen size={36} style={{ color: '#D1D5DB', margin: '0 auto 0.75rem', display: 'block' }} />
                     <p style={{ color: '#6B7280', margin: 0 }}>
-                      No reflections yet. Write your first one on the home page.
+                      No reflections yet. Start journaling or try a Product Taste Exercise on the home page.
                     </p>
                   </div>
                 </Card>

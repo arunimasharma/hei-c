@@ -116,3 +116,20 @@ export interface EmotionalIntelligenceGoal {
 export type Goal = CareerGoal | EmotionalIntelligenceGoal;
 
 export type GoalType = 'career' | 'emotional-intelligence';
+
+export interface TasteExerciseAnswer {
+  question: string;
+  answer: string;
+}
+
+export interface TasteExercise {
+  id: string;
+  userId: string;
+  productName: string;
+  answers: TasteExerciseAnswer[];
+  summary: string;
+  score: number;
+  scoreComment: string;
+  timestamp: string;
+  status: 'completed';
+}

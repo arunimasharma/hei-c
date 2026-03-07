@@ -63,6 +63,37 @@ export function parseActionResponse(raw: ClaudeResponse): string {
   return textBlock.text;
 }
 
+export async function callClaudeMessages(
+  systemPrompt: string,
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  maxTokens = 400,
+): Promise<ClaudeResponse> {
+  const body = {
+    model: MODEL,
+    max_tokens: maxTokens,
+    system: systemPrompt,
+    messages,
+  };
+
+  const response = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => 'Unknown error');
+    const isRetryable = response.status === 429 || response.status >= 500;
+    throw new ClaudeApiError(
+      `Claude API error ${response.status}: ${errorBody}`,
+      response.status,
+      isRetryable,
+    );
+  }
+
+  return response.json() as Promise<ClaudeResponse>;
+}
+
 export async function testConnection(): Promise<{ ok: boolean; statusCode?: number }> {
   try {
     const body: ClaudeRequest = {
