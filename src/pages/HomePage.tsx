@@ -59,14 +59,6 @@ const STARTER_PROMPTS = [
   { label: 'Team tension', text: "There's tension with someone at work — ", icon: '🤝' },
 ];
 
-function getEncouragement(words: number): { text: string; color: string } {
-  if (words === 0) return { text: '', color: '#9CA3AF' };
-  if (words < 5) return { text: 'Just getting started...', color: '#9CA3AF' };
-  if (words < 15) return { text: 'Nice, keep going', color: '#6B7280' };
-  if (words < 30) return { text: "You're doing great", color: '#7C3AED' };
-  if (words < 50) return { text: "That's a solid reflection", color: '#8B5CF6' };
-  return { text: 'Ready when you are', color: '#10B981' };
-}
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Stress Relief': '#34D399',
@@ -139,7 +131,6 @@ export default function HomePage() {
   const today = new Date();
   const greeting = today.getHours() < 12 ? 'Good morning' : today.getHours() < 17 ? 'Good afternoon' : 'Good evening';
   const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  const wordCount = journalText.trim() ? journalText.trim().split(/\s+/).length : 0;
 
   const handleAnalyze = async (textOverride?: string) => {
     const text = textOverride ?? journalText;
