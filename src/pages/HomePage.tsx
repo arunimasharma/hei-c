@@ -144,14 +144,14 @@ export default function HomePage() {
     // Save draft reflection
     const draft: JournalReflection = {
       id,
-      text: journalText,
+      text,
       timestamp: new Date().toISOString(),
       status: 'draft',
     };
     addReflection(draft);
 
     const approvedReflections = state.reflections.filter(r => r.status === 'approved');
-    const result = await analyzeJournal(journalText, state.user, approvedReflections);
+    const result = await analyzeJournal(text, state.user, approvedReflections);
 
     if (result) {
       // Use manual overrides if provided, otherwise use detected

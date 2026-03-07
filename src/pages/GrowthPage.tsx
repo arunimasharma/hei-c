@@ -60,7 +60,7 @@ export default function GrowthPage() {
   const { state, addGoal, updateGoal, deleteGoal, completeAction, skipAction, dismissAction, refreshActions, llmState } = useApp();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<(Goal & { type: 'career' | 'emotional-intelligence' }) | undefined>();
-  const [activeTab, setActiveTab] = useState<'goals' | 'actions'>('goals');
+  const [activeTab, setActiveTab] = useState<'actions' | 'goals'>('actions');
   const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(new Set());
   const [skipConfirmId, setSkipConfirmId] = useState<string | null>(null);
 
@@ -78,7 +78,6 @@ export default function GrowthPage() {
     });
   };
 
-  // Goals data
   const goalsWithType = useMemo(() => {
     return goals.map((goal) => {
       const type: 'career' | 'emotional-intelligence' = 'focusArea' in goal ? 'emotional-intelligence' : 'career';
@@ -88,12 +87,9 @@ export default function GrowthPage() {
 
   const activeGoals = goalsWithType.filter((g) => g.status === 'active');
   const completedGoals = goalsWithType.filter((g) => g.status === 'completed');
-
-  // Actions data
   const activeActions = actions.filter((a) => !a.completed && !a.skipped);
   const completedActions = actions.filter((a) => a.completed);
 
-  // Stats
   const stats = {
     activeGoals: activeGoals.length,
     completedGoals: completedGoals.length,
@@ -134,7 +130,7 @@ export default function GrowthPage() {
               Your Growth
             </h1>
             <p style={{ color: '#6B7280', marginTop: '0.25rem', margin: 0 }}>
-              Set goals and track actionable steps
+              Track actions and set goals for your development
             </p>
           </div>
 
@@ -149,18 +145,18 @@ export default function GrowthPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
           <Card>
             <p style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 600, margin: 0, textTransform: 'uppercase' }}>
-              Active Goals
+              Pending Actions
             </p>
-            <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#10B981', margin: '0.5rem 0 0 0' }}>
-              {stats.activeGoals}
+            <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#EF4444', margin: '0.5rem 0 0 0' }}>
+              {stats.pendingActions}
             </p>
           </Card>
           <Card>
             <p style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 600, margin: 0, textTransform: 'uppercase' }}>
-              Completed
+              Active Goals
             </p>
-            <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#4A5FC1', margin: '0.5rem 0 0 0' }}>
-              {stats.completedGoals}
+            <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#10B981', margin: '0.5rem 0 0 0' }}>
+              {stats.activeGoals}
             </p>
           </Card>
           <Card>
@@ -173,24 +169,16 @@ export default function GrowthPage() {
           </Card>
           <Card>
             <p style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 600, margin: 0, textTransform: 'uppercase' }}>
-              Pending Actions
+              Completed
             </p>
-            <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#EF4444', margin: '0.5rem 0 0 0' }}>
-              {stats.pendingActions}
+            <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#4A5FC1', margin: '0.5rem 0 0 0' }}>
+              {stats.completedActions}
             </p>
           </Card>
         </div>
 
-        {/* Tab Toggle */}
+        {/* Tab Toggle — Actions first, Goals second */}
         <div style={{ display: 'flex', gap: '0.5rem', backgroundColor: '#F3F4F6', padding: '0.5rem', borderRadius: '10px', width: 'fit-content' }}>
-          <Button
-            size="sm"
-            variant={activeTab === 'goals' ? 'primary' : 'ghost'}
-            onClick={() => setActiveTab('goals')}
-            style={{ cursor: 'pointer' }}
-          >
-            <Target size={16} /> Goals
-          </Button>
           <Button
             size="sm"
             variant={activeTab === 'actions' ? 'primary' : 'ghost'}
@@ -199,73 +187,15 @@ export default function GrowthPage() {
           >
             <Zap size={16} /> Actions
           </Button>
-        </div>
-
-        {/* Goals Content */}
-        {activeTab === 'goals' && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+          <Button
+            size="sm"
+            variant={activeTab === 'goals' ? 'primary' : 'ghost'}
+            onClick={() => setActiveTab('goals')}
+            style={{ cursor: 'pointer' }}
           >
-            {/* Active Goals */}
-            <div>
-              <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', marginBottom: '1rem', margin: 0 }}>
-                Active Goals ({stats.activeGoals})
-              </h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {activeGoals.length > 0 ? (
-                  activeGoals.map((goal, idx) => (
-                    <motion.div
-                      key={goal.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                    >
-                      <GoalCard
-                        goal={goal}
-                        onEdit={handleEdit}
-                        onDelete={deleteGoal}
-                        onUpdateProgress={(id, progress) => updateGoal(id, { progress })}
-                        onUpdateStatus={(id, status) => updateGoal(id, { status })}
-                      />
-                    </motion.div>
-                  ))
-                ) : (
-                  <Card>
-                    <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-                      <p style={{ color: '#6B7280', margin: 0 }}>
-                        No active goals. Create one to get started!
-                      </p>
-                    </div>
-                  </Card>
-                )}
-              </div>
-            </div>
-
-            {/* Completed Goals */}
-            {completedGoals.length > 0 && (
-              <div>
-                <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#6B7280', marginBottom: '1rem', margin: 0 }}>
-                  Completed Goals ({stats.completedGoals})
-                </h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', opacity: 0.7 }}>
-                  {completedGoals.map((goal) => (
-                    <GoalCard
-                      key={goal.id}
-                      goal={goal}
-                      onEdit={handleEdit}
-                      onDelete={deleteGoal}
-                      onUpdateProgress={(id, progress) => updateGoal(id, { progress })}
-                      onUpdateStatus={(id, status) => updateGoal(id, { status })}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
+            <Target size={16} /> Goals
+          </Button>
+        </div>
 
         {/* Actions Content */}
         {activeTab === 'actions' && (
@@ -275,7 +205,6 @@ export default function GrowthPage() {
             transition={{ duration: 0.2 }}
             style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
           >
-            {/* Stale notice */}
             {stale && (
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -301,7 +230,6 @@ export default function GrowthPage() {
               </div>
             )}
 
-            {/* AI insight banner */}
             {llmState.insight && llmState.isAiGenerated && (
               <div style={{
                 display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
@@ -316,7 +244,6 @@ export default function GrowthPage() {
               </div>
             )}
 
-            {/* Fallback notice */}
             {llmState.error && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '0.625rem',
@@ -330,7 +257,6 @@ export default function GrowthPage() {
               </div>
             )}
 
-            {/* Emotion context chips */}
             {weekSummary && weekSummary.top.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Tailored to:</span>
@@ -346,7 +272,6 @@ export default function GrowthPage() {
               </div>
             )}
 
-            {/* Active Actions header with refresh */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
@@ -376,7 +301,6 @@ export default function GrowthPage() {
               </button>
             </div>
 
-            {/* Loading state */}
             {llmState.isLoading && (
               <Card>
                 <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
@@ -387,7 +311,6 @@ export default function GrowthPage() {
               </Card>
             )}
 
-            {/* Action cards */}
             {!llmState.isLoading && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {activeActions.length > 0 ? (
@@ -477,7 +400,6 @@ export default function GrowthPage() {
                           </div>
                         </div>
 
-                        {/* Skip confirmation panel */}
                         <AnimatePresence>
                           {skipConfirmId === action.id && (
                             <motion.div
@@ -489,50 +411,29 @@ export default function GrowthPage() {
                             >
                               <div style={{
                                 padding: '0.625rem 1.125rem 0.75rem',
-                                borderTop: '1px solid #FDE68A',
-                                backgroundColor: '#FFFBEB',
+                                borderTop: '1px solid #FDE68A', backgroundColor: '#FFFBEB',
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
                               }}>
-                                <p style={{ fontSize: '0.8125rem', color: '#92400E', margin: 0 }}>
-                                  Skip this action?
-                                </p>
+                                <p style={{ fontSize: '0.8125rem', color: '#92400E', margin: 0 }}>Skip this action?</p>
                                 <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
                                   <button
                                     onClick={() => { dismissAction(action.id); setSkipConfirmId(null); }}
-                                    style={{
-                                      fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem',
-                                      borderRadius: '6px', border: '1px solid #FCD34D',
-                                      backgroundColor: 'white', color: '#92400E', cursor: 'pointer', fontFamily: 'inherit',
-                                    }}
-                                  >
-                                    Skip for now
-                                  </button>
+                                    style={{ fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem', borderRadius: '6px', border: '1px solid #FCD34D', backgroundColor: 'white', color: '#92400E', cursor: 'pointer', fontFamily: 'inherit' }}
+                                  >Skip for now</button>
                                   <button
                                     onClick={() => { skipAction(action.id); setSkipConfirmId(null); }}
-                                    style={{
-                                      fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem',
-                                      borderRadius: '6px', border: 'none',
-                                      backgroundColor: '#F59E0B', color: 'white', cursor: 'pointer', fontFamily: 'inherit',
-                                    }}
-                                  >
-                                    Skip forever
-                                  </button>
+                                    style={{ fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem', borderRadius: '6px', border: 'none', backgroundColor: '#F59E0B', color: 'white', cursor: 'pointer', fontFamily: 'inherit' }}
+                                  >Skip forever</button>
                                   <button
                                     onClick={() => setSkipConfirmId(null)}
-                                    style={{
-                                      fontSize: '0.75rem', color: '#9CA3AF', background: 'none',
-                                      border: 'none', cursor: 'pointer', padding: '0.3rem 0.25rem', fontFamily: 'inherit',
-                                    }}
-                                  >
-                                    Cancel
-                                  </button>
+                                    style={{ fontSize: '0.75rem', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: '0.3rem 0.25rem', fontFamily: 'inherit' }}
+                                  >Cancel</button>
                                 </div>
                               </div>
                             </motion.div>
                           )}
                         </AnimatePresence>
 
-                        {/* Reasoning panel */}
                         <AnimatePresence>
                           {isExpanded && action.reasoning && (
                             <motion.div
@@ -587,7 +488,6 @@ export default function GrowthPage() {
               </div>
             )}
 
-            {/* Completed Actions */}
             {completedActions.length > 0 && (
               <div>
                 <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#6B7280', margin: '0.5rem 0 0.75rem' }}>
@@ -624,9 +524,72 @@ export default function GrowthPage() {
             )}
           </motion.div>
         )}
+
+        {/* Goals Content */}
+        {activeTab === 'goals' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+          >
+            <div>
+              <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', marginBottom: '1rem', margin: 0 }}>
+                Active Goals ({stats.activeGoals})
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {activeGoals.length > 0 ? (
+                  activeGoals.map((goal, idx) => (
+                    <motion.div
+                      key={goal.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                    >
+                      <GoalCard
+                        goal={goal}
+                        onEdit={handleEdit}
+                        onDelete={deleteGoal}
+                        onUpdateProgress={(id, progress) => updateGoal(id, { progress })}
+                        onUpdateStatus={(id, status) => updateGoal(id, { status })}
+                      />
+                    </motion.div>
+                  ))
+                ) : (
+                  <Card>
+                    <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                      <p style={{ color: '#6B7280', margin: 0 }}>
+                        No active goals. Create one to get started!
+                      </p>
+                    </div>
+                  </Card>
+                )}
+              </div>
+            </div>
+
+            {completedGoals.length > 0 && (
+              <div>
+                <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#6B7280', marginBottom: '1rem', margin: 0 }}>
+                  Completed Goals ({stats.completedGoals})
+                </h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', opacity: 0.7 }}>
+                  {completedGoals.map((goal) => (
+                    <GoalCard
+                      key={goal.id}
+                      goal={goal}
+                      onEdit={handleEdit}
+                      onDelete={deleteGoal}
+                      onUpdateProgress={(id, progress) => updateGoal(id, { progress })}
+                      onUpdateStatus={(id, status) => updateGoal(id, { status })}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
       </div>
 
-      {/* Goal Form Modal */}
       <GoalForm
         isOpen={isFormOpen}
         onClose={handleCloseForm}
