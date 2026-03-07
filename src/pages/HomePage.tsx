@@ -1014,47 +1014,6 @@ export default function HomePage() {
                 )}
               </div>
 
-              {/* Recent reflections */}
-              {state.reflections.filter(r => r.status === 'approved').length > 0 && (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                    <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#6B7280', margin: 0 }}>
-                      Recent Reflections
-                    </h3>
-                    <Link
-                      to="/insights?tab=reflections"
-                      style={{ fontSize: '0.8125rem', color: '#4A5FC1', textDecoration: 'none', fontWeight: 500 }}
-                    >
-                      View all ({state.reflections.filter(r => r.status === 'approved').length})
-                    </Link>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {state.reflections.filter(r => r.status === 'approved').slice(0, 3).map(r => (
-                      <div key={r.id} style={{
-                        backgroundColor: 'white', borderRadius: '12px', border: '1px solid #F3F4F6',
-                        padding: '0.875rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
-                      }}>
-                        <span style={{ fontSize: '1.25rem' }}>
-                          {r.approvedEmotion ? getEmotionIcon(r.approvedEmotion) : '📝'}
-                        </span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{
-                            fontSize: '0.8125rem', color: '#1F2937', overflow: 'hidden',
-                            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          }}>
-                            {r.text}
-                          </p>
-                          <p style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '0.125rem' }}>
-                            {new Date(r.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            {r.approvedEmotion && ` — ${r.approvedEmotion}`}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* ---- MICRO-ACTIONS ---- */}
               {(() => {
                 const activeActions = state.actions.filter(a => !a.completed && !a.skipped);
@@ -1126,19 +1085,25 @@ export default function HomePage() {
                                 border: '1px solid #F3F4F6', overflow: 'hidden',
                               }}
                             >
-                              <div style={{ padding: '0.875rem 1rem', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+                              <div style={{ padding: '0.875rem 1rem', display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
                                 <div style={{
                                   width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
                                   backgroundColor: `${catColor}18`,
                                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  marginTop: '0.125rem',
                                 }}>
                                   <Zap size={16} style={{ color: catColor }} />
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
+                                  <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: '0 0 0.25rem' }}>
                                     {action.title}
                                   </p>
-                                  <div style={{ display: 'flex', gap: '0.625rem', marginTop: '0.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                  {action.description && (
+                                    <p style={{ fontSize: '0.8125rem', color: '#4B5563', lineHeight: 1.5, margin: '0 0 0.375rem' }}>
+                                      {action.description}
+                                    </p>
+                                  )}
+                                  <div style={{ display: 'flex', gap: '0.625rem', marginTop: '0.125rem', alignItems: 'center', flexWrap: 'wrap' }}>
                                     <span style={{
                                       fontSize: '0.6875rem', fontWeight: 500, padding: '0.125rem 0.5rem',
                                       borderRadius: '999px', backgroundColor: `${catColor}15`, color: catColor,
@@ -1297,6 +1262,48 @@ export default function HomePage() {
                   </div>
                 );
               })()}
+
+              {/* Recent reflections */}
+              {state.reflections.filter(r => r.status === 'approved').length > 0 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                    <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#6B7280', margin: 0 }}>
+                      Recent Reflections
+                    </h3>
+                    <Link
+                      to="/insights?tab=reflections"
+                      style={{ fontSize: '0.8125rem', color: '#4A5FC1', textDecoration: 'none', fontWeight: 500 }}
+                    >
+                      View all ({state.reflections.filter(r => r.status === 'approved').length})
+                    </Link>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {state.reflections.filter(r => r.status === 'approved').slice(0, 3).map(r => (
+                      <div key={r.id} style={{
+                        backgroundColor: 'white', borderRadius: '12px', border: '1px solid #F3F4F6',
+                        padding: '0.875rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
+                      }}>
+                        <span style={{ fontSize: '1.25rem' }}>
+                          {r.approvedEmotion ? getEmotionIcon(r.approvedEmotion) : '📝'}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{
+                            fontSize: '0.8125rem', color: '#1F2937', overflow: 'hidden',
+                            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
+                            {r.text}
+                          </p>
+                          <p style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '0.125rem' }}>
+                            {new Date(r.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            {r.approvedEmotion && ` — ${r.approvedEmotion}`}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
 
             </motion.div>
           )}

@@ -220,9 +220,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const saved = loadFromStorage();
-    if (saved.user || (saved.emotions && saved.emotions.length > 0)) {
-      dispatch({ type: 'LOAD_STATE', payload: saved });
+    if (!saved.user) {
+      saved.user = {
+        id: `user_${Date.now()}`,
+        name: 'Friend',
+        role: '',
+        onboardingComplete: false,
+        createdAt: new Date().toISOString(),
+        checkInFrequency: 'as-needed',
+      };
     }
+    dispatch({ type: 'LOAD_STATE', payload: saved });
   }, []);
 
   useEffect(() => {

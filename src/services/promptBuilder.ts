@@ -24,7 +24,7 @@ You MUST respond with ONLY valid JSON matching this exact schema (no markdown, n
   "actions": [
     {
       "title": "string (concise, max 60 chars)",
-      "description": "string (1-2 sentences, specific instructions)",
+      "description": "string (1-2 sentences: describe exactly what to do, what a completed version looks like, and when to do it — write it as a natural, encouraging instruction that feels immediately doable)",
       "category": "one of the CATEGORIES above",
       "estimatedMinutes": number (1-15),
       "reasoning": "string (1 sentence: why this action for this person right now)",

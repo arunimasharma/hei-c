@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
-import { AppProvider, useApp } from './context/AppContext';
+import { AppProvider } from './context/AppContext';
 import OnboardingPage from './pages/OnboardingPage';
 import HomePage from './pages/HomePage';
 import InsightsPage from './pages/InsightsPage';
@@ -7,26 +7,13 @@ import GrowthPage from './pages/GrowthPage';
 import AccountPage from './pages/AccountPage';
 
 function AppRoutes() {
-  const { state } = useApp();
-  const isOnboarded = state.user?.onboardingComplete;
-
   return (
     <Routes>
-      <Route path="/onboarding" element={
-        isOnboarded ? <Navigate to="/" replace /> : <OnboardingPage />
-      } />
-      <Route path="/" element={
-        isOnboarded ? <HomePage /> : <Navigate to="/onboarding" replace />
-      } />
-      <Route path="/insights" element={
-        isOnboarded ? <InsightsPage /> : <Navigate to="/onboarding" replace />
-      } />
-      <Route path="/growth" element={
-        isOnboarded ? <GrowthPage /> : <Navigate to="/onboarding" replace />
-      } />
-      <Route path="/account" element={
-        isOnboarded ? <AccountPage /> : <Navigate to="/onboarding" replace />
-      } />
+      <Route path="/onboarding" element={<OnboardingPage />} />
+      <Route path="/" element={<HomePage />} />
+      <Route path="/insights" element={<InsightsPage />} />
+      <Route path="/growth" element={<GrowthPage />} />
+      <Route path="/account" element={<AccountPage />} />
       {/* Legacy routes - redirect to new consolidated routes */}
       <Route path="/dashboard" element={<Navigate to="/insights" replace />} />
       <Route path="/timeline" element={<Navigate to="/insights" replace />} />
