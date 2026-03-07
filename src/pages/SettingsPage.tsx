@@ -11,16 +11,14 @@ import { generateDemoEmotions, generateDemoEvents, generateDemoActions } from '.
 import { testConnection } from '../services/claudeApi';
 
 export default function SettingsPage() {
-  const { state, updateUserProfile, clearAllData, dispatch, saveApiKey, clearApiKey, getApiKey } = useApp();
+  const { state, updateUserProfile, clearAllData, dispatch } = useApp();
   const navigate = useNavigate();
   const [name, setName] = useState(state.user?.name || '');
   const [role, setRole] = useState(state.user?.role || '');
   const [showClearModal, setShowClearModal] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // AI config state
-  const [apiKey, setApiKey] = useState(getApiKey());
-  const [keySaved, setKeySaved] = useState(false);
+  // AI connection test state
   const [testing, setTesting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'success' | 'failed' | null>(null);
 
@@ -30,26 +28,12 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleSaveApiKey = () => {
-    saveApiKey(apiKey.trim());
-    setKeySaved(true);
-    setConnectionStatus(null);
-    setTimeout(() => setKeySaved(false), 2000);
-  };
-
   const handleTestConnection = async () => {
     setTesting(true);
     setConnectionStatus(null);
-    const ok = await testConnection(apiKey.trim());
-    setConnectionStatus(ok ? 'success' : 'failed');
+    const result = await testConnection();
+    setConnectionStatus(result.ok ? 'success' : 'failed');
     setTesting(false);
-  };
-
-  const handleClearApiKey = () => {
-    clearApiKey();
-    setApiKey('');
-    setConnectionStatus(null);
-    setKeySaved(false);
   };
 
   const handleExportData = () => {
@@ -144,30 +128,15 @@ export default function SettingsPage() {
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <Input
-              label="Anthropic API Key"
-              type="password"
-              value={apiKey}
-              onChange={e => { setApiKey(e.target.value); setConnectionStatus(null); setKeySaved(false); }}
-              placeholder="sk-ant-..."
-              helperText="Your key is stored only in this browser and sent directly to Anthropic's API."
-            />
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
-              <Button onClick={handleSaveApiKey} disabled={!apiKey.trim()}>Save Key</Button>
               <Button
                 variant="outline"
                 onClick={handleTestConnection}
-                disabled={!apiKey.trim() || testing}
+                disabled={testing}
               >
-                {testing ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Testing...</> : 'Test Connection'}
+                {testing ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Testing...</> : 'Test AI Connection'}
               </Button>
-              {apiKey && (
-                <Button variant="ghost" onClick={handleClearApiKey}>Clear</Button>
-              )}
             </div>
-            {keySaved && (
-              <p style={{ fontSize: '0.875rem', color: '#16A34A', fontWeight: 500 }}>Key saved!</p>
-            )}
             {connectionStatus === 'success' && (
               <div style={{
                 padding: '0.75rem 1rem', borderRadius: '12px',
@@ -193,9 +162,9 @@ export default function SettingsPage() {
               backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
             }}>
               <p style={{ fontSize: '0.75rem', color: '#92400E', lineHeight: 1.5 }}>
-                Without an API key, actions are generated from a built-in library.
-                With a key, Claude analyzes your emotional patterns, career events,
-                and action history to create personalized recommendations that improve over time.
+                The Anthropic API key is configured server-side. When connected, Claude analyzes
+                your emotional patterns, career events, and goals to create personalized
+                action recommendations that improve over time.
               </p>
             </div>
           </div>
