@@ -1,4 +1,4 @@
-# HEI-C is your Emotionally Intelligent Career Operating System
+# HELLO-EQ (previously, hei-c) is your Emotionally Intelligent Career Operating System aka an enotional intelligence & product taste gym for your career, with private AI journaling and shareable insights built for the AI era of work.
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
