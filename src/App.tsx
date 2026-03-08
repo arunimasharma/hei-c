@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { AppProvider } from './context/AppContext';
+import { Analytics } from '@vercel/analytics/react';
 import OnboardingPage from './pages/OnboardingPage';
 import HomePage from './pages/HomePage';
 import InsightsPage from './pages/InsightsPage';
@@ -34,6 +35,7 @@ export default function App() {
       <AppProvider>
         <AppRoutes />
       </AppProvider>
+      <Analytics />
     </BrowserRouter>
   );
 }
