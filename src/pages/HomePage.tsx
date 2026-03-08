@@ -85,9 +85,11 @@ export default function HomePage() {
   const [skipConfirmId, setSkipConfirmId] = useState<string | null>(null);
   const [actionsExpanded, setActionsExpanded] = useState(false);
   const [reflectionsExpanded, setReflectionsExpanded] = useState(false);
+  const [teHistoryExpanded, setTeHistoryExpanded] = useState(false);
 
   // LinkedIn post generator state
   const [linkedInModalOpen, setLinkedInModalOpen] = useState(false);
+  const [linkedInPostType, setLinkedInPostType] = useState<'emotional' | 'product' | 'mixed'>('mixed');
   const [linkedInPrompt, setLinkedInPrompt] = useState('');
   const [linkedInPost, setLinkedInPost] = useState('');
   const [linkedInLoading, setLinkedInLoading] = useState(false);
@@ -335,19 +337,50 @@ export default function HomePage() {
     setLinkedInLoading(true);
     setLinkedInPost('');
 
-    const recentReflections = state.reflections
+    const reflectionsContext = state.reflections
       .filter(r => r.status === 'approved')
       .slice(-5)
       .map(r => `Reflection (${new Date(r.timestamp).toLocaleDateString()}): ${r.text}\nEmotion: ${r.approvedEmotion || r.detectedEmotion || 'unknown'}, Intensity: ${r.approvedIntensity || r.detectedIntensity || '?'}/10\nSummary: ${r.detectedSummary || ''}`)
       .join('\n\n');
 
-    const recentTasteExercises = state.tasteExercises
+    const tasteContext = state.tasteExercises
       .filter(te => te.status === 'completed')
       .slice(-3)
       .map(te => `Product: ${te.productName}\nInsights: ${te.answers.map((a, i) => `Q${i + 1}: ${a}`).join(' | ')}\nSummary: ${te.summary || ''}\nScore: ${te.score}/10 — ${te.scoreComment || ''}`)
       .join('\n\n');
 
-    const systemPrompt = `You are a master LinkedIn ghostwriter who crafts posts that go viral among product managers, founders, and builders. You write in an authentic, emotionally resonant first-person voice.
+    const BASE_RULES = `Rules:
+- Every paragraph is 1–3 lines max. No walls of text.
+- Use line breaks generously for readability.
+- Avoid corporate jargon, buzzwords, and clichés.
+- Never use hashtags or emojis.
+- Write exactly as the person would — raw, real, reflective.
+- Total post length: 200–350 words.`;
+
+    const systemPrompts: Record<typeof linkedInPostType, string> = {
+      emotional: `You are a master LinkedIn ghostwriter for people navigating the messy emotional reality of work. You write in a raw, vulnerable, first-person voice that makes readers feel deeply seen.
+
+Your posts follow this format:
+1. HOOK (1–2 lines): A relatable struggle, quiet truth, or moment most people feel but rarely say out loud. No "I" as the first word.
+2. THE MOMENT (2–3 short paragraphs): A specific, personal story. What happened. How it felt. The turning point.
+3. WHAT IT TAUGHT ME (1–2 paragraphs): The insight — about work, growth, self-awareness, or what it means to show up.
+4. THE FEELING UNDERNEATH (1 paragraph): Name the emotion directly. Makes readers feel understood.
+5. CTA (1 line): A question that opens a real conversation.
+
+${BASE_RULES}`,
+
+      product: `You are a master LinkedIn ghostwriter for sharp product thinkers — PMs, founders, designers. You write opinionated, specific posts about product craft that make people think differently.
+
+Your posts follow this format:
+1. HOOK (1–2 lines): A surprising observation, a contrarian take, or a product truth that stops the scroll. No "I" as the first word.
+2. THE OBSERVATION (2–3 short paragraphs): What you noticed. A specific product, interaction, or design decision. Concrete details.
+3. THE INSIGHT (1–2 paragraphs): What it reveals about how great products are built. Opinionated and specific — no generic advice.
+4. WHY IT MATTERS (1 paragraph): The principle behind the observation. What separates good from great.
+5. CTA (1 line): A question that invites other product thinkers to weigh in.
+
+${BASE_RULES}`,
+
+      mixed: `You are a master LinkedIn ghostwriter who crafts posts that go viral among product managers, founders, and builders. You write in an authentic, emotionally resonant first-person voice.
 
 Your posts follow the format of the highest-performing LinkedIn posts:
 1. HOOK (1–2 lines): Bold, scroll-stopping opening. A surprising insight, a relatable struggle, or a provocative truth. No "I" as the first word.
@@ -356,27 +389,33 @@ Your posts follow the format of the highest-performing LinkedIn posts:
 4. EMOTIONAL TRUTH (1 paragraph): The real feeling underneath. Makes readers feel seen.
 5. CTA (1 line): A question that invites genuine conversation.
 
-Rules:
-- Every paragraph is 1–3 lines max. No walls of text.
-- Use line breaks generously for readability.
-- Avoid corporate jargon, buzzwords, and clichés.
-- Never use hashtags or emojis.
-- Write exactly as the person would — raw, real, reflective.
-- Total post length: 200–350 words.`;
+${BASE_RULES}`,
+    };
 
-    const userMessage = `Here is my recent emotional journey at work and product thinking. Use these to craft a LinkedIn post that is both deeply human and product-insightful.
+    const contextByType = {
+      emotional: reflectionsContext ? `## My recent work reflections:\n${reflectionsContext}` : '',
+      product: tasteContext ? `## My recent product taste exercises:\n${tasteContext}` : '',
+      mixed: [
+        reflectionsContext ? `## My recent work reflections:\n${reflectionsContext}` : '',
+        tasteContext ? `## My recent product taste exercises:\n${tasteContext}` : '',
+      ].filter(Boolean).join('\n\n'),
+    };
 
-${recentReflections ? `## My recent work reflections:\n${recentReflections}` : ''}
+    const instructionByType = {
+      emotional: 'Write a LinkedIn post that draws entirely from these emotional work reflections. Make it deeply personal, vulnerable, and relatable — like something only I could have written.',
+      product: 'Write a LinkedIn post that draws entirely from these product taste observations. Make it sharp, opinionated, and specific — the kind of post that makes product thinkers nod and share.',
+      mixed: 'Write a LinkedIn post that weaves together the emotional depth from my reflections and the product sharpness from my taste exercises. Make it feel authentic — like something only I could have written.',
+    };
 
-${recentTasteExercises ? `## My recent product taste exercises:\n${recentTasteExercises}` : ''}
+    const userMessage = `${contextByType[linkedInPostType]}
 
-${linkedInPrompt ? `## Additional context / angle I want to explore:\n${linkedInPrompt}` : ''}
+${linkedInPrompt ? `## Additional direction:\n${linkedInPrompt}` : ''}
 
-Write a LinkedIn post that weaves together the emotional depth from my reflections and the product sharpness from my taste exercises. Make it feel authentic — like something only I could have written.`;
+${instructionByType[linkedInPostType]}`;
 
     try {
       const response = await callClaudeMessages(
-        systemPrompt,
+        systemPrompts[linkedInPostType],
         [{ role: 'user', content: userMessage }],
         600,
       );
@@ -1151,6 +1190,93 @@ Write a LinkedIn post that weaves together the emotional depth from my reflectio
                 </div>
               )}
 
+              {/* ── PAST TASTE EXERCISES ── */}
+              {state.tasteExercises.length > 0 && (
+                <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6', overflow: 'hidden' }}>
+                  <button
+                    onClick={() => setTeHistoryExpanded(!teHistoryExpanded)}
+                    style={{
+                      width: '100%', padding: '0.875rem 1.25rem',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      border: 'none', backgroundColor: 'transparent', cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <FlaskConical size={14} color="#7C3AED" />
+                      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>Past Taste Exercises</span>
+                      <span style={{
+                        fontSize: '0.6875rem', fontWeight: 600, padding: '0.125rem 0.5rem',
+                        borderRadius: '999px', backgroundColor: '#F5F3FF', color: '#7C3AED',
+                      }}>
+                        {state.tasteExercises.length}
+                      </span>
+                    </div>
+                    {teHistoryExpanded ? <ChevronUp size={15} color="#D1D5DB" /> : <ChevronDown size={15} color="#D1D5DB" />}
+                  </button>
+
+                  <AnimatePresence>
+                    {teHistoryExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <div style={{ padding: '0 0.75rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                          {state.tasteExercises.slice(0, 3).map(ex => {
+                            const scoreColor = ex.score >= 8 ? '#16A34A' : ex.score >= 6 ? '#D97706' : '#DC2626';
+                            const scoreBg = ex.score >= 8 ? '#F0FDF4' : ex.score >= 6 ? '#FFFBEB' : '#FEF2F2';
+                            return (
+                              <div key={ex.id} style={{
+                                backgroundColor: '#FAFAFA', borderRadius: '10px', border: '1px solid #F3F4F6',
+                                padding: '0.625rem 0.875rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
+                              }}>
+                                <span style={{ fontSize: '1.125rem' }}>🧪</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <p style={{
+                                    fontSize: '0.8125rem', color: '#374151', fontWeight: 600,
+                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0,
+                                  }}>
+                                    {ex.productName}
+                                  </p>
+                                  <p style={{
+                                    fontSize: '0.6875rem', color: '#9CA3AF', margin: '0.125rem 0 0',
+                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                  }}>
+                                    {new Date(ex.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    {ex.scoreComment ? ` · ${ex.scoreComment}` : ''}
+                                  </p>
+                                </div>
+                                <span style={{
+                                  fontSize: '0.75rem', fontWeight: 700, padding: '0.1875rem 0.5rem',
+                                  borderRadius: '6px', backgroundColor: scoreBg, color: scoreColor,
+                                  whiteSpace: 'nowrap', flexShrink: 0,
+                                }}>
+                                  {ex.score}/10
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {state.tasteExercises.length > 3 && (
+                            <Link
+                              to="/insights"
+                              style={{
+                                fontSize: '0.8125rem', color: '#7C3AED', textDecoration: 'none',
+                                fontWeight: 500, padding: '0.375rem 0.875rem',
+                              }}
+                            >
+                              View all ({state.tasteExercises.length}) →
+                            </Link>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
               {/* ── PRODUCT TASTE EXERCISE (secondary, at bottom) ── */}
               <div style={{
                 backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6',
@@ -1596,24 +1722,82 @@ Write a LinkedIn post that weaves together the emotional depth from my reflectio
                       style={{
                         backgroundColor: 'white', borderRadius: '20px',
                         boxShadow: '0 24px 64px rgba(0,0,0,0.15)',
-                        padding: '1.75rem', width: '100%', maxWidth: '28rem',
+                        padding: '1.75rem', width: '100%', maxWidth: '30rem',
                       }}
                     >
                       <div style={{ marginBottom: '1.25rem' }}>
-                        <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#1F2937', margin: '0 0 0.375rem' }}>
-                          Give it a direction
+                        <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#1F2937', margin: '0 0 0.25rem' }}>
+                          What kind of post?
                         </h3>
                         <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
-                          Anything specific you want this post to explore, feel, or say? Totally optional.
+                          Pick a focus — we'll pull the right context from your history.
                         </p>
                       </div>
 
+                      {/* Post type selector */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                        {([
+                          {
+                            type: 'emotional' as const,
+                            icon: '💭',
+                            label: 'Emotionally reflective',
+                            sub: 'Draws from your journal entries',
+                          },
+                          {
+                            type: 'product' as const,
+                            icon: '🧪',
+                            label: 'Product taste',
+                            sub: 'Draws from your taste exercises',
+                          },
+                          {
+                            type: 'mixed' as const,
+                            icon: '✨',
+                            label: 'Best of both',
+                            sub: 'Weaves reflections + product insights',
+                          },
+                        ] as const).map(opt => {
+                          const selected = linkedInPostType === opt.type;
+                          return (
+                            <button
+                              key={opt.type}
+                              onClick={() => setLinkedInPostType(opt.type)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: '0.875rem',
+                                padding: '0.75rem 1rem', borderRadius: '12px', border: 'none',
+                                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                                backgroundColor: selected ? '#EFF6FF' : '#F9FAFB',
+                                outline: selected ? '2px solid #0A66C2' : '2px solid transparent',
+                                transition: 'all 0.12s',
+                              }}
+                            >
+                              <span style={{ fontSize: '1.25rem', flexShrink: 0 }}>{opt.icon}</span>
+                              <div>
+                                <p style={{ fontSize: '0.875rem', fontWeight: 600, color: selected ? '#0A66C2' : '#1F2937', margin: 0 }}>
+                                  {opt.label}
+                                </p>
+                                <p style={{ fontSize: '0.75rem', color: '#9CA3AF', margin: 0 }}>
+                                  {opt.sub}
+                                </p>
+                              </div>
+                              {selected && (
+                                <span style={{ marginLeft: 'auto', color: '#0A66C2', flexShrink: 0 }}>
+                                  <Check size={15} />
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Optional direction */}
+                      <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#6B7280', display: 'block', marginBottom: '0.375rem' }}>
+                        Any specific angle? <span style={{ color: '#D1D5DB', fontWeight: 400 }}>optional</span>
+                      </label>
                       <textarea
                         value={linkedInPrompt}
                         onChange={e => setLinkedInPrompt(e.target.value)}
-                        placeholder="e.g. the onboarding friction I noticed in Notion, how anxiety before a presentation taught me something about product clarity..."
-                        rows={3}
-                        autoFocus
+                        placeholder="e.g. the onboarding friction I noticed in Notion, how anxiety before a big presentation taught me something..."
+                        rows={2}
                         style={{
                           width: '100%', padding: '0.75rem 1rem', borderRadius: '12px',
                           border: '1.5px solid #E5E7EB', fontSize: '0.875rem', fontFamily: 'inherit',
@@ -1630,32 +1814,19 @@ Write a LinkedIn post that weaves together the emotional depth from my reflectio
                         }}
                       />
 
-                      <div style={{ display: 'flex', gap: '0.625rem', marginTop: '1rem' }}>
-                        <button
-                          onClick={() => { setLinkedInModalOpen(false); handleGenerateLinkedIn(); }}
-                          style={{
-                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                            padding: '0.6875rem 1rem', borderRadius: '10px', border: 'none',
-                            background: 'linear-gradient(135deg, #0A66C2 0%, #1e88e5 100%)',
-                            color: 'white', fontSize: '0.875rem', fontWeight: 600,
-                            cursor: 'pointer', fontFamily: 'inherit',
-                          }}
-                        >
-                          <Sparkles size={14} /> Generate post
-                        </button>
-                        <button
-                          onClick={() => { setLinkedInPrompt(''); setLinkedInModalOpen(false); handleGenerateLinkedIn(); }}
-                          style={{
-                            padding: '0.6875rem 1rem', borderRadius: '10px',
-                            border: '1px solid #E5E7EB', background: 'white',
-                            color: '#6B7280', fontSize: '0.875rem', fontWeight: 500,
-                            cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-                          }}
-                        >
-                          Skip &amp; generate
-                        </button>
-                      </div>
-                      <p style={{ fontSize: '0.75rem', color: '#D1D5DB', textAlign: 'center', marginTop: '0.75rem', marginBottom: 0 }}>
+                      <button
+                        onClick={() => { setLinkedInModalOpen(false); handleGenerateLinkedIn(); }}
+                        style={{
+                          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                          padding: '0.75rem 1rem', borderRadius: '10px', border: 'none', marginTop: '1rem',
+                          background: 'linear-gradient(135deg, #0A66C2 0%, #1e88e5 100%)',
+                          color: 'white', fontSize: '0.875rem', fontWeight: 600,
+                          cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >
+                        <Sparkles size={14} /> Generate post
+                      </button>
+                      <p style={{ fontSize: '0.75rem', color: '#D1D5DB', textAlign: 'center', marginTop: '0.625rem', marginBottom: 0 }}>
                         ⌘ Enter to generate
                       </p>
                     </motion.div>
