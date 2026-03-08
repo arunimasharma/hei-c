@@ -1112,7 +1112,7 @@ export default function HomePage() {
                 {!teOpen && (
                   <div style={{ padding: '0 1.25rem 1rem' }}>
                     <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
-                      Pick any product and answer 6 questions. Get an AI score on your product taste.
+                      Pick any product, reflect on 6 key dimensions, and build the instincts that separate great product thinkers from the rest.
                     </p>
                   </div>
                 )}
