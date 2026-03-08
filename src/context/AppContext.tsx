@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useReducer, useEffect, useCallback, useRef, useState, type ReactNode } from 'react';
 import type { UserProfile, EmotionEntry, CareerEvent, MicroAction, AppSettings, JournalReflection, Goal, TasteExercise } from '../types';
 import type { LLMActionState } from '../types/llm';
 import { generateSuggestedActions } from '../utils/actionGenerator';
@@ -14,6 +14,8 @@ interface AppState {
   goals: Goal[];
   tasteExercises: TasteExercise[];
   settings: AppSettings;
+  aiUsageCount: number;
+  aiUnlocked: boolean;
 }
 
 type Action =
@@ -36,6 +38,8 @@ type Action =
   | { type: 'DELETE_GOAL'; payload: string }
   | { type: 'ADD_TASTE_EXERCISE'; payload: TasteExercise }
   | { type: 'LOAD_STATE'; payload: Partial<AppState> }
+  | { type: 'INCREMENT_AI_USAGE' }
+  | { type: 'UNLOCK_AI' }
   | { type: 'CLEAR_ALL' };
 
 const defaultSettings: AppSettings = {
@@ -53,6 +57,8 @@ const initialState: AppState = {
   goals: [],
   tasteExercises: [],
   settings: defaultSettings,
+  aiUsageCount: 0,
+  aiUnlocked: false,
 };
 
 function appReducer(state: AppState, action: Action): AppState {
@@ -125,6 +131,10 @@ function appReducer(state: AppState, action: Action): AppState {
       return { ...state, settings: { ...state.settings, ...action.payload } };
     case 'LOAD_STATE':
       return { ...state, ...action.payload };
+    case 'INCREMENT_AI_USAGE':
+      return { ...state, aiUsageCount: state.aiUsageCount + 1 };
+    case 'UNLOCK_AI':
+      return { ...state, aiUnlocked: true };
     case 'CLEAR_ALL':
       return initialState;
     default:
@@ -156,6 +166,9 @@ interface AppContextType {
   clearAllData: () => void;
   logout: () => void;
   llmState: LLMActionState;
+  aiGated: boolean;
+  checkAndUseAi: () => boolean;
+  unlockAi: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -169,6 +182,8 @@ const STORAGE_KEYS = {
   goals: 'eicos_goals',
   tasteExercises: 'eicos_taste_exercises',
   settings: 'eicos_settings',
+  aiUsageCount: 'eicos_ai_usage_count',
+  aiUnlocked: 'eicos_ai_unlocked',
 };
 
 
@@ -183,6 +198,9 @@ function loadFromStorage(): Partial<AppState> {
     const tasteExercises = localStorage.getItem(STORAGE_KEYS.tasteExercises);
     const settings = localStorage.getItem(STORAGE_KEYS.settings);
 
+    const aiUsageCount = localStorage.getItem(STORAGE_KEYS.aiUsageCount);
+    const aiUnlocked = localStorage.getItem(STORAGE_KEYS.aiUnlocked);
+
     return {
       user: user ? JSON.parse(user) : null,
       emotions: emotions ? JSON.parse(emotions) : [],
@@ -192,6 +210,8 @@ function loadFromStorage(): Partial<AppState> {
       goals: goals ? JSON.parse(goals) : [],
       tasteExercises: tasteExercises ? JSON.parse(tasteExercises) : [],
       settings: settings ? { ...defaultSettings, ...JSON.parse(settings) } : defaultSettings,
+      aiUsageCount: aiUsageCount ? JSON.parse(aiUsageCount) : 0,
+      aiUnlocked: aiUnlocked ? JSON.parse(aiUnlocked) : false,
     };
   } catch {
     console.warn('Failed to load data from localStorage');
@@ -209,6 +229,8 @@ function saveToStorage(state: AppState) {
     localStorage.setItem(STORAGE_KEYS.goals, JSON.stringify(state.goals));
     localStorage.setItem(STORAGE_KEYS.tasteExercises, JSON.stringify(state.tasteExercises));
     localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(state.settings));
+    localStorage.setItem(STORAGE_KEYS.aiUsageCount, JSON.stringify(state.aiUsageCount));
+    localStorage.setItem(STORAGE_KEYS.aiUnlocked, JSON.stringify(state.aiUnlocked));
   } catch {
     console.warn('Failed to save data to localStorage');
   }
@@ -217,6 +239,33 @@ function saveToStorage(state: AppState) {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const { llmState, generateActions } = useClaudeActions();
+  const [aiGated, setAiGated] = useState(false);
+
+  // Read/write localStorage directly so the check is always synchronous and
+  // never stale regardless of React's async re-render cycle.
+  const checkAndUseAi = useCallback((): boolean => {
+    const isUnlocked = localStorage.getItem(STORAGE_KEYS.aiUnlocked);
+    if (isUnlocked === 'true') return true;
+
+    const raw = localStorage.getItem(STORAGE_KEYS.aiUsageCount);
+    const currentCount = raw ? (JSON.parse(raw) as number) : 0;
+
+    if (currentCount < 5) {
+      const next = currentCount + 1;
+      localStorage.setItem(STORAGE_KEYS.aiUsageCount, JSON.stringify(next));
+      dispatch({ type: 'INCREMENT_AI_USAGE' });
+      return true;
+    }
+
+    setAiGated(true);
+    return false;
+  }, []); // no deps — reads live from localStorage every call
+
+  const unlockAi = useCallback(() => {
+    localStorage.setItem(STORAGE_KEYS.aiUnlocked, 'true');
+    dispatch({ type: 'UNLOCK_AI' });
+    setAiGated(false);
+  }, []);
 
   useEffect(() => {
     const saved = loadFromStorage();
@@ -264,6 +313,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshActions = useCallback(() => {
+    if (!checkAndUseAi()) return;
+
     if (!state.user) {
       const suggested = generateSuggestedActions(state.emotions, state.actions, state.goals);
       const completed = state.actions.filter(a => a.completed);
@@ -276,7 +327,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const completed = state.actions.filter(a => a.completed);
         dispatch({ type: 'SET_ACTIONS', payload: [...suggested, ...completed] });
       });
-  }, [state.user, state.emotions, state.events, state.actions, state.goals, generateActions]);
+  }, [checkAndUseAi, state.user, state.emotions, state.events, state.actions, state.goals, generateActions]);
 
   // Auto-refresh when a new emotion is logged and active actions are running low
   const prevEmotionCountRef = useRef(state.emotions.length);
@@ -341,6 +392,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearAllData,
       logout,
       llmState,
+      aiGated,
+      checkAndUseAi,
+      unlockAi,
     }}>
       {children}
     </AppContext.Provider>

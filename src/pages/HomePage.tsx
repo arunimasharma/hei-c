@@ -73,7 +73,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 type Phase = 'writing' | 'analyzing' | 'review' | 'success';
 
 export default function HomePage() {
-  const { state, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, dismissAction, refreshActions, addTasteExercise, llmState } = useApp();
+  const { state, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, dismissAction, refreshActions, addTasteExercise, llmState, checkAndUseAi } = useApp();
   const { analysisState, analyzeJournal, resetAnalysis } = useJournalAnalysis();
   const te = useTasteExercise();
 
@@ -135,6 +135,7 @@ export default function HomePage() {
   const handleAnalyze = async (textOverride?: string) => {
     const text = textOverride ?? journalText;
     if (!text.trim()) return;
+    if (!checkAndUseAi()) return;
     if (textOverride) setJournalText(textOverride);
     setPhase('analyzing');
 
@@ -244,6 +245,7 @@ export default function HomePage() {
   const handleChatSend = async () => {
     const text = chatInput.trim();
     if (!text || chatLoading) return;
+    if (!checkAndUseAi()) return;
     const updatedMessages: ChatMessage[] = [...chatMessages, { role: 'user', content: text }];
     setChatMessages(updatedMessages);
     setChatInput('');

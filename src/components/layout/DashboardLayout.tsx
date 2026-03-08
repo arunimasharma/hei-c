@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import Header from './Header';
+import AiGateModal from '../common/AiGateModal';
 import { Link, useLocation } from 'react-router';
 import { Home, PlusCircle, Calendar, Zap, Settings } from 'lucide-react';
 
@@ -21,6 +22,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8F9FE', width: '100%' }}>
       <Header />
+      <AiGateModal />
       <main style={{ flex: 1, width: '100%' }}>
         <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '2rem 1.5rem 6rem' }}>
           {children}
