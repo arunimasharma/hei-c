@@ -83,6 +83,8 @@ export default function HomePage() {
   const [questionIdx, setQuestionIdx] = useState(0);
   const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(new Set());
   const [skipConfirmId, setSkipConfirmId] = useState<string | null>(null);
+  const [actionsExpanded, setActionsExpanded] = useState(false);
+  const [reflectionsExpanded, setReflectionsExpanded] = useState(false);
 
   // Taste Exercise local state
   const [teOpen, setTeOpen] = useState(false);
@@ -341,17 +343,48 @@ export default function HomePage() {
 
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: '48rem', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        {/* Greeting */}
+      <div style={{ maxWidth: '48rem', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+
+        {/* ── GREETING ── */}
         <motion.div
-          initial={{ opacity: 0, y: -10 }}
+          initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1F2937' }}>
+          <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', fontWeight: 500, letterSpacing: '0.02em', marginBottom: '0.375rem' }}>
+            {dateStr}
+          </p>
+          <h1 style={{ fontSize: '2rem', fontWeight: 700, color: '#1F2937', letterSpacing: '-0.025em', lineHeight: 1.2, margin: '0 0 0.875rem' }}>
             {greeting}, {state.user?.name || 'Friend'}
           </h1>
-          <p style={{ color: '#6B7280', marginTop: '0.25rem', fontSize: '0.9375rem' }}>{dateStr}</p>
+          {(state.reflections.filter(r => r.status === 'approved').length > 0 || state.actions.filter(a => a.completed).length > 0) && (
+            <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>
+              {state.reflections.filter(r => r.status === 'approved').length > 0 && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '0.375rem',
+                  padding: '0.25rem 0.75rem', borderRadius: '999px',
+                  backgroundColor: 'rgba(74,95,193,0.07)', border: '1px solid rgba(74,95,193,0.12)',
+                }}>
+                  <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#4A5FC1' }} />
+                  <span style={{ fontSize: '0.75rem', color: '#4A5FC1', fontWeight: 500 }}>
+                    {state.reflections.filter(r => r.status === 'approved').length} reflection{state.reflections.filter(r => r.status === 'approved').length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
+              {state.actions.filter(a => a.completed).length > 0 && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '0.375rem',
+                  padding: '0.25rem 0.75rem', borderRadius: '999px',
+                  backgroundColor: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.12)',
+                }}>
+                  <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#22C55E' }} />
+                  <span style={{ fontSize: '0.75rem', color: '#16A34A', fontWeight: 500 }}>
+                    {state.actions.filter(a => a.completed).length} action{state.actions.filter(a => a.completed).length !== 1 ? 's' : ''} done
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </motion.div>
 
         <AnimatePresence mode="wait">
@@ -363,64 +396,728 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
             >
-              {/* ---- PRODUCT TASTE EXERCISE ---- */}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <FlaskConical size={15} color="#7C3AED" />
-                    <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
-                      Product Taste Exercise
-                    </h3>
+              {/* ── JOURNAL CARD (hero) ── */}
+              <div style={{
+                backgroundColor: 'white', borderRadius: '20px', border: '1px solid #E5E7EB',
+                boxShadow: '0 4px 24px rgba(0,0,0,0.04)', overflow: 'hidden',
+              }}>
+                {/* Companion header */}
+                <div style={{
+                  padding: '1.375rem 1.5rem 1rem',
+                  background: 'linear-gradient(135deg, rgba(74,95,193,0.04) 0%, rgba(139,126,200,0.07) 100%)',
+                  borderBottom: '1px solid #F3F4F6',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{
+                      width: '34px', height: '34px', borderRadius: '10px', flexShrink: 0,
+                      background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Sparkles size={15} color="white" />
+                    </div>
+                    <AnimatePresence mode="wait">
+                      <motion.p
+                        key={questionIdx}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.3 }}
+                        style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', margin: 0 }}
+                      >
+                        {COMPANION_QUESTIONS[questionIdx]}
+                      </motion.p>
+                    </AnimatePresence>
                   </div>
-                  {teOpen && te.tePhase !== 'analyzing' && (
-                    <button
-                      onClick={handleTeClose}
-                      style={{ fontSize: '0.8125rem', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                    >
-                      Close
-                    </button>
-                  )}
                 </div>
 
-                <AnimatePresence mode="wait">
-                  {/* CTA when closed */}
-                  {!teOpen && (
-                    <motion.div
-                      key="te-cta"
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
+                {/* Starter prompt chips — shown only before first user message */}
+                {!chatMessages.some(m => m.role === 'user') && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.15 }}
+                    style={{ padding: '0.875rem 1.25rem 0.375rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}
+                  >
+                    {STARTER_PROMPTS.map((prompt) => (
+                      <button
+                        key={prompt.label}
+                        onClick={() => setChatInput(chatInput ? chatInput : prompt.text)}
+                        style={{
+                          padding: '0.375rem 0.75rem', borderRadius: '999px',
+                          border: '1.5px solid #E5E7EB', backgroundColor: 'white',
+                          fontSize: '0.8125rem', color: '#6B7280', cursor: 'pointer',
+                          fontFamily: 'inherit', transition: 'all 0.15s',
+                          display: 'flex', alignItems: 'center', gap: '0.3rem',
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = '#8B7EC8';
+                          e.currentTarget.style.color = '#4A5FC1';
+                          e.currentTarget.style.backgroundColor = 'rgba(74,95,193,0.04)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderColor = '#E5E7EB';
+                          e.currentTarget.style.color = '#6B7280';
+                          e.currentTarget.style.backgroundColor = 'white';
+                        }}
+                      >
+                        <span>{prompt.icon}</span> {prompt.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+
+                {/* Chat messages area */}
+                {chatMessages.length > 0 && (
+                  <div style={{
+                    maxHeight: '320px', overflowY: 'auto',
+                    padding: '0.875rem 1.25rem',
+                    display: 'flex', flexDirection: 'column', gap: '0.75rem',
+                  }}>
+                    <AnimatePresence initial={false}>
+                      {chatMessages.map((msg, i) => (
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2 }}
+                          style={{
+                            display: 'flex',
+                            justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                            alignItems: 'flex-end', gap: '0.5rem',
+                          }}
+                        >
+                          {msg.role === 'assistant' && (
+                            <div style={{
+                              width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0,
+                              background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              <Sparkles size={13} color="white" />
+                            </div>
+                          )}
+                          <div style={{
+                            maxWidth: '78%',
+                            padding: '0.625rem 0.875rem',
+                            borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                            backgroundColor: msg.role === 'user' ? '#4A5FC1' : '#F3F4F6',
+                            color: msg.role === 'user' ? 'white' : '#1F2937',
+                            fontSize: '0.9rem', lineHeight: 1.55,
+                          }}>
+                            {msg.content}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                    {chatLoading && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}
+                      >
+                        <div style={{
+                          width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0,
+                          background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Sparkles size={13} color="white" />
+                        </div>
+                        <div style={{
+                          padding: '0.625rem 0.875rem', borderRadius: '14px 14px 14px 4px',
+                          backgroundColor: '#F3F4F6', display: 'flex', gap: '0.25rem', alignItems: 'center',
+                        }}>
+                          {[0, 1, 2].map(d => (
+                            <motion.span
+                              key={d}
+                              animate={{ opacity: [0.3, 1, 0.3] }}
+                              transition={{ duration: 1.2, repeat: Infinity, delay: d * 0.2 }}
+                              style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#9CA3AF', display: 'inline-block' }}
+                            />
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+                )}
+
+                {/* Chat input row */}
+                <div style={{
+                  padding: '0.625rem 1rem',
+                  borderTop: chatMessages.length > 0 ? '1px solid #F3F4F6' : 'none',
+                  display: 'flex', gap: '0.5rem', alignItems: 'flex-end',
+                }}>
+                  <textarea
+                    ref={textareaRef}
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleChatSend();
+                      }
+                    }}
+                    placeholder="Share what's on your mind… (Enter to send)"
+                    rows={2}
+                    style={{
+                      flex: 1, border: '1px solid #E5E7EB', borderRadius: '12px',
+                      padding: '0.625rem 0.875rem', fontSize: '0.9375rem', lineHeight: 1.6,
+                      color: '#1F2937', resize: 'none', fontFamily: 'inherit',
+                      outline: 'none', backgroundColor: 'white',
+                    }}
+                  />
+                  <button
+                    onClick={handleChatSend}
+                    disabled={!chatInput.trim() || chatLoading}
+                    style={{
+                      width: '40px', height: '40px', borderRadius: '12px', border: 'none',
+                      background: chatInput.trim() && !chatLoading
+                        ? 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)'
+                        : '#E5E7EB',
+                      cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}
+                  >
+                    <Send size={16} color={chatInput.trim() && !chatLoading ? 'white' : '#9CA3AF'} />
+                  </button>
+                </div>
+
+                {/* Finish Entry — shown after first message */}
+                {chatMessages.some(m => m.role === 'user') && (
+                  <div style={{ padding: '0.5rem 1rem 0.875rem', display: 'flex', gap: '0.625rem' }}>
+                    <button
+                      onClick={handleFinishEntry}
+                      disabled={chatLoading}
                       style={{
-                        padding: '1rem 1.25rem', borderRadius: '14px', backgroundColor: 'white',
-                        border: '1px dashed rgba(124,58,237,0.3)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem',
+                        display: 'flex', alignItems: 'center', gap: '0.375rem',
+                        padding: '0.5rem 1rem', borderRadius: '10px', border: 'none',
+                        background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
+                        color: 'white', fontSize: '0.8125rem', fontWeight: 600,
+                        cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit',
+                        opacity: chatLoading ? 0.6 : 1,
                       }}
                     >
-                      <div>
-                        <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#1F2937', margin: '0 0 0.25rem' }}>
-                          Sharpen your product instincts
-                        </p>
-                        <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
-                          Pick any product and answer 6 questions. Get an AI score on your product taste.
-                        </p>
+                      <CheckCircle2 size={14} /> Finish Entry
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Error banner */}
+              {analysisState.error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                    padding: '0.875rem 1.25rem', borderRadius: '14px',
+                    backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
+                  }}
+                >
+                  <AlertTriangle size={18} style={{ color: '#D97706', flexShrink: 0 }} />
+                  <p style={{ fontSize: '0.875rem', color: '#92400E' }}>{analysisState.error}</p>
+                </motion.div>
+              )}
+
+              {/* ── CUSTOMIZE DETECTION (collapsible) ── */}
+              <div style={{
+                backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6',
+                overflow: 'hidden',
+              }}>
+                <button
+                  onClick={() => setShowManual(!showManual)}
+                  style={{
+                    width: '100%', padding: '0.875rem 1.25rem',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    border: 'none', backgroundColor: 'transparent', cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#9CA3AF' }}>
+                    Customize detection
+                  </span>
+                  {showManual ? <ChevronUp size={15} color="#D1D5DB" /> : <ChevronDown size={15} color="#D1D5DB" />}
+                </button>
+
+                {showManual && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    style={{ padding: '0 1.25rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+                  >
+                    {/* Emotion picker */}
+                    <div>
+                      <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#6B7280', marginBottom: '0.5rem', display: 'block' }}>
+                        Emotion (override AI detection)
+                      </label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                        {EMOTIONS.map(e => (
+                          <button
+                            key={e.type}
+                            onClick={() => setManualEmotion(manualEmotion === e.type ? null : e.type)}
+                            style={{
+                              padding: '0.375rem 0.75rem', borderRadius: '999px', border: '2px solid',
+                              borderColor: manualEmotion === e.type ? e.color : '#E5E7EB',
+                              backgroundColor: manualEmotion === e.type ? `${e.color}15` : 'white',
+                              cursor: 'pointer', fontSize: '0.8125rem', fontFamily: 'inherit',
+                              color: manualEmotion === e.type ? e.color : '#6B7280',
+                              fontWeight: manualEmotion === e.type ? 600 : 400,
+                              transition: 'all 0.2s',
+                            }}
+                          >
+                            {e.icon} {e.type}
+                          </button>
+                        ))}
                       </div>
+                    </div>
+
+                    {/* Event type */}
+                    <div>
+                      <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#6B7280', marginBottom: '0.5rem', display: 'block' }}>
+                        Career Event Type
+                      </label>
+                      <select
+                        value={manualEventType || ''}
+                        onChange={(e) => setManualEventType(e.target.value ? e.target.value as EventType : null)}
+                        style={{
+                          width: '100%', padding: '0.625rem 0.875rem', borderRadius: '10px',
+                          border: '1px solid #E5E7EB', fontSize: '0.875rem', fontFamily: 'inherit',
+                          color: '#1F2937', backgroundColor: 'white', outline: 'none',
+                        }}
+                      >
+                        <option value="">Let AI detect</option>
+                        {EVENT_TYPES.map(t => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Company */}
+                    <div>
+                      <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#6B7280', marginBottom: '0.5rem', display: 'block' }}>
+                        Company / Organization
+                      </label>
+                      <input
+                        type="text"
+                        value={manualCompany}
+                        onChange={(e) => setManualCompany(e.target.value)}
+                        placeholder="Let AI detect or type here"
+                        style={{
+                          width: '100%', padding: '0.625rem 0.875rem', borderRadius: '10px',
+                          border: '1px solid #E5E7EB', fontSize: '0.875rem', fontFamily: 'inherit',
+                          color: '#1F2937', outline: 'none',
+                        }}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* ── SUGGESTED ACTIONS (collapsible) ── */}
+              {(() => {
+                const activeActions = state.actions.filter(a => !a.completed && !a.skipped);
+                const shown = activeActions.slice(0, 3);
+                return (
+                  <div style={{
+                    backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6',
+                    overflow: 'hidden',
+                  }}>
+                    <button
+                      onClick={() => setActionsExpanded(!actionsExpanded)}
+                      style={{
+                        width: '100%', padding: '0.875rem 1.25rem',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        border: 'none', backgroundColor: 'transparent', cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Zap size={14} color="#F59E0B" />
+                        <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>Suggested Actions</span>
+                        {llmState.isAiGenerated && (
+                          <span style={{
+                            fontSize: '0.625rem', fontWeight: 700, padding: '0.125rem 0.5rem',
+                            borderRadius: '999px', backgroundColor: 'rgba(139,92,246,0.1)', color: '#7C3AED',
+                          }}>AI</span>
+                        )}
+                        {shown.length > 0 && (
+                          <span style={{
+                            fontSize: '0.6875rem', fontWeight: 600, padding: '0.125rem 0.5rem',
+                            borderRadius: '999px', backgroundColor: '#FEF3C7', color: '#D97706',
+                          }}>{shown.length}</span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                        {activeActions.length > 3 && actionsExpanded && (
+                          <Link
+                            to="/growth"
+                            onClick={e => e.stopPropagation()}
+                            style={{ fontSize: '0.75rem', color: '#4A5FC1', textDecoration: 'none', fontWeight: 500 }}
+                          >
+                            View all
+                          </Link>
+                        )}
+                        <button
+                          onClick={e => { e.stopPropagation(); refreshActions(); }}
+                          disabled={llmState.isLoading}
+                          style={{
+                            padding: '0.25rem', borderRadius: '8px', border: 'none',
+                            backgroundColor: 'transparent', cursor: llmState.isLoading ? 'default' : 'pointer',
+                            color: '#9CA3AF', display: 'flex',
+                          }}
+                          title="Refresh actions"
+                        >
+                          <RefreshCw size={13} style={{ animation: llmState.isLoading ? 'spin 1s linear infinite' : 'none' }} />
+                        </button>
+                        {actionsExpanded ? <ChevronUp size={15} color="#D1D5DB" /> : <ChevronDown size={15} color="#D1D5DB" />}
+                      </div>
+                    </button>
+
+                    <AnimatePresence>
+                      {actionsExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          style={{ overflow: 'hidden' }}
+                        >
+                          <div style={{ padding: '0 0.75rem 0.75rem' }}>
+                            {llmState.isLoading && (
+                              <div style={{
+                                padding: '1.25rem', borderRadius: '12px', backgroundColor: '#F9FAFB',
+                                textAlign: 'center',
+                              }}>
+                                <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
+                                  Generating personalized suggestions...
+                                </p>
+                              </div>
+                            )}
+
+                            {!llmState.isLoading && shown.length > 0 && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                {shown.map(action => {
+                                  const catColor = CATEGORY_COLORS[action.category] || '#6B7280';
+                                  const isExpanded = expandedReasoning.has(action.id);
+                                  return (
+                                    <motion.div
+                                      key={action.id}
+                                      initial={{ opacity: 0, y: 6 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      style={{
+                                        backgroundColor: '#FAFAFA', borderRadius: '12px',
+                                        border: '1px solid #F3F4F6', overflow: 'hidden',
+                                      }}
+                                    >
+                                      <div style={{ padding: '0.75rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                        <div style={{
+                                          width: '32px', height: '32px', borderRadius: '9px', flexShrink: 0,
+                                          backgroundColor: `${catColor}18`,
+                                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        }}>
+                                          <Zap size={14} style={{ color: catColor }} />
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                          <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: '0 0 0.25rem' }}>
+                                            {action.title}
+                                          </p>
+                                          {action.description && (
+                                            <p style={{ fontSize: '0.8125rem', color: '#4B5563', lineHeight: 1.5, margin: '0 0 0.375rem' }}>
+                                              {action.description}
+                                            </p>
+                                          )}
+                                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                            <span style={{
+                                              fontSize: '0.6875rem', fontWeight: 500, padding: '0.125rem 0.5rem',
+                                              borderRadius: '999px', backgroundColor: `${catColor}15`, color: catColor,
+                                            }}>
+                                              {action.category}
+                                            </span>
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.6875rem', color: '#9CA3AF' }}>
+                                              <Clock size={11} /> {action.estimatedMinutes} min
+                                            </span>
+                                            {action.reasoning && (
+                                              <button
+                                                onClick={() => toggleReasoning(action.id)}
+                                                style={{
+                                                  display: 'flex', alignItems: 'center', gap: '0.15rem',
+                                                  fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 500,
+                                                  background: 'none', border: 'none', cursor: 'pointer',
+                                                  padding: 0, fontFamily: 'inherit',
+                                                }}
+                                              >
+                                                {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                                Why this?
+                                              </button>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.25rem', flexShrink: 0 }}>
+                                          <button
+                                            onClick={() => completeAction(action.id)}
+                                            style={{
+                                              padding: '0.4rem', borderRadius: '8px', border: 'none',
+                                              backgroundColor: '#F0FDF4', color: '#16A34A', cursor: 'pointer', display: 'flex',
+                                            }}
+                                            title="Mark done"
+                                          >
+                                            <CheckCircle2 size={15} />
+                                          </button>
+                                          <button
+                                            onClick={() => setSkipConfirmId(action.id)}
+                                            title="Skip"
+                                            style={{
+                                              padding: '0.4rem', borderRadius: '8px', border: 'none',
+                                              backgroundColor: skipConfirmId === action.id ? '#FEF3C7' : '#F9FAFB',
+                                              color: skipConfirmId === action.id ? '#D97706' : '#9CA3AF',
+                                              cursor: 'pointer', display: 'flex',
+                                            }}
+                                          >
+                                            <SkipForward size={15} />
+                                          </button>
+                                        </div>
+                                      </div>
+                                      {/* Skip confirmation panel */}
+                                      <AnimatePresence>
+                                        {skipConfirmId === action.id && (
+                                          <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: 'auto', opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            transition={{ duration: 0.18 }}
+                                            style={{ overflow: 'hidden' }}
+                                          >
+                                            <div style={{
+                                              padding: '0.625rem 1.125rem 0.75rem',
+                                              borderTop: '1px solid #FDE68A',
+                                              backgroundColor: '#FFFBEB',
+                                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
+                                            }}>
+                                              <p style={{ fontSize: '0.8125rem', color: '#92400E', margin: 0 }}>
+                                                Skip this action?
+                                              </p>
+                                              <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                                                <button
+                                                  onClick={() => { dismissAction(action.id); setSkipConfirmId(null); }}
+                                                  style={{
+                                                    fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem',
+                                                    borderRadius: '6px', border: '1px solid #FCD34D',
+                                                    backgroundColor: 'white', color: '#92400E', cursor: 'pointer', fontFamily: 'inherit',
+                                                  }}
+                                                >
+                                                  Skip for now
+                                                </button>
+                                                <button
+                                                  onClick={() => { skipAction(action.id); setSkipConfirmId(null); }}
+                                                  style={{
+                                                    fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem',
+                                                    borderRadius: '6px', border: 'none',
+                                                    backgroundColor: '#F59E0B', color: 'white', cursor: 'pointer', fontFamily: 'inherit',
+                                                  }}
+                                                >
+                                                  Skip forever
+                                                </button>
+                                                <button
+                                                  onClick={() => setSkipConfirmId(null)}
+                                                  style={{
+                                                    fontSize: '0.75rem', color: '#9CA3AF', background: 'none',
+                                                    border: 'none', cursor: 'pointer', padding: '0.3rem 0.25rem', fontFamily: 'inherit',
+                                                  }}
+                                                >
+                                                  Cancel
+                                                </button>
+                                              </div>
+                                            </div>
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
+
+                                      {/* Reasoning panel */}
+                                      <AnimatePresence>
+                                        {isExpanded && action.reasoning && (
+                                          <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: 'auto', opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            transition={{ duration: 0.15 }}
+                                            style={{ overflow: 'hidden' }}
+                                          >
+                                            <div style={{
+                                              padding: '0.5rem 1rem 0.75rem',
+                                              borderTop: `1px solid ${catColor}20`,
+                                              backgroundColor: `${catColor}06`,
+                                              display: 'flex', alignItems: 'flex-start', gap: '0.4rem',
+                                            }}>
+                                              <TrendingUp size={12} style={{ color: catColor, flexShrink: 0, marginTop: '0.15rem' }} />
+                                              <p style={{ fontSize: '0.75rem', color: '#6B7280', lineHeight: 1.5, margin: 0 }}>
+                                                {action.reasoning}
+                                              </p>
+                                            </div>
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
+                                    </motion.div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {!llmState.isLoading && shown.length === 0 && (
+                              <div style={{
+                                padding: '1.25rem', borderRadius: '12px', backgroundColor: '#F9FAFB',
+                                textAlign: 'center',
+                              }}>
+                                <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: '0 0 0.625rem' }}>
+                                  Log a reflection to get personalized action suggestions.
+                                </p>
+                                <button
+                                  onClick={refreshActions}
+                                  style={{
+                                    fontSize: '0.8125rem', color: '#4A5FC1', fontWeight: 500,
+                                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                                  }}
+                                >
+                                  Generate suggestions →
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })()}
+
+              {/* ── RECENT REFLECTIONS (collapsible) ── */}
+              {state.reflections.filter(r => r.status === 'approved').length > 0 && (
+                <div style={{
+                  backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6',
+                  overflow: 'hidden',
+                }}>
+                  <button
+                    onClick={() => setReflectionsExpanded(!reflectionsExpanded)}
+                    style={{
+                      width: '100%', padding: '0.875rem 1.25rem',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      border: 'none', backgroundColor: 'transparent', cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <BookOpen size={14} color="#9CA3AF" />
+                      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>Recent Reflections</span>
+                      <span style={{
+                        fontSize: '0.6875rem', fontWeight: 600, padding: '0.125rem 0.5rem',
+                        borderRadius: '999px', backgroundColor: '#F3F4F6', color: '#6B7280',
+                      }}>
+                        {state.reflections.filter(r => r.status === 'approved').length}
+                      </span>
+                    </div>
+                    {reflectionsExpanded ? <ChevronUp size={15} color="#D1D5DB" /> : <ChevronDown size={15} color="#D1D5DB" />}
+                  </button>
+
+                  <AnimatePresence>
+                    {reflectionsExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <div style={{ padding: '0 0.75rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                          {state.reflections.filter(r => r.status === 'approved').slice(0, 3).map(r => (
+                            <div key={r.id} style={{
+                              backgroundColor: '#FAFAFA', borderRadius: '10px', border: '1px solid #F3F4F6',
+                              padding: '0.625rem 0.875rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
+                            }}>
+                              <span style={{ fontSize: '1.125rem' }}>
+                                {r.approvedEmotion ? getEmotionIcon(r.approvedEmotion) : '📝'}
+                              </span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{
+                                  fontSize: '0.8125rem', color: '#374151', overflow: 'hidden',
+                                  textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0,
+                                }}>
+                                  {r.text}
+                                </p>
+                                <p style={{ fontSize: '0.6875rem', color: '#9CA3AF', margin: '0.125rem 0 0' }}>
+                                  {new Date(r.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  {r.approvedEmotion && ` · ${r.approvedEmotion}`}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                          {state.reflections.filter(r => r.status === 'approved').length > 3 && (
+                            <Link
+                              to="/insights?tab=reflections"
+                              style={{
+                                fontSize: '0.8125rem', color: '#4A5FC1', textDecoration: 'none',
+                                fontWeight: 500, padding: '0.375rem 0.875rem',
+                              }}
+                            >
+                              View all ({state.reflections.filter(r => r.status === 'approved').length}) →
+                            </Link>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              {/* ── PRODUCT TASTE EXERCISE (secondary, at bottom) ── */}
+              <div style={{
+                backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  padding: '0.875rem 1.25rem',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FlaskConical size={14} color="#7C3AED" />
+                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>
+                      Product Taste Exercise
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {teOpen && te.tePhase !== 'analyzing' && (
+                      <button
+                        onClick={handleTeClose}
+                        style={{ fontSize: '0.8125rem', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      >
+                        Close
+                      </button>
+                    )}
+                    {!teOpen && (
                       <button
                         onClick={() => setTeOpen(true)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: '0.375rem',
-                          padding: '0.5rem 1rem', borderRadius: '10px', border: 'none',
+                          padding: '0.375rem 0.875rem', borderRadius: '8px', border: 'none',
                           background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)',
                           color: 'white', fontSize: '0.8125rem', fontWeight: 600,
-                          cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit',
+                          cursor: 'pointer', fontFamily: 'inherit',
                         }}
                       >
-                        Start <ChevronRight size={14} />
+                        Start <ChevronRight size={13} />
                       </button>
-                    </motion.div>
-                  )}
+                    )}
+                  </div>
+                </div>
 
+                {!teOpen && (
+                  <div style={{ padding: '0 1.25rem 1rem' }}>
+                    <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
+                      Pick any product and answer 6 questions. Get an AI score on your product taste.
+                    </p>
+                  </div>
+                )}
+
+                <AnimatePresence mode="wait">
                   {/* Product select */}
                   {teOpen && te.tePhase === 'product-select' && (
                     <motion.div
@@ -428,12 +1125,9 @@ export default function HomePage() {
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -6 }}
-                      style={{
-                        backgroundColor: 'white', borderRadius: '16px',
-                        border: '1px solid rgba(124,58,237,0.15)', padding: '1.25rem',
-                      }}
+                      style={{ padding: '0 1.25rem 1.25rem', borderTop: '1px solid #F3F4F6' }}
                     >
-                      <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: '0 0 0.875rem' }}>
+                      <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: '0.875rem 0' }}>
                         What product or service would you like to analyze?
                       </p>
                       <div style={{ display: 'flex', gap: '0.625rem' }}>
@@ -688,624 +1382,6 @@ export default function HomePage() {
                   )}
                 </AnimatePresence>
               </div>
-
-              {/* Journal Card */}
-              <div style={{
-                backgroundColor: 'white', borderRadius: '20px', border: '1px solid #E5E7EB',
-                boxShadow: '0 4px 24px rgba(0,0,0,0.04)',
-                overflow: 'hidden',
-              }}>
-                {/* Companion header */}
-                <div style={{
-                  padding: '1.25rem 1.5rem 1rem',
-                  background: 'linear-gradient(135deg, rgba(74,95,193,0.05) 0%, rgba(139,126,200,0.08) 100%)',
-                  borderBottom: '1px solid #F3F4F6',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.375rem' }}>
-                    <div style={{
-                      width: '32px', height: '32px', borderRadius: '10px', flexShrink: 0,
-                      background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Sparkles size={15} color="white" />
-                    </div>
-                    <AnimatePresence mode="wait">
-                      <motion.p
-                        key={questionIdx}
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -5 }}
-                        transition={{ duration: 0.3 }}
-                        style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#1F2937' }}
-                      >
-                        {COMPANION_QUESTIONS[questionIdx]}
-                      </motion.p>
-                    </AnimatePresence>
-                  </div>
-                  <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', paddingLeft: '2.625rem' }}>
-                    A few words is all it takes — I'll handle the rest.
-                  </p>
-                </div>
-
-                {/* Starter prompt chips — shown only before first user message */}
-                {!chatMessages.some(m => m.role === 'user') && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.15 }}
-                    style={{ padding: '0.875rem 1.25rem 0.375rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}
-                  >
-                    {STARTER_PROMPTS.map((prompt) => (
-                      <button
-                        key={prompt.label}
-                        onClick={() => setChatInput(chatInput ? chatInput : prompt.text)}
-                        style={{
-                          padding: '0.375rem 0.75rem', borderRadius: '999px',
-                          border: '1.5px solid #E5E7EB', backgroundColor: 'white',
-                          fontSize: '0.8125rem', color: '#6B7280', cursor: 'pointer',
-                          fontFamily: 'inherit', transition: 'all 0.15s',
-                          display: 'flex', alignItems: 'center', gap: '0.3rem',
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.borderColor = '#8B7EC8';
-                          e.currentTarget.style.color = '#4A5FC1';
-                          e.currentTarget.style.backgroundColor = 'rgba(74,95,193,0.04)';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.borderColor = '#E5E7EB';
-                          e.currentTarget.style.color = '#6B7280';
-                          e.currentTarget.style.backgroundColor = 'white';
-                        }}
-                      >
-                        <span>{prompt.icon}</span> {prompt.label}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-
-                {/* Chat messages area */}
-                {chatMessages.length > 0 && (
-                  <div style={{
-                    maxHeight: '320px', overflowY: 'auto',
-                    padding: '0.875rem 1.25rem',
-                    display: 'flex', flexDirection: 'column', gap: '0.75rem',
-                  }}>
-                    <AnimatePresence initial={false}>
-                      {chatMessages.map((msg, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.2 }}
-                          style={{
-                            display: 'flex',
-                            justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                            alignItems: 'flex-end', gap: '0.5rem',
-                          }}
-                        >
-                          {msg.role === 'assistant' && (
-                            <div style={{
-                              width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0,
-                              background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}>
-                              <Sparkles size={13} color="white" />
-                            </div>
-                          )}
-                          <div style={{
-                            maxWidth: '78%',
-                            padding: '0.625rem 0.875rem',
-                            borderRadius: msg.role === 'user'
-                              ? '14px 14px 4px 14px'
-                              : '14px 14px 14px 4px',
-                            backgroundColor: msg.role === 'user'
-                              ? '#4A5FC1'
-                              : '#F3F4F6',
-                            color: msg.role === 'user' ? 'white' : '#1F2937',
-                            fontSize: '0.9rem', lineHeight: 1.55,
-                          }}>
-                            {msg.content}
-                          </div>
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
-                    {chatLoading && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}
-                      >
-                        <div style={{
-                          width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0,
-                          background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <Sparkles size={13} color="white" />
-                        </div>
-                        <div style={{
-                          padding: '0.625rem 0.875rem', borderRadius: '14px 14px 14px 4px',
-                          backgroundColor: '#F3F4F6', display: 'flex', gap: '0.25rem', alignItems: 'center',
-                        }}>
-                          {[0, 1, 2].map(d => (
-                            <motion.span
-                              key={d}
-                              animate={{ opacity: [0.3, 1, 0.3] }}
-                              transition={{ duration: 1.2, repeat: Infinity, delay: d * 0.2 }}
-                              style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#9CA3AF', display: 'inline-block' }}
-                            />
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                    <div ref={chatEndRef} />
-                  </div>
-                )}
-
-                {/* Chat input row */}
-                <div style={{
-                  padding: '0.625rem 1rem',
-                  borderTop: chatMessages.length > 0 ? '1px solid #F3F4F6' : 'none',
-                  display: 'flex', gap: '0.5rem', alignItems: 'flex-end',
-                }}>
-                  <textarea
-                    ref={textareaRef}
-                    value={chatInput}
-                    onChange={e => setChatInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleChatSend();
-                      }
-                    }}
-                    placeholder="Share what's on your mind… (Enter to send)"
-                    rows={2}
-                    style={{
-                      flex: 1, border: '1px solid #E5E7EB', borderRadius: '12px',
-                      padding: '0.625rem 0.875rem', fontSize: '0.9375rem', lineHeight: 1.6,
-                      color: '#1F2937', resize: 'none', fontFamily: 'inherit',
-                      outline: 'none', backgroundColor: 'white',
-                    }}
-                  />
-                  <button
-                    onClick={handleChatSend}
-                    disabled={!chatInput.trim() || chatLoading}
-                    style={{
-                      width: '40px', height: '40px', borderRadius: '12px', border: 'none',
-                      background: chatInput.trim() && !chatLoading
-                        ? 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)'
-                        : '#E5E7EB',
-                      cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    }}
-                  >
-                    <Send size={16} color={chatInput.trim() && !chatLoading ? 'white' : '#9CA3AF'} />
-                  </button>
-                </div>
-
-                {/* Action buttons — shown after first message */}
-                {chatMessages.some(m => m.role === 'user') && (
-                  <div style={{
-                    padding: '0.5rem 1rem 0.875rem',
-                    display: 'flex', gap: '0.625rem',
-                  }}>
-                    <button
-                      onClick={handleFinishEntry}
-                      disabled={chatLoading}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '0.375rem',
-                        padding: '0.5rem 1rem', borderRadius: '10px', border: 'none',
-                        background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
-                        color: 'white', fontSize: '0.8125rem', fontWeight: 600,
-                        cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit',
-                        opacity: chatLoading ? 0.6 : 1,
-                      }}
-                    >
-                      <CheckCircle2 size={14} /> Finish Entry
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Error banner */}
-              {analysisState.error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.75rem',
-                    padding: '0.875rem 1.25rem', borderRadius: '14px',
-                    backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
-                  }}
-                >
-                  <AlertTriangle size={18} style={{ color: '#D97706', flexShrink: 0 }} />
-                  <p style={{ fontSize: '0.875rem', color: '#92400E' }}>{analysisState.error}</p>
-                </motion.div>
-              )}
-
-              {/* Manual Attributes Collapsible */}
-              <div style={{
-                backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6',
-                overflow: 'hidden',
-              }}>
-                <button
-                  onClick={() => setShowManual(!showManual)}
-                  style={{
-                    width: '100%', padding: '1rem 1.25rem',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    border: 'none', backgroundColor: 'transparent', cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#6B7280' }}>
-                    Optional: Provide attributes manually
-                  </span>
-                  {showManual ? <ChevronUp size={16} color="#9CA3AF" /> : <ChevronDown size={16} color="#9CA3AF" />}
-                </button>
-
-                {showManual && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    style={{ padding: '0 1.25rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
-                  >
-                    {/* Emotion picker */}
-                    <div>
-                      <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#6B7280', marginBottom: '0.5rem', display: 'block' }}>
-                        Emotion (override AI detection)
-                      </label>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
-                        {EMOTIONS.map(e => (
-                          <button
-                            key={e.type}
-                            onClick={() => setManualEmotion(manualEmotion === e.type ? null : e.type)}
-                            style={{
-                              padding: '0.375rem 0.75rem', borderRadius: '999px', border: '2px solid',
-                              borderColor: manualEmotion === e.type ? e.color : '#E5E7EB',
-                              backgroundColor: manualEmotion === e.type ? `${e.color}15` : 'white',
-                              cursor: 'pointer', fontSize: '0.8125rem', fontFamily: 'inherit',
-                              color: manualEmotion === e.type ? e.color : '#6B7280',
-                              fontWeight: manualEmotion === e.type ? 600 : 400,
-                              transition: 'all 0.2s',
-                            }}
-                          >
-                            {e.icon} {e.type}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Event type */}
-                    <div>
-                      <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#6B7280', marginBottom: '0.5rem', display: 'block' }}>
-                        Career Event Type
-                      </label>
-                      <select
-                        value={manualEventType || ''}
-                        onChange={(e) => setManualEventType(e.target.value ? e.target.value as EventType : null)}
-                        style={{
-                          width: '100%', padding: '0.625rem 0.875rem', borderRadius: '10px',
-                          border: '1px solid #E5E7EB', fontSize: '0.875rem', fontFamily: 'inherit',
-                          color: '#1F2937', backgroundColor: 'white', outline: 'none',
-                        }}
-                      >
-                        <option value="">Let AI detect</option>
-                        {EVENT_TYPES.map(t => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Company */}
-                    <div>
-                      <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#6B7280', marginBottom: '0.5rem', display: 'block' }}>
-                        Company / Organization
-                      </label>
-                      <input
-                        type="text"
-                        value={manualCompany}
-                        onChange={(e) => setManualCompany(e.target.value)}
-                        placeholder="Let AI detect or type here"
-                        style={{
-                          width: '100%', padding: '0.625rem 0.875rem', borderRadius: '10px',
-                          border: '1px solid #E5E7EB', fontSize: '0.875rem', fontFamily: 'inherit',
-                          color: '#1F2937', outline: 'none',
-                        }}
-                      />
-                    </div>
-                  </motion.div>
-                )}
-              </div>
-
-              {/* ---- MICRO-ACTIONS ---- */}
-              {(() => {
-                const activeActions = state.actions.filter(a => !a.completed && !a.skipped);
-                const shown = activeActions.slice(0, 3);
-                return (
-                  <div>
-                    {/* Section header */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Zap size={15} color="#F59E0B" />
-                        <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
-                          Suggested Actions
-                        </h3>
-                        {llmState.isAiGenerated && (
-                          <span style={{
-                            fontSize: '0.625rem', fontWeight: 700, padding: '0.125rem 0.5rem',
-                            borderRadius: '999px', backgroundColor: 'rgba(139,92,246,0.1)', color: '#7C3AED',
-                          }}>
-                            AI
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {activeActions.length > 3 && (
-                          <Link to="/growth" style={{ fontSize: '0.8125rem', color: '#4A5FC1', textDecoration: 'none', fontWeight: 500 }}>
-                            View all ({activeActions.length})
-                          </Link>
-                        )}
-                        <button
-                          onClick={refreshActions}
-                          disabled={llmState.isLoading}
-                          style={{
-                            padding: '0.25rem', borderRadius: '8px', border: 'none',
-                            backgroundColor: 'transparent', cursor: llmState.isLoading ? 'default' : 'pointer',
-                            color: '#9CA3AF', display: 'flex',
-                          }}
-                          title="Refresh actions"
-                        >
-                          <RefreshCw size={14} style={{ animation: llmState.isLoading ? 'spin 1s linear infinite' : 'none' }} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Loading state */}
-                    {llmState.isLoading && (
-                      <div style={{
-                        padding: '1.25rem', borderRadius: '14px', backgroundColor: 'white',
-                        border: '1px solid #F3F4F6', textAlign: 'center',
-                      }}>
-                        <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
-                          Generating personalized suggestions...
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Action cards */}
-                    {!llmState.isLoading && shown.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {shown.map(action => {
-                          const catColor = CATEGORY_COLORS[action.category] || '#6B7280';
-                          const isExpanded = expandedReasoning.has(action.id);
-                          return (
-                            <motion.div
-                              key={action.id}
-                              initial={{ opacity: 0, y: 6 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              style={{
-                                backgroundColor: 'white', borderRadius: '14px',
-                                border: '1px solid #F3F4F6', overflow: 'hidden',
-                              }}
-                            >
-                              <div style={{ padding: '0.875rem 1rem', display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
-                                <div style={{
-                                  width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
-                                  backgroundColor: `${catColor}18`,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  marginTop: '0.125rem',
-                                }}>
-                                  <Zap size={16} style={{ color: catColor }} />
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: '0 0 0.25rem' }}>
-                                    {action.title}
-                                  </p>
-                                  {action.description && (
-                                    <p style={{ fontSize: '0.8125rem', color: '#4B5563', lineHeight: 1.5, margin: '0 0 0.375rem' }}>
-                                      {action.description}
-                                    </p>
-                                  )}
-                                  <div style={{ display: 'flex', gap: '0.625rem', marginTop: '0.125rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                                    <span style={{
-                                      fontSize: '0.6875rem', fontWeight: 500, padding: '0.125rem 0.5rem',
-                                      borderRadius: '999px', backgroundColor: `${catColor}15`, color: catColor,
-                                    }}>
-                                      {action.category}
-                                    </span>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.6875rem', color: '#9CA3AF' }}>
-                                      <Clock size={11} /> {action.estimatedMinutes} min
-                                    </span>
-                                    {action.reasoning && (
-                                      <button
-                                        onClick={() => toggleReasoning(action.id)}
-                                        style={{
-                                          display: 'flex', alignItems: 'center', gap: '0.15rem',
-                                          fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 500,
-                                          background: 'none', border: 'none', cursor: 'pointer',
-                                          padding: 0, fontFamily: 'inherit',
-                                        }}
-                                      >
-                                        {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                                        Why this?
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0 }}>
-                                  <button
-                                    onClick={() => completeAction(action.id)}
-                                    style={{
-                                      padding: '0.5rem', borderRadius: '10px', border: 'none',
-                                      backgroundColor: '#F0FDF4', color: '#16A34A', cursor: 'pointer', display: 'flex',
-                                    }}
-                                    title="Mark done"
-                                  >
-                                    <CheckCircle2 size={16} />
-                                  </button>
-                                  <button
-                                    onClick={() => setSkipConfirmId(action.id)}
-                                    title="Skip"
-                                    style={{
-                                      padding: '0.5rem', borderRadius: '10px', border: 'none',
-                                      backgroundColor: skipConfirmId === action.id ? '#FEF3C7' : '#F9FAFB',
-                                      color: skipConfirmId === action.id ? '#D97706' : '#9CA3AF',
-                                      cursor: 'pointer', display: 'flex',
-                                    }}
-                                  >
-                                    <SkipForward size={16} />
-                                  </button>
-                                </div>
-                              </div>
-                              {/* Skip confirmation panel */}
-                              <AnimatePresence>
-                                {skipConfirmId === action.id && (
-                                  <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.18 }}
-                                    style={{ overflow: 'hidden' }}
-                                  >
-                                    <div style={{
-                                      padding: '0.625rem 1.125rem 0.75rem',
-                                      borderTop: '1px solid #FDE68A',
-                                      backgroundColor: '#FFFBEB',
-                                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
-                                    }}>
-                                      <p style={{ fontSize: '0.8125rem', color: '#92400E', margin: 0 }}>
-                                        Skip this action?
-                                      </p>
-                                      <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                                        <button
-                                          onClick={() => { dismissAction(action.id); setSkipConfirmId(null); }}
-                                          style={{
-                                            fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem',
-                                            borderRadius: '6px', border: '1px solid #FCD34D',
-                                            backgroundColor: 'white', color: '#92400E', cursor: 'pointer', fontFamily: 'inherit',
-                                          }}
-                                        >
-                                          Skip for now
-                                        </button>
-                                        <button
-                                          onClick={() => { skipAction(action.id); setSkipConfirmId(null); }}
-                                          style={{
-                                            fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem',
-                                            borderRadius: '6px', border: 'none',
-                                            backgroundColor: '#F59E0B', color: 'white', cursor: 'pointer', fontFamily: 'inherit',
-                                          }}
-                                        >
-                                          Skip forever
-                                        </button>
-                                        <button
-                                          onClick={() => setSkipConfirmId(null)}
-                                          style={{
-                                            fontSize: '0.75rem', color: '#9CA3AF', background: 'none',
-                                            border: 'none', cursor: 'pointer', padding: '0.3rem 0.25rem', fontFamily: 'inherit',
-                                          }}
-                                        >
-                                          Cancel
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-
-                              {/* Reasoning panel */}
-                              <AnimatePresence>
-                                {isExpanded && action.reasoning && (
-                                  <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.15 }}
-                                    style={{ overflow: 'hidden' }}
-                                  >
-                                    <div style={{
-                                      padding: '0.5rem 1rem 0.75rem',
-                                      borderTop: `1px solid ${catColor}20`,
-                                      backgroundColor: `${catColor}06`,
-                                      display: 'flex', alignItems: 'flex-start', gap: '0.4rem',
-                                    }}>
-                                      <TrendingUp size={12} style={{ color: catColor, flexShrink: 0, marginTop: '0.15rem' }} />
-                                      <p style={{ fontSize: '0.75rem', color: '#6B7280', lineHeight: 1.5, margin: 0 }}>
-                                        {action.reasoning}
-                                      </p>
-                                    </div>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Empty state */}
-                    {!llmState.isLoading && shown.length === 0 && (
-                      <div style={{
-                        padding: '1.25rem', borderRadius: '14px', backgroundColor: 'white',
-                        border: '1px dashed #E5E7EB', textAlign: 'center',
-                      }}>
-                        <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: '0 0 0.625rem' }}>
-                          Log a reflection to get personalized action suggestions.
-                        </p>
-                        <button
-                          onClick={refreshActions}
-                          style={{
-                            fontSize: '0.8125rem', color: '#4A5FC1', fontWeight: 500,
-                            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                          }}
-                        >
-                          Generate suggestions →
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Recent reflections */}
-              {state.reflections.filter(r => r.status === 'approved').length > 0 && (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                    <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#6B7280', margin: 0 }}>
-                      Recent Reflections
-                    </h3>
-                    <Link
-                      to="/insights?tab=reflections"
-                      style={{ fontSize: '0.8125rem', color: '#4A5FC1', textDecoration: 'none', fontWeight: 500 }}
-                    >
-                      View all ({state.reflections.filter(r => r.status === 'approved').length})
-                    </Link>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {state.reflections.filter(r => r.status === 'approved').slice(0, 3).map(r => (
-                      <div key={r.id} style={{
-                        backgroundColor: 'white', borderRadius: '12px', border: '1px solid #F3F4F6',
-                        padding: '0.875rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
-                      }}>
-                        <span style={{ fontSize: '1.25rem' }}>
-                          {r.approvedEmotion ? getEmotionIcon(r.approvedEmotion) : '📝'}
-                        </span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{
-                            fontSize: '0.8125rem', color: '#1F2937', overflow: 'hidden',
-                            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          }}>
-                            {r.text}
-                          </p>
-                          <p style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '0.125rem' }}>
-                            {new Date(r.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            {r.approvedEmotion && ` — ${r.approvedEmotion}`}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
 
             </motion.div>
           )}
