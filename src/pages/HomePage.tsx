@@ -5,7 +5,7 @@ import {
   Sparkles, Send, ChevronDown, ChevronUp, AlertTriangle,
   CheckCircle2, Edit3, ArrowRight, BookOpen,
   Zap, Clock, SkipForward, RefreshCw, TrendingUp,
-  FlaskConical, Star, ChevronRight,
+  FlaskConical, Star, ChevronRight, Copy, Check,
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Button from '../components/common/Button';
@@ -85,6 +85,13 @@ export default function HomePage() {
   const [skipConfirmId, setSkipConfirmId] = useState<string | null>(null);
   const [actionsExpanded, setActionsExpanded] = useState(false);
   const [reflectionsExpanded, setReflectionsExpanded] = useState(false);
+
+  // LinkedIn post generator state
+  const [linkedInModalOpen, setLinkedInModalOpen] = useState(false);
+  const [linkedInPrompt, setLinkedInPrompt] = useState('');
+  const [linkedInPost, setLinkedInPost] = useState('');
+  const [linkedInLoading, setLinkedInLoading] = useState(false);
+  const [linkedInCopied, setLinkedInCopied] = useState(false);
 
   // Taste Exercise local state
   const [teOpen, setTeOpen] = useState(false);
@@ -323,6 +330,71 @@ export default function HomePage() {
     setTeCurrentAnswer('');
   };
 
+  const handleGenerateLinkedIn = async () => {
+    if (!checkAndUseAi()) return;
+    setLinkedInLoading(true);
+    setLinkedInPost('');
+
+    const recentReflections = state.reflections
+      .filter(r => r.status === 'approved')
+      .slice(-5)
+      .map(r => `Reflection (${new Date(r.timestamp).toLocaleDateString()}): ${r.text}\nEmotion: ${r.approvedEmotion || r.detectedEmotion || 'unknown'}, Intensity: ${r.approvedIntensity || r.detectedIntensity || '?'}/10\nSummary: ${r.detectedSummary || ''}`)
+      .join('\n\n');
+
+    const recentTasteExercises = state.tasteExercises
+      .filter(te => te.status === 'completed')
+      .slice(-3)
+      .map(te => `Product: ${te.productName}\nInsights: ${te.answers.map((a, i) => `Q${i + 1}: ${a}`).join(' | ')}\nSummary: ${te.summary || ''}\nScore: ${te.score}/10 — ${te.scoreComment || ''}`)
+      .join('\n\n');
+
+    const systemPrompt = `You are a master LinkedIn ghostwriter who crafts posts that go viral among product managers, founders, and builders. You write in an authentic, emotionally resonant first-person voice.
+
+Your posts follow the format of the highest-performing LinkedIn posts:
+1. HOOK (1–2 lines): Bold, scroll-stopping opening. A surprising insight, a relatable struggle, or a provocative truth. No "I" as the first word.
+2. STORY (3–5 short paragraphs): Personal, specific, human. Show vulnerability or hard-won insight. Short sentences. White space between paragraphs.
+3. PRODUCT INSIGHT (1–2 paragraphs): A concrete takeaway about product thinking, design, or building. Specific and opinionated — not generic.
+4. EMOTIONAL TRUTH (1 paragraph): The real feeling underneath. Makes readers feel seen.
+5. CTA (1 line): A question that invites genuine conversation.
+
+Rules:
+- Every paragraph is 1–3 lines max. No walls of text.
+- Use line breaks generously for readability.
+- Avoid corporate jargon, buzzwords, and clichés.
+- Never use hashtags or emojis.
+- Write exactly as the person would — raw, real, reflective.
+- Total post length: 200–350 words.`;
+
+    const userMessage = `Here is my recent emotional journey at work and product thinking. Use these to craft a LinkedIn post that is both deeply human and product-insightful.
+
+${recentReflections ? `## My recent work reflections:\n${recentReflections}` : ''}
+
+${recentTasteExercises ? `## My recent product taste exercises:\n${recentTasteExercises}` : ''}
+
+${linkedInPrompt ? `## Additional context / angle I want to explore:\n${linkedInPrompt}` : ''}
+
+Write a LinkedIn post that weaves together the emotional depth from my reflections and the product sharpness from my taste exercises. Make it feel authentic — like something only I could have written.`;
+
+    try {
+      const response = await callClaudeMessages(
+        systemPrompt,
+        [{ role: 'user', content: userMessage }],
+        600,
+      );
+      setLinkedInPost(parseActionResponse(response).trim());
+    } catch {
+      setLinkedInPost('Something went wrong generating your post. Please try again.');
+    } finally {
+      setLinkedInLoading(false);
+    }
+  };
+
+  const handleCopyLinkedIn = async () => {
+    if (!linkedInPost) return;
+    await navigator.clipboard.writeText(linkedInPost);
+    setLinkedInCopied(true);
+    setTimeout(() => setLinkedInCopied(false), 2000);
+  };
+
   const sentimentBadge = (sentiment: string) => {
     const map: Record<string, { bg: string; color: string; label: string }> = {
       positive: { bg: '#F0FDF4', color: '#16A34A', label: 'Positive' },
@@ -357,6 +429,17 @@ export default function HomePage() {
           <h1 style={{ fontSize: '2rem', fontWeight: 700, color: '#1F2937', letterSpacing: '-0.025em', lineHeight: 1.2, margin: '0 0 0.875rem' }}>
             {greeting}, {state.user?.name || 'Friend'}
           </h1>
+          <p style={{ fontSize: '0.75rem', color: '#B0B7C3', margin: '0 0 0.75rem', lineHeight: 1.55 }}>
+            Your data stays on your device. AI processes it in the moment — nothing is stored on our servers.{' '}
+            <a
+              href="https://docs.google.com/forms/d/1_0dV6E4GZ6ZsMYsH31m74liednuy2D6J8U2JJ45L7Oc/edit"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#9CA3AF', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+            >
+              Share feedback
+            </a>
+          </p>
           {(state.reflections.filter(r => r.status === 'approved').length > 0 || state.actions.filter(a => a.completed).length > 0) && (
             <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>
               {state.reflections.filter(r => r.status === 'approved').length > 0 && (
@@ -1382,6 +1465,203 @@ export default function HomePage() {
                   )}
                 </AnimatePresence>
               </div>
+
+              {/* ── LINKEDIN POST GENERATOR ── */}
+              <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6', overflow: 'hidden' }}>
+                {/* Header — always visible, no expand needed */}
+                <div style={{
+                  padding: '0.875rem 1.25rem',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.875rem' }}>💼</span>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>
+                      Your next Tasty &amp; Reflective LinkedIn post
+                    </span>
+                    <span style={{
+                      fontSize: '0.6875rem', fontWeight: 600, padding: '0.125rem 0.5rem',
+                      borderRadius: '999px', backgroundColor: '#EFF6FF', color: '#2563EB', letterSpacing: '0.02em',
+                    }}>
+                      AI
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {linkedInPost && !linkedInLoading && (
+                      <button
+                        onClick={() => { setLinkedInPost(''); setLinkedInPrompt(''); }}
+                        style={{ fontSize: '0.8125rem', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                    {!linkedInLoading && (
+                      <button
+                        onClick={() => setLinkedInModalOpen(true)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '0.375rem',
+                          padding: '0.375rem 0.875rem', borderRadius: '8px', border: 'none',
+                          background: 'linear-gradient(135deg, #0A66C2 0%, #1e88e5 100%)',
+                          color: 'white', fontSize: '0.8125rem', fontWeight: 600,
+                          cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >
+                        {linkedInPost ? 'Regenerate' : 'Generate'} <ChevronRight size={13} />
+                      </button>
+                    )}
+                    {linkedInLoading && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: '#6B7280', fontSize: '0.8125rem' }}>
+                        <motion.span
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                          style={{ display: 'inline-flex' }}
+                        >
+                          <RefreshCw size={13} color="#0A66C2" />
+                        </motion.span>
+                        <span style={{ color: '#0A66C2', fontWeight: 500 }}>Generating…</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Subtext when idle and no post yet */}
+                {!linkedInPost && !linkedInLoading && (
+                  <div style={{ padding: '0 1.25rem 1rem' }}>
+                    <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
+                      Turn your reflections and product instincts into a post worth reading.
+                    </p>
+                  </div>
+                )}
+
+                {/* Generated post output */}
+                <AnimatePresence>
+                  {linkedInPost && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      style={{ padding: '0 1.25rem 1.25rem', borderTop: '1px solid #F3F4F6' }}
+                    >
+                      <div style={{
+                        backgroundColor: '#F8FAFF', borderRadius: '12px',
+                        border: '1px solid #DBEAFE', padding: '1rem 1.125rem', marginTop: '0.875rem',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#2563EB', letterSpacing: '0.04em' }}>
+                            DRAFT POST
+                          </span>
+                          <button
+                            onClick={handleCopyLinkedIn}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '0.375rem',
+                              padding: '0.3125rem 0.75rem', borderRadius: '8px', border: '1px solid #BFDBFE',
+                              background: linkedInCopied ? '#EFF6FF' : 'white',
+                              color: linkedInCopied ? '#2563EB' : '#6B7280',
+                              fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                          >
+                            {linkedInCopied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
+                          </button>
+                        </div>
+                        <p style={{
+                          fontSize: '0.875rem', color: '#1F2937', lineHeight: 1.7,
+                          whiteSpace: 'pre-wrap', margin: 0,
+                        }}>
+                          {linkedInPost}
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* ── LINKEDIN DIRECTION MODAL ── */}
+              <AnimatePresence>
+                {linkedInModalOpen && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      zIndex: 1000, padding: '1rem',
+                    }}
+                    onClick={e => { if (e.target === e.currentTarget) setLinkedInModalOpen(false); }}
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 12 }}
+                      transition={{ duration: 0.18 }}
+                      style={{
+                        backgroundColor: 'white', borderRadius: '20px',
+                        boxShadow: '0 24px 64px rgba(0,0,0,0.15)',
+                        padding: '1.75rem', width: '100%', maxWidth: '28rem',
+                      }}
+                    >
+                      <div style={{ marginBottom: '1.25rem' }}>
+                        <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#1F2937', margin: '0 0 0.375rem' }}>
+                          Give it a direction
+                        </h3>
+                        <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
+                          Anything specific you want this post to explore, feel, or say? Totally optional.
+                        </p>
+                      </div>
+
+                      <textarea
+                        value={linkedInPrompt}
+                        onChange={e => setLinkedInPrompt(e.target.value)}
+                        placeholder="e.g. the onboarding friction I noticed in Notion, how anxiety before a presentation taught me something about product clarity..."
+                        rows={3}
+                        autoFocus
+                        style={{
+                          width: '100%', padding: '0.75rem 1rem', borderRadius: '12px',
+                          border: '1.5px solid #E5E7EB', fontSize: '0.875rem', fontFamily: 'inherit',
+                          color: '#1F2937', outline: 'none', resize: 'none', boxSizing: 'border-box',
+                          lineHeight: 1.6,
+                        }}
+                        onFocus={e => { e.target.style.borderColor = '#0A66C2'; }}
+                        onBlur={e => { e.target.style.borderColor = '#E5E7EB'; }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                            setLinkedInModalOpen(false);
+                            handleGenerateLinkedIn();
+                          }
+                        }}
+                      />
+
+                      <div style={{ display: 'flex', gap: '0.625rem', marginTop: '1rem' }}>
+                        <button
+                          onClick={() => { setLinkedInModalOpen(false); handleGenerateLinkedIn(); }}
+                          style={{
+                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                            padding: '0.6875rem 1rem', borderRadius: '10px', border: 'none',
+                            background: 'linear-gradient(135deg, #0A66C2 0%, #1e88e5 100%)',
+                            color: 'white', fontSize: '0.875rem', fontWeight: 600,
+                            cursor: 'pointer', fontFamily: 'inherit',
+                          }}
+                        >
+                          <Sparkles size={14} /> Generate post
+                        </button>
+                        <button
+                          onClick={() => { setLinkedInPrompt(''); setLinkedInModalOpen(false); handleGenerateLinkedIn(); }}
+                          style={{
+                            padding: '0.6875rem 1rem', borderRadius: '10px',
+                            border: '1px solid #E5E7EB', background: 'white',
+                            color: '#6B7280', fontSize: '0.875rem', fontWeight: 500,
+                            cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Skip &amp; generate
+                        </button>
+                      </div>
+                      <p style={{ fontSize: '0.75rem', color: '#D1D5DB', textAlign: 'center', marginTop: '0.75rem', marginBottom: 0 }}>
+                        ⌘ Enter to generate
+                      </p>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
             </motion.div>
           )}
