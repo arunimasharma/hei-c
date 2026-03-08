@@ -466,10 +466,22 @@ ${instructionByType[linkedInPostType]}`;
             {dateStr}
           </p>
           <h1 style={{ fontSize: '2rem', fontWeight: 700, color: '#1F2937', letterSpacing: '-0.025em', lineHeight: 1.2, margin: '0 0 0.875rem' }}>
-            {greeting}, {state.user?.name || 'Friend'}
+            {greeting},{' '}
+            {(!state.user?.name || state.user.name === 'Friend')
+              ? <><a href="https://www.linkedin.com/in/arunimasharma/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '3px', textDecorationColor: '#D1D5DB' }}>Arunima</a>'s Friend</>
+              : state.user.name}
           </h1>
           <p style={{ fontSize: '0.75rem', color: '#B0B7C3', margin: '0 0 0.75rem', lineHeight: 1.55 }}>
-            Your data stays on your device. AI processes it in the moment — nothing is stored on our servers.{' '}
+            Your data stays on your device. AI processes it in the moment — nothing is stored on our servers. Built by{' '}
+            <a
+              href="https://www.linkedin.com/in/arunimasharma/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#9CA3AF', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+            >
+              Arunima
+            </a>
+            .{' '}
             <a
               href="https://docs.google.com/forms/d/1_0dV6E4GZ6ZsMYsH31m74liednuy2D6J8U2JJ45L7Oc/edit"
               target="_blank"

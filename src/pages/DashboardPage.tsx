@@ -34,7 +34,10 @@ export default function DashboardPage() {
         {/* Welcome */}
         <div>
           <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1F2937' }}>
-            Welcome back, {user?.name || 'Friend'}
+            Welcome back,{' '}
+            {(!user?.name || user.name === 'Friend')
+              ? <><a href="https://www.linkedin.com/in/arunimasharma/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '3px', textDecorationColor: '#D1D5DB' }}>Arunima</a>'s Friend</>
+              : user.name}
           </h1>
           <p style={{ color: '#6B7280', marginTop: '0.25rem' }}>Here's your emotional wellness overview</p>
         </div>
