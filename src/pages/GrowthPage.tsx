@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Plus, Zap, Target, Sparkles, RefreshCw, CheckCircle2, SkipForward, Clock, Lightbulb, ChevronDown, ChevronUp, TrendingUp, Info, Brain, Trophy } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Plus, Zap, Target, Sparkles, RefreshCw, CheckCircle2, SkipForward, Clock, Lightbulb, ChevronDown, ChevronUp, TrendingUp, Info, Brain, Trophy, Cpu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Button from '../components/common/Button';
@@ -7,7 +7,33 @@ import Card from '../components/common/Card';
 import GoalCard from '../components/goals/GoalCard';
 import GoalForm from '../components/goals/GoalForm';
 import { useApp } from '../context/AppContext';
+import { callClaudeMessages, parseActionResponse } from '../services/claudeApi';
 import type { Goal, EmotionType } from '../types';
+
+type IdealScenario = {
+  generatedAt: string;
+  basedOn: { reflections: number; exercises: number };
+  productProfile: {
+    headline: string;
+    types: string[];
+    strengths: string[];
+    reasoning: string;
+  };
+  coworkerProfile: {
+    headline: string;
+    enhances: string[];
+    drains: string[];
+    reasoning: string;
+  };
+  automationProjects: Array<{
+    title: string;
+    purpose: string;
+    description: string;
+    difficulty: 'beginner' | 'intermediate' | 'advanced';
+  }>;
+};
+
+const IDEAL_SCENARIO_KEY = 'heq_ideal_scenario';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Stress Relief': '#34D399',
@@ -57,10 +83,25 @@ function isActionsStale(
 }
 
 export default function GrowthPage() {
-  const { state, addGoal, updateGoal, deleteGoal, completeAction, skipAction, dismissAction, refreshActions, llmState } = useApp();
+  const { state, addGoal, updateGoal, deleteGoal, completeAction, skipAction, dismissAction, refreshActions, llmState, checkAndUseAi } = useApp();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<(Goal & { type: 'career' | 'emotional-intelligence' }) | undefined>();
-  const [activeTab, setActiveTab] = useState<'actions' | 'goals'>('actions');
+  const [activeTab, setActiveTab] = useState<'actions' | 'goals' | 'profile'>('actions');
+
+  // Ideal Work Scenario state
+  const [idealScenario, setIdealScenario] = useState<IdealScenario | null>(null);
+  const [idealLoading, setIdealLoading] = useState(false);
+  const [idealError, setIdealError] = useState('');
+  const [profileReasoningOpen, setProfileReasoningOpen] = useState<Record<'product' | 'coworker', boolean>>({ product: false, coworker: false });
+
+  // Load cached scenario from localStorage on mount
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem(IDEAL_SCENARIO_KEY);
+      if (cached) setIdealScenario(JSON.parse(cached));
+    } catch { /* ignore */ }
+  }, []);
+
   const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(new Set());
   const [skipConfirmId, setSkipConfirmId] = useState<string | null>(null);
 
@@ -76,6 +117,90 @@ export default function GrowthPage() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  };
+
+  const handleGenerateIdealScenario = async () => {
+    if (!checkAndUseAi()) return;
+    setIdealLoading(true);
+    setIdealError('');
+
+    const approvedReflections = state.reflections.filter(r => r.status === 'approved');
+    const completedExercises = state.tasteExercises.filter(t => t.status === 'completed');
+
+    const reflectionsText = approvedReflections.slice(-10).map(r =>
+      `- Emotion: ${r.approvedEmotion || r.detectedEmotion} (${r.approvedIntensity || r.detectedIntensity}/10)` +
+      `\n  Triggers: ${r.detectedTriggers?.join(', ') || 'none noted'}` +
+      `\n  Summary: ${r.detectedSummary || r.text.slice(0, 120)}`
+    ).join('\n\n');
+
+    const exercisesText = completedExercises.slice(-6).map(t =>
+      `- Product: ${t.productName} | Score: ${t.score}/10\n  Summary: ${t.summary}\n  Comment: ${t.scoreComment}`
+    ).join('\n\n');
+
+    const completedActionsText = state.actions.filter(a => a.completed).slice(-8).map(a =>
+      `- ${a.title} (${a.category})`
+    ).join('\n');
+
+    const systemPrompt = `You are a career intelligence analyst who synthesizes emotional work patterns and product thinking to reveal someone's ideal work environment. Be specific, personal, and grounded in the actual data — never give generic career advice.
+
+Return ONLY a valid JSON object matching this exact schema, no markdown fences, no preamble:
+{
+  "productProfile": {
+    "headline": "One sharp sentence capturing their product intuition profile",
+    "types": ["3-5 specific product domains or problem spaces they'd excel in"],
+    "strengths": ["3-4 natural product strengths evidenced by their exercise data"],
+    "reasoning": "2-3 sentences grounded in their actual exercise patterns and scores"
+  },
+  "coworkerProfile": {
+    "headline": "One sharp sentence describing their ideal team dynamic",
+    "enhances": ["3-4 specific coworker qualities that expand their emotional bandwidth"],
+    "drains": ["2-3 specific team dynamics that consistently drain them"],
+    "reasoning": "2-3 sentences grounded in their emotional trigger and intensity patterns"
+  },
+  "automationProjects": [
+    {
+      "title": "Project name (3-6 words)",
+      "purpose": "One sentence: what this automates or amplifies specifically for them",
+      "description": "2-3 sentences: what to build, how it works, why it fits their profile",
+      "difficulty": "beginner"
+    },
+    { "title": "...", "purpose": "...", "description": "...", "difficulty": "intermediate" },
+    { "title": "...", "purpose": "...", "description": "...", "difficulty": "advanced" }
+  ]
+}
+
+difficulty values: "beginner" = no-code or simple scripts (buildable in a day), "intermediate" = API integrations (buildable in a week), "advanced" = custom models or complex pipelines (buildable in 2-4 weeks). Include exactly one of each difficulty.`;
+
+    const userMessage = `Here is my work history to analyze:
+
+## Emotional reflections (${approvedReflections.length} total, showing recent):
+${reflectionsText || 'No reflections yet.'}
+
+## Product taste exercises (${completedExercises.length} total, showing recent):
+${exercisesText || 'No exercises yet.'}
+
+## Completed growth actions:
+${completedActionsText || 'None yet.'}
+
+${state.user?.role ? `My role: ${state.user.role}` : ''}
+
+Based on this, describe my ideal work scenario across the 3 dimensions.`;
+
+    try {
+      const response = await callClaudeMessages(systemPrompt, [{ role: 'user', content: userMessage }], 900);
+      const raw = parseActionResponse(response).trim();
+      const parsed: IdealScenario = {
+        ...JSON.parse(raw),
+        generatedAt: new Date().toISOString(),
+        basedOn: { reflections: approvedReflections.length, exercises: completedExercises.length },
+      };
+      setIdealScenario(parsed);
+      localStorage.setItem(IDEAL_SCENARIO_KEY, JSON.stringify(parsed));
+    } catch {
+      setIdealError('Something went wrong generating your profile. Please try again.');
+    } finally {
+      setIdealLoading(false);
+    }
   };
 
   const goalsWithType = useMemo(() => {
@@ -177,7 +302,7 @@ export default function GrowthPage() {
           </Card>
         </div>
 
-        {/* Tab Toggle — Actions first, Goals second */}
+        {/* Tab Toggle */}
         <div style={{ display: 'flex', gap: '0.5rem', backgroundColor: '#F3F4F6', padding: '0.5rem', borderRadius: '10px', width: 'fit-content' }}>
           <Button
             size="sm"
@@ -194,6 +319,14 @@ export default function GrowthPage() {
             style={{ cursor: 'pointer' }}
           >
             <Target size={16} /> Goals
+          </Button>
+          <Button
+            size="sm"
+            variant={activeTab === 'profile' ? 'primary' : 'ghost'}
+            onClick={() => setActiveTab('profile')}
+            style={{ cursor: 'pointer' }}
+          >
+            <Cpu size={16} /> Work Profile
           </Button>
         </div>
 
@@ -586,6 +719,235 @@ export default function GrowthPage() {
                 </div>
               </div>
             )}
+          </motion.div>
+        )}
+
+        {/* ── WORK PROFILE TAB ── */}
+        {activeTab === 'profile' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+          >
+            {/* Header row */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+              <div>
+                <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#1F2937', margin: '0 0 0.25rem' }}>
+                  Your Ideal Work Scenario
+                </h2>
+                <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
+                  {idealScenario
+                    ? `Generated ${Math.floor((Date.now() - new Date(idealScenario.generatedAt).getTime()) / 86400000) === 0
+                        ? 'today'
+                        : `${Math.floor((Date.now() - new Date(idealScenario.generatedAt).getTime()) / 86400000)}d ago`
+                      } · based on ${idealScenario.basedOn.reflections} reflection${idealScenario.basedOn.reflections !== 1 ? 's' : ''} & ${idealScenario.basedOn.exercises} exercise${idealScenario.basedOn.exercises !== 1 ? 's' : ''}`
+                    : 'AI synthesises your reflections and product exercises to reveal where you\'d thrive.'}
+                </p>
+              </div>
+              <button
+                onClick={handleGenerateIdealScenario}
+                disabled={idealLoading}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.375rem',
+                  padding: '0.5rem 1rem', borderRadius: '10px', border: 'none',
+                  background: idealLoading ? '#E5E7EB' : 'linear-gradient(135deg, #4A5FC1 0%, #7C3AED 100%)',
+                  color: idealLoading ? '#9CA3AF' : 'white',
+                  fontSize: '0.8125rem', fontWeight: 600, cursor: idealLoading ? 'default' : 'pointer',
+                  fontFamily: 'inherit', flexShrink: 0,
+                }}
+              >
+                {idealLoading
+                  ? <><motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} style={{ display: 'inline-flex' }}><RefreshCw size={13} /></motion.span> Analysing…</>
+                  : <><Sparkles size={13} /> {idealScenario ? 'Refresh' : 'Generate profile'}</>
+                }
+              </button>
+            </div>
+
+            {idealError && (
+              <div style={{ padding: '0.75rem 1rem', borderRadius: '10px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
+                <p style={{ fontSize: '0.875rem', color: '#DC2626', margin: 0 }}>{idealError}</p>
+              </div>
+            )}
+
+            {!idealScenario && !idealLoading && !idealError && (
+              <Card>
+                <div style={{ textAlign: 'center', padding: '2.5rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '14px', background: 'linear-gradient(135deg, #EEF2FF, #F5F3FF)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Cpu size={22} color="#7C3AED" />
+                  </div>
+                  <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>No profile yet</p>
+                  <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0, maxWidth: '22rem', lineHeight: 1.5 }}>
+                    Hit "Generate profile" above. The more reflections and product taste exercises you have, the sharper the analysis.
+                  </p>
+                </div>
+              </Card>
+            )}
+
+            {idealLoading && (
+              <Card>
+                <div style={{ textAlign: 'center', padding: '2.5rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                    style={{ width: 48, height: 48, borderRadius: '14px', background: 'linear-gradient(135deg, #4A5FC1, #7C3AED)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Sparkles size={22} color="white" />
+                  </motion.div>
+                  <div>
+                    <p style={{ fontWeight: 600, color: '#1F2937', margin: '0 0 0.25rem' }}>Synthesising your data…</p>
+                    <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>Analysing emotional patterns, product instincts, and growth signals</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            <AnimatePresence>
+              {idealScenario && !idealLoading && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+                  {/* ── 1. Product Profile ── */}
+                  <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #E0E7FF', overflow: 'hidden' }}>
+                    <div style={{ padding: '1.125rem 1.25rem', background: 'linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 100%)', borderBottom: '1px solid #E0E7FF' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.375rem' }}>
+                        <span style={{ fontSize: '1rem' }}>🎯</span>
+                        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#4F46E5', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Product Fit</span>
+                      </div>
+                      <p style={{ fontSize: '1rem', fontWeight: 700, color: '#1E1B4B', margin: 0, lineHeight: 1.35 }}>
+                        {idealScenario.productProfile.headline}
+                      </p>
+                    </div>
+                    <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                      <div>
+                        <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6366F1', margin: '0 0 0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Product domains</p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                          {idealScenario.productProfile.types.map(t => (
+                            <span key={t} style={{ fontSize: '0.8125rem', padding: '0.25rem 0.75rem', borderRadius: '999px', backgroundColor: '#EEF2FF', color: '#4338CA', fontWeight: 500 }}>{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6366F1', margin: '0 0 0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Natural strengths</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          {idealScenario.productProfile.strengths.map(s => (
+                            <div key={s} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                              <span style={{ color: '#818CF8', marginTop: '0.2rem', flexShrink: 0 }}>✦</span>
+                              <span style={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.5 }}>{s}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setProfileReasoningOpen(p => ({ ...p, product: !p.product }))}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#9CA3AF', fontSize: '0.75rem', fontFamily: 'inherit', alignSelf: 'flex-start' }}
+                      >
+                        {profileReasoningOpen.product ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                        {profileReasoningOpen.product ? 'Hide' : 'Show'} reasoning
+                      </button>
+                      <AnimatePresence>
+                        {profileReasoningOpen.product && (
+                          <motion.p
+                            initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                            style={{ fontSize: '0.875rem', color: '#6B7280', lineHeight: 1.6, margin: 0, fontStyle: 'italic', overflow: 'hidden' }}
+                          >
+                            {idealScenario.productProfile.reasoning}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+
+                  {/* ── 2. Coworker Dynamics ── */}
+                  <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #D1FAE5', overflow: 'hidden' }}>
+                    <div style={{ padding: '1.125rem 1.25rem', background: 'linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 100%)', borderBottom: '1px solid #D1FAE5' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.375rem' }}>
+                        <span style={{ fontSize: '1rem' }}>🤝</span>
+                        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#059669', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Coworker Dynamics</span>
+                      </div>
+                      <p style={{ fontSize: '1rem', fontWeight: 700, color: '#064E3B', margin: 0, lineHeight: 1.35 }}>
+                        {idealScenario.coworkerProfile.headline}
+                      </p>
+                    </div>
+                    <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                      <div>
+                        <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#059669', margin: '0 0 0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Expands your bandwidth</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          {idealScenario.coworkerProfile.enhances.map(e => (
+                            <div key={e} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                              <span style={{ color: '#34D399', marginTop: '0.2rem', flexShrink: 0 }}>↑</span>
+                              <span style={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.5 }}>{e}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#9CA3AF', margin: '0 0 0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Drains your energy</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          {idealScenario.coworkerProfile.drains.map(d => (
+                            <div key={d} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                              <span style={{ color: '#FCA5A5', marginTop: '0.2rem', flexShrink: 0 }}>↓</span>
+                              <span style={{ fontSize: '0.875rem', color: '#6B7280', lineHeight: 1.5 }}>{d}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setProfileReasoningOpen(p => ({ ...p, coworker: !p.coworker }))}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#9CA3AF', fontSize: '0.75rem', fontFamily: 'inherit', alignSelf: 'flex-start' }}
+                      >
+                        {profileReasoningOpen.coworker ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                        {profileReasoningOpen.coworker ? 'Hide' : 'Show'} reasoning
+                      </button>
+                      <AnimatePresence>
+                        {profileReasoningOpen.coworker && (
+                          <motion.p
+                            initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                            style={{ fontSize: '0.875rem', color: '#6B7280', lineHeight: 1.6, margin: 0, fontStyle: 'italic', overflow: 'hidden' }}
+                          >
+                            {idealScenario.coworkerProfile.reasoning}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+
+                  {/* ── 3. AI Automation Projects ── */}
+                  <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #EDE9FE', overflow: 'hidden' }}>
+                    <div style={{ padding: '1.125rem 1.25rem', background: 'linear-gradient(135deg, #F5F3FF 0%, #FDF4FF 100%)', borderBottom: '1px solid #EDE9FE' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.375rem' }}>
+                        <span style={{ fontSize: '1rem' }}>🤖</span>
+                        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#7C3AED', letterSpacing: '0.06em', textTransform: 'uppercase' }}>AI Automation Projects</span>
+                      </div>
+                      <p style={{ fontSize: '0.875rem', color: '#5B21B6', margin: 0, lineHeight: 1.4 }}>
+                        Personal AI projects to amplify your strengths and reduce cognitive load on your weaknesses.
+                      </p>
+                    </div>
+                    <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {idealScenario.automationProjects.map((proj, i) => {
+                        const difficultyStyle = {
+                          beginner:     { bg: '#F0FDF4', color: '#16A34A', label: 'Beginner' },
+                          intermediate: { bg: '#FFFBEB', color: '#D97706', label: 'Intermediate' },
+                          advanced:     { bg: '#FEF2F2', color: '#DC2626', label: 'Advanced' },
+                        }[proj.difficulty];
+                        return (
+                          <div key={i} style={{ backgroundColor: '#FAFAFA', borderRadius: '12px', border: '1px solid #F3F4F6', padding: '0.875rem 1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.375rem', gap: '0.5rem' }}>
+                              <p style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>{proj.title}</p>
+                              <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1875rem 0.5rem', borderRadius: '6px', backgroundColor: difficultyStyle.bg, color: difficultyStyle.color, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                {difficultyStyle.label}
+                              </span>
+                            </div>
+                            <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#7C3AED', margin: '0 0 0.375rem' }}>{proj.purpose}</p>
+                            <p style={{ fontSize: '0.8125rem', color: '#6B7280', margin: 0, lineHeight: 1.55 }}>{proj.description}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </div>
