@@ -13,7 +13,7 @@ import { useApp } from '../context/AppContext';
 import { useJournalAnalysis } from '../hooks/useJournalAnalysis';
 import { useTasteExercise } from '../hooks/useTasteExercise';
 import { callClaudeMessages, parseActionResponse } from '../services/claudeApi';
-import { EMOTIONS, getEmotionColor, getEmotionIcon } from '../utils/emotionHelpers';
+import { EMOTIONS, getEmotionColor } from '../utils/emotionHelpers';
 import type { EmotionType, EventType, JournalReflection, TasteExercise } from '../types';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
@@ -136,7 +136,7 @@ export default function HomePage() {
     if (journalText) return;
     const timer = setInterval(() => {
       setQuestionIdx(i => (i + 1) % COMPANION_QUESTIONS.length);
-    }, 3500);
+    }, 7000);
     return () => clearInterval(timer);
   }, [journalText]);
 
@@ -548,22 +548,13 @@ ${instructionByType[linkedInPostType]}`;
               ? <><a href="https://www.linkedin.com/in/arunimasharma/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '3px', textDecorationColor: '#D1D5DB' }}>Arunima</a>'s Friend</>
               : state.user.name}
           </h1>
-          <p style={{ fontSize: '0.75rem', color: '#B0B7C3', margin: '0 0 0.75rem', lineHeight: 1.55 }}>
-            Your data stays on your device. AI processes it in the moment — nothing is stored on our servers. Built by{' '}
-            <a
-              href="https://www.linkedin.com/in/arunimasharma/"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: '#9CA3AF', textDecoration: 'underline', textUnderlineOffset: '2px' }}
-            >
-              Arunima
-            </a>
-            .{' '}
+          <p style={{ fontSize: '0.6875rem', color: '#D1D5DB', margin: '0 0 0.75rem', lineHeight: 1.55 }}>
+            Private &amp; on-device.{' '}
             <a
               href="https://docs.google.com/forms/d/1_0dV6E4GZ6ZsMYsH31m74liednuy2D6J8U2JJ45L7Oc/edit"
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: '#9CA3AF', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+              style={{ color: '#D1D5DB', textDecoration: 'underline', textUnderlineOffset: '2px' }}
             >
               Share feedback
             </a>
@@ -610,54 +601,35 @@ ${instructionByType[linkedInPostType]}`;
               style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
             >
               {/* ── THREE GROWTH PILLARS ── */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.625rem' }}>
-                {/* Pillar 1: Product Taste */}
-                {(() => {
-                  const count = state.tasteExercises.length;
-                  return (
-                    <div style={{ borderRadius: '14px', border: '1px solid #F3F4F6', backgroundColor: 'white', borderLeft: '3px solid #7C3AED', padding: '0.75rem 0.875rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                      <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🧪 Product Taste</span>
-                      <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1F2937' }}>
-                        {count > 0 ? `${count} exercise${count !== 1 ? 's' : ''} logged` : 'No exercises yet'}
-                      </span>
-                      <span style={{ fontSize: '0.75rem', color: productTarget ? '#4F46E5' : '#D1D5DB', lineHeight: 1.3 }}>
-                        {productTarget ? `↗ ${productTarget.length > 45 ? productTarget.slice(0, 45) + '…' : productTarget}` : 'Set a direction below ↓'}
-                      </span>
-                    </div>
-                  );
-                })()}
-
-                {/* Pillar 2: Emotional Intelligence */}
-                {(() => {
-                  const approved = state.reflections.filter(r => r.status === 'approved');
-                  const lastEmotion = approved[0]?.approvedEmotion;
-                  return (
-                    <div style={{ borderRadius: '14px', border: '1px solid #F3F4F6', backgroundColor: 'white', borderLeft: '3px solid #4A5FC1', padding: '0.75rem 0.875rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                      <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#4A5FC1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🧠 Emotional IQ</span>
-                      <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1F2937' }}>
-                        {approved.length > 0 ? `${approved.length} reflection${approved.length !== 1 ? 's' : ''}${lastEmotion ? ` · ${lastEmotion}` : ''}` : 'Start journaling'}
-                      </span>
-                      <span style={{ fontSize: '0.75rem', color: coworkerTarget ? '#4A5FC1' : '#D1D5DB', lineHeight: 1.3 }}>
-                        {coworkerTarget ? `↗ ${coworkerTarget.length > 45 ? coworkerTarget.slice(0, 45) + '…' : coworkerTarget}` : eiSummary || 'Set your EI focus on Growth page'}
-                      </span>
-                    </div>
-                  );
-                })()}
-
-                {/* Pillar 3: AI & Tech Edge */}
-                <div style={{ borderRadius: '14px', border: '1px solid #F3F4F6', backgroundColor: 'white', borderLeft: '3px solid #10B981', padding: '0.75rem 0.875rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                  <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🤖 AI & Tech Edge</span>
-                  <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1F2937' }}>
-                    {aiProjectSummary || (careerTarget ? 'Focus set' : 'Not started')}
-                  </span>
-                  <span style={{ fontSize: '0.75rem', color: careerTarget ? '#059669' : '#D1D5DB', lineHeight: 1.3 }}>
-                    {careerTarget ? `↗ ${careerTarget.length > 45 ? careerTarget.slice(0, 45) + '…' : careerTarget}` : <Link to="/growth" style={{ color: '#D1D5DB', textDecoration: 'none' }}>Set focus on Growth page →</Link>}
-                  </span>
-                </div>
-              </div>
+              {(() => {
+                const teCount = state.tasteExercises.length;
+                const approved = state.reflections.filter(r => r.status === 'approved');
+                const lastEmotion = approved[0]?.approvedEmotion;
+                const pillars = [
+                  { dot: '#7C3AED', label: 'Product Taste', stat: teCount > 0 ? `${teCount} exercise${teCount !== 1 ? 's' : ''}` : 'No exercises yet', target: productTarget, targetColor: '#4F46E5', targetPlaceholder: 'Set a direction below ↓' },
+                  { dot: '#4A5FC1', label: 'Emotional IQ (EQ)', stat: approved.length > 0 ? `${approved.length} reflection${approved.length !== 1 ? 's' : ''}${lastEmotion ? ` · ${lastEmotion}` : ''}` : 'Start journaling', target: coworkerTarget, targetColor: '#4A5FC1', targetPlaceholder: eiSummary || 'Set focus below ↓' },
+                  { dot: '#059669', label: 'AI & Tech Edge', stat: aiProjectSummary || (careerTarget ? 'Focus set' : 'Not started'), target: careerTarget, targetColor: '#059669', targetPlaceholder: 'Set focus below ↓' },
+                ];
+                return (
+                  <div style={{ display: 'flex', backgroundColor: '#FAFAFA', borderRadius: '16px', border: '1px solid #F0F0F0', overflow: 'hidden' }}>
+                    {pillars.map((p, i) => (
+                      <div key={p.label} style={{ flex: 1, padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', borderRight: i < 2 ? '1px solid #F0F0F0' : 'none' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: p.dot, flexShrink: 0 }} />
+                          <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{p.label}</span>
+                        </div>
+                        <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1F2937', lineHeight: 1.3 }}>{p.stat}</span>
+                        <span style={{ fontSize: '0.6875rem', color: p.target ? p.targetColor : '#C4C9D4', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {p.target ? `↗ ${p.target.length > 32 ? p.target.slice(0, 32) + '…' : p.target}` : p.targetPlaceholder}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* ── UNIFIED PRODUCT TASTE CARD ── */}
-              <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #EDE9FE', overflow: 'hidden', boxShadow: '0 2px 12px rgba(124,58,237,0.06)' }}>
+              <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #EDE9FE', overflow: 'hidden', boxShadow: '0 2px 12px rgba(124,58,237,0.06)' }}>
 
                 {/* Header row */}
                 <div style={{ padding: '0.875rem 1.25rem', borderBottom: teOpen ? '1px solid #F3F4F6' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -697,58 +669,46 @@ ${instructionByType[linkedInPostType]}`;
                   <div style={{ padding: '0.875rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
                     {/* Working toward row */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: '0.15rem', flexShrink: 0 }}>Working toward</span>
-                      <div style={{ flex: 1 }}>
-                        {productTargetEditing ? (
-                          <textarea
-                            autoFocus
-                            value={productTargetDraft}
-                            onChange={e => setProductTargetDraft(e.target.value)}
-                            onBlur={() => { saveProductTarget(productTargetDraft); setProductTargetEditing(false); }}
-                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveProductTarget(productTargetDraft); setProductTargetEditing(false); } }}
-                            style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid #DDD6FE', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '52px', backgroundColor: '#FAFAFA' }}
-                          />
-                        ) : (
-                          <div
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => { setProductTargetDraft(productTarget); setProductTargetEditing(true); }}
-                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setProductTargetDraft(productTarget); setProductTargetEditing(true); } }}
-                            style={{ cursor: 'pointer' }}
-                          >
-                            {productTarget ? (
-                              <span style={{ fontSize: '0.875rem', color: '#4F46E5', fontWeight: 500, lineHeight: 1.45 }}>
-                                {productTarget}
-                              </span>
-                            ) : (
-                              <span style={{ fontSize: '0.875rem', color: '#C4B5FD', fontStyle: 'italic' }}>
-                                What type of products do you want to master? Tap to set a direction…
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      <span style={{ fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Working toward</span>
+                      {productTargetEditing ? (
+                        <textarea
+                          autoFocus
+                          value={productTargetDraft}
+                          onChange={e => setProductTargetDraft(e.target.value)}
+                          onBlur={() => { saveProductTarget(productTargetDraft); setProductTargetEditing(false); }}
+                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveProductTarget(productTargetDraft); setProductTargetEditing(false); } }}
+                          style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.625rem 0.75rem', borderRadius: '10px', border: '1.5px solid #DDD6FE', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '52px', backgroundColor: '#FAFAFA' }}
+                        />
+                      ) : (
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => { setProductTargetDraft(productTarget); setProductTargetEditing(true); }}
+                          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setProductTargetDraft(productTarget); setProductTargetEditing(true); } }}
+                          style={{ cursor: 'text', padding: '0.625rem 0.75rem', borderRadius: '10px', border: '1.5px dashed #DDD6FE', backgroundColor: '#FAFAFA', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}
+                        >
+                          <span style={{ fontSize: '0.875rem', color: productTarget ? '#4F46E5' : '#C4B5FD', fontStyle: productTarget ? 'normal' : 'italic', fontWeight: productTarget ? 500 : 400, lineHeight: 1.45, flex: 1 }}>
+                            {productTarget || 'What type of products do you want to master?'}
+                          </span>
+                          <Edit3 size={13} color="#C4B5FD" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+                        </div>
+                      )}
                     </div>
 
-                    {/* Progress bar */}
+                    {/* Progress dots */}
                     {(() => {
                       const count = state.tasteExercises.length;
                       const milestone = 5;
-                      const pct = Math.min(count / milestone, 1);
+                      const filled = Math.min(count, milestone);
                       return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.6875rem', color: '#8B5CF6', fontWeight: 500 }}>
-                              {count} exercise{count !== 1 ? 's' : ''} building your product intuition
-                            </span>
-                            <span style={{ fontSize: '0.6875rem', color: '#C4B5FD' }}>
-                              {count < milestone ? `${milestone - count} more to full profile` : 'Profile ready ✓'}
-                            </span>
-                          </div>
-                          <div style={{ height: '4px', backgroundColor: '#EDE9FE', borderRadius: '99px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${pct * 100}%`, backgroundColor: '#7C3AED', borderRadius: '99px', transition: 'width 0.4s ease' }} />
-                          </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                          {Array.from({ length: milestone }, (_, i) => (
+                            <div key={i} style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: i < filled ? '#7C3AED' : '#EDE9FE', transition: 'background-color 0.3s ease', flexShrink: 0 }} />
+                          ))}
+                          <span style={{ fontSize: '0.6875rem', color: '#8B5CF6', marginLeft: '0.25rem' }}>
+                            {count < milestone ? `${milestone - count} more to full profile` : 'Profile ready ✓'}
+                          </span>
                         </div>
                       );
                     })()}
@@ -935,7 +895,7 @@ ${instructionByType[linkedInPostType]}`;
                       <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <Sparkles size={14} color="white" />
                       </div>
-                      <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1F2937' }}>Emotional IQ</span>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1F2937' }}>Emotional IQ (EQ)</span>
                       {state.reflections.filter(r => r.status === 'approved').length > 0 && (
                         <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: '#EFF6FF', color: '#4A5FC1' }}>
                           {state.reflections.filter(r => r.status === 'approved').length}
@@ -960,80 +920,64 @@ ${instructionByType[linkedInPostType]}`;
                   </AnimatePresence>
 
                   {/* Working toward */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.6875rem', color: '#93C5FD', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: '0.2rem', flexShrink: 0 }}>Working toward</span>
-                    <div style={{ flex: 1 }}>
-                      {coworkerTargetEditing ? (
-                        <textarea
-                          autoFocus
-                          value={coworkerTargetDraft}
-                          onChange={e => setCoworkerTargetDraft(e.target.value)}
-                          onBlur={() => { saveCoworkerTarget(coworkerTargetDraft); setCoworkerTargetEditing(false); }}
-                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveCoworkerTarget(coworkerTargetDraft); setCoworkerTargetEditing(false); } }}
-                          style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid #BFDBFE', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '52px', backgroundColor: '#F8FAFF' }}
-                        />
-                      ) : (
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => { setCoworkerTargetDraft(coworkerTarget); setCoworkerTargetEditing(true); }}
-                          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setCoworkerTargetDraft(coworkerTarget); setCoworkerTargetEditing(true); } }}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          {coworkerTarget ? (
-                            <span style={{ fontSize: '0.875rem', color: '#3B82F6', fontWeight: 500, lineHeight: 1.45 }}>{coworkerTarget}</span>
-                          ) : (
-                            <span style={{ fontSize: '0.875rem', color: '#BFDBFE', fontStyle: 'italic' }}>
-                              What emotional dynamics and culture do you want to grow into? Tap to set a focus…
-                            </span>
-                          )}
-                        </div>
-                      )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '0.6875rem', color: '#93C5FD', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Working toward</span>
+                      <Link to="/growth" style={{ fontSize: '0.6875rem', color: '#BFDBFE', textDecoration: 'none' }}>Goals →</Link>
                     </div>
-                    <Link to="/growth" style={{ fontSize: '0.6875rem', color: '#BFDBFE', textDecoration: 'none', flexShrink: 0, paddingTop: '0.2rem' }}>Goals →</Link>
+                    {coworkerTargetEditing ? (
+                      <textarea
+                        autoFocus
+                        value={coworkerTargetDraft}
+                        onChange={e => setCoworkerTargetDraft(e.target.value)}
+                        onBlur={() => { saveCoworkerTarget(coworkerTargetDraft); setCoworkerTargetEditing(false); }}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveCoworkerTarget(coworkerTargetDraft); setCoworkerTargetEditing(false); } }}
+                        style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.625rem 0.75rem', borderRadius: '10px', border: '1.5px solid #BFDBFE', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '52px', backgroundColor: '#F8FAFF' }}
+                      />
+                    ) : (
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => { setCoworkerTargetDraft(coworkerTarget); setCoworkerTargetEditing(true); }}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setCoworkerTargetDraft(coworkerTarget); setCoworkerTargetEditing(true); } }}
+                        style={{ cursor: 'text', padding: '0.625rem 0.75rem', borderRadius: '10px', border: '1.5px dashed #BFDBFE', backgroundColor: '#F8FAFF', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}
+                      >
+                        <span style={{ fontSize: '0.875rem', color: coworkerTarget ? '#3B82F6' : '#BFDBFE', fontStyle: coworkerTarget ? 'normal' : 'italic', fontWeight: coworkerTarget ? 500 : 400, lineHeight: 1.45, flex: 1 }}>
+                          {coworkerTarget || 'What emotional dynamics and culture do you want to grow into?'}
+                        </span>
+                        <Edit3 size={13} color="#BFDBFE" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+                      </div>
+                    )}
                   </div>
 
-                  {/* Progress + emotion pills in one compact band */}
+                  {/* Progress dots + emotion pills in one compact band */}
                   {(() => {
                     const approved = state.reflections.filter(r => r.status === 'approved');
                     const count = approved.length;
-                    const pct = Math.min(count / 5, 1);
+                    const milestone = 5;
+                    const filled = Math.min(count, milestone);
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                          <div style={{ flex: 1, height: '4px', backgroundColor: '#DBEAFE', borderRadius: '99px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${pct * 100}%`, backgroundColor: '#4A5FC1', borderRadius: '99px', transition: 'width 0.4s ease' }} />
-                          </div>
-                          <span style={{ fontSize: '0.6875rem', color: '#93C5FD', whiteSpace: 'nowrap' }}>
-                            {count < 5 ? `${count}/5 reflections` : `${count} reflections ✓`}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                          {Array.from({ length: milestone }, (_, i) => (
+                            <div key={i} style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: i < filled ? '#4A5FC1' : '#DBEAFE', transition: 'background-color 0.3s ease', flexShrink: 0 }} />
+                          ))}
+                          <span style={{ fontSize: '0.6875rem', color: '#93C5FD', marginLeft: '0.25rem', whiteSpace: 'nowrap' }}>
+                            {count < milestone ? `${milestone - count} more to full profile` : `${count} reflections ✓`}
                           </span>
                         </div>
-                        {count > 0 && (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
-                            {approved.slice(0, 4).map(r => (
-                              <span key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', padding: '0.2rem 0.55rem', backgroundColor: '#F0F9FF', border: '1px solid #DBEAFE', borderRadius: '999px', color: '#374151' }}>
-                                {r.approvedEmotion ? getEmotionIcon(r.approvedEmotion) : '📝'}{r.approvedEmotion || new Date(r.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              </span>
-                            ))}
-                            {count > 4 && (
-                              <Link to="/insights?tab=reflections" style={{ fontSize: '0.75rem', color: '#4A5FC1', textDecoration: 'none', padding: '0.2rem 0.4rem', alignSelf: 'center' }}>
-                                +{count - 4} →
-                              </Link>
-                            )}
-                          </div>
-                        )}
                       </div>
                     );
                   })()}
 
                   {/* Starter prompt chips — only before first user message */}
                   {!chatMessages.some(m => m.role === 'user') && (
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      {STARTER_PROMPTS.map((prompt) => (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '2px' }}>
+                      {STARTER_PROMPTS.slice(0, 4).map((prompt) => (
                         <button
                           key={prompt.label}
                           onClick={() => setChatInput(chatInput ? chatInput : prompt.text)}
-                          style={{ padding: '0.375rem 0.75rem', borderRadius: '999px', border: '1.5px solid #E5E7EB', backgroundColor: 'white', fontSize: '0.8125rem', color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                          style={{ padding: '0.375rem 0.75rem', borderRadius: '999px', border: '1.5px solid #E5E7EB', backgroundColor: 'white', fontSize: '0.8125rem', color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap', flexShrink: 0 }}
                           onMouseEnter={e => { e.currentTarget.style.borderColor = '#8B7EC8'; e.currentTarget.style.color = '#4A5FC1'; e.currentTarget.style.backgroundColor = 'rgba(74,95,193,0.04)'; }}
                           onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.backgroundColor = 'white'; }}
                         >
@@ -1085,7 +1029,7 @@ ${instructionByType[linkedInPostType]}`;
                       value={chatInput}
                       onChange={e => setChatInput(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
-                      placeholder="Share what's on your mind… (Enter to send)"
+                      placeholder="Share what's on your mind…"
                       rows={2}
                       style={{ flex: 1, border: '1px solid #E5E7EB', borderRadius: '12px', padding: '0.625rem 0.875rem', fontSize: '0.9375rem', lineHeight: 1.6, color: '#1F2937', resize: 'none', fontFamily: 'inherit', outline: 'none', backgroundColor: 'white' }}
                     />
@@ -1244,55 +1188,50 @@ ${instructionByType[linkedInPostType]}`;
                         <span style={{ fontSize: '0.625rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: 'rgba(139,92,246,0.1)', color: '#7C3AED' }}>AI</span>
                       )}
                     </div>
-                    <Link to="/growth" style={{ fontSize: '0.6875rem', color: '#6EE7B7', textDecoration: 'none', fontWeight: 500 }}>Growth →</Link>
+                    <Link to="/growth" style={{ fontSize: '0.6875rem', color: '#059669', textDecoration: 'none', fontWeight: 500 }}>Growth →</Link>
                   </div>
 
                   {/* Working toward */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.6875rem', color: '#6EE7B7', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: '0.2rem', flexShrink: 0 }}>Working toward</span>
-                    <div style={{ flex: 1 }}>
-                      {careerTargetEditing ? (
-                        <textarea
-                          autoFocus
-                          value={careerTargetDraft}
-                          onChange={e => setCareerTargetDraft(e.target.value)}
-                          onBlur={() => { saveCareerTarget(careerTargetDraft); setCareerTargetEditing(false); }}
-                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveCareerTarget(careerTargetDraft); setCareerTargetEditing(false); } }}
-                          style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid #A7F3D0', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '52px', backgroundColor: '#F0FDF4' }}
-                        />
-                      ) : (
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => { setCareerTargetDraft(careerTarget); setCareerTargetEditing(true); }}
-                          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setCareerTargetDraft(careerTarget); setCareerTargetEditing(true); } }}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          {careerTarget ? (
-                            <span style={{ fontSize: '0.875rem', color: '#059669', fontWeight: 500, lineHeight: 1.45 }}>{careerTarget}</span>
-                          ) : (
-                            <span style={{ fontSize: '0.875rem', color: '#6EE7B7', fontStyle: 'italic' }}>
-                              What AI tools and technical skills are you building? Tap to set a focus…
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    <span style={{ fontSize: '0.6875rem', color: '#059669', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Working toward</span>
+                    {careerTargetEditing ? (
+                      <textarea
+                        autoFocus
+                        value={careerTargetDraft}
+                        onChange={e => setCareerTargetDraft(e.target.value)}
+                        onBlur={() => { saveCareerTarget(careerTargetDraft); setCareerTargetEditing(false); }}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveCareerTarget(careerTargetDraft); setCareerTargetEditing(false); } }}
+                        style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.625rem 0.75rem', borderRadius: '10px', border: '1.5px solid #6EE7B7', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '52px', backgroundColor: '#F0FDF4' }}
+                      />
+                    ) : (
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => { setCareerTargetDraft(careerTarget); setCareerTargetEditing(true); }}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setCareerTargetDraft(careerTarget); setCareerTargetEditing(true); } }}
+                        style={{ cursor: 'text', padding: '0.625rem 0.75rem', borderRadius: '10px', border: '1.5px dashed #6EE7B7', backgroundColor: '#F0FDF4', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}
+                      >
+                        <span style={{ fontSize: '0.875rem', color: careerTarget ? '#059669' : '#34D399', fontStyle: careerTarget ? 'normal' : 'italic', fontWeight: careerTarget ? 500 : 400, lineHeight: 1.45, flex: 1 }}>
+                          {careerTarget || 'What AI tools and technical skills are you building?'}
+                        </span>
+                        <Edit3 size={13} color="#6EE7B7" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+                      </div>
+                    )}
                   </div>
 
-                  {/* AI profile + progress */}
+                  {/* AI profile + progress dots */}
                   {(() => {
                     const completed = state.actions.filter(a => a.completed).length;
-                    const total = state.actions.length;
-                    const pct = total > 0 ? Math.min(completed / Math.max(total, 5), 1) : 0;
+                    const milestone = 5;
+                    const filled = Math.min(completed, milestone);
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                          <div style={{ flex: 1, height: '4px', backgroundColor: '#D1FAE5', borderRadius: '99px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${pct * 100}%`, backgroundColor: '#10B981', borderRadius: '99px', transition: 'width 0.4s ease' }} />
-                          </div>
-                          <span style={{ fontSize: '0.6875rem', color: '#6EE7B7', whiteSpace: 'nowrap' }}>
-                            {completed > 0 ? `${completed} action${completed !== 1 ? 's' : ''} done` : aiProjectSummary || 'No actions yet'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                          {Array.from({ length: milestone }, (_, i) => (
+                            <div key={i} style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: i < filled ? '#10B981' : '#D1FAE5', transition: 'background-color 0.3s ease', flexShrink: 0 }} />
+                          ))}
+                          <span style={{ fontSize: '0.6875rem', color: '#059669', marginLeft: '0.25rem', whiteSpace: 'nowrap' }}>
+                            {completed > 0 ? `${completed} action${completed !== 1 ? 's' : ''} done` : 'Start completing actions'}
                           </span>
                         </div>
                         {aiProjectSummary && completed === 0 && (
@@ -1304,7 +1243,7 @@ ${instructionByType[linkedInPostType]}`;
 
                   {/* Actions label + refresh */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.6875rem', color: '#6EE7B7', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Suggested Actions</span>
+                    <span style={{ fontSize: '0.6875rem', color: '#059669', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Suggested Actions</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       {state.actions.filter(a => !a.completed && !a.skipped).length > 3 && (
                         <Link to="/growth" style={{ fontSize: '0.75rem', color: '#059669', textDecoration: 'none', fontWeight: 500 }}>View all →</Link>
@@ -1353,21 +1292,18 @@ ${instructionByType[linkedInPostType]}`;
                                 <Zap size={14} style={{ color: catColor }} />
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: '0 0 0.25rem' }}>{action.title}</p>
-                                {action.description && (
-                                  <p style={{ fontSize: '0.8125rem', color: '#4B5563', lineHeight: 1.5, margin: '0 0 0.375rem' }}>{action.description}</p>
-                                )}
+                                <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: '0 0 0.3rem' }}>{action.title}</p>
                                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                                   <span style={{ fontSize: '0.6875rem', fontWeight: 500, padding: '0.125rem 0.5rem', borderRadius: '999px', backgroundColor: `${catColor}15`, color: catColor }}>{action.category}</span>
                                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.6875rem', color: '#9CA3AF' }}>
                                     <Clock size={11} /> {action.estimatedMinutes} min
                                   </span>
-                                  {action.reasoning && (
+                                  {(action.description || action.reasoning) && (
                                     <button
                                       onClick={() => toggleReasoning(action.id)}
                                       style={{ display: 'flex', alignItems: 'center', gap: '0.15rem', fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}
                                     >
-                                      {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />} Why this?
+                                      {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />} Details
                                     </button>
                                   )}
                                 </div>
@@ -1398,13 +1334,20 @@ ${instructionByType[linkedInPostType]}`;
                               )}
                             </AnimatePresence>
 
-                            {/* Reasoning panel */}
+                            {/* Details panel — description + reasoning */}
                             <AnimatePresence>
-                              {isExpanded && action.reasoning && (
+                              {isExpanded && (action.description || action.reasoning) && (
                                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} style={{ overflow: 'hidden' }}>
-                                  <div style={{ padding: '0.5rem 1rem 0.75rem', borderTop: `1px solid ${catColor}20`, backgroundColor: `${catColor}06`, display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
-                                    <TrendingUp size={12} style={{ color: catColor, flexShrink: 0, marginTop: '0.15rem' }} />
-                                    <p style={{ fontSize: '0.75rem', color: '#6B7280', lineHeight: 1.5, margin: 0 }}>{action.reasoning}</p>
+                                  <div style={{ padding: '0.625rem 1rem 0.75rem', borderTop: `1px solid ${catColor}20`, backgroundColor: `${catColor}06`, display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                                    {action.description && (
+                                      <p style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.55, margin: 0 }}>{action.description}</p>
+                                    )}
+                                    {action.reasoning && (
+                                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
+                                        <TrendingUp size={11} style={{ color: catColor, flexShrink: 0, marginTop: '0.2rem' }} />
+                                        <p style={{ fontSize: '0.75rem', color: '#6B7280', lineHeight: 1.5, margin: 0 }}>{action.reasoning}</p>
+                                      </div>
+                                    )}
                                   </div>
                                 </motion.div>
                               )}
@@ -1419,7 +1362,7 @@ ${instructionByType[linkedInPostType]}`;
               </div>
 
               {/* ── LINKEDIN POST GENERATOR ── */}
-              <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6', overflow: 'hidden' }}>
+              <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #F3F4F6', overflow: 'hidden' }}>
                 {/* Header — always visible, no expand needed */}
                 <div style={{
                   padding: '0.875rem 1.25rem',
@@ -1428,7 +1371,7 @@ ${instructionByType[linkedInPostType]}`;
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span style={{ fontSize: '0.875rem' }}>💼</span>
                     <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>
-                      Your next Tasty &amp; Reflective LinkedIn post
+                      Draft a LinkedIn Post
                     </span>
                     <span style={{
                       fontSize: '0.6875rem', fontWeight: 600, padding: '0.125rem 0.5rem',

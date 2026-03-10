@@ -160,7 +160,7 @@ export default function GoalForm({
               onChange={(e) => setType(e.target.value as GoalType)}
               options={[
                 { value: 'career', label: '💼 Career Goal' },
-                { value: 'emotional-intelligence', label: '✨ Emotional Intelligence' },
+                { value: 'emotional-intelligence', label: '✨ Emotional IQ (EQ)' },
               ]}
             />
           </div>

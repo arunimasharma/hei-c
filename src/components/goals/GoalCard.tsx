@@ -30,7 +30,7 @@ export default function GoalCard({
     archived: '#9CA3AF',
   };
 
-  const typeLabel = isCareer ? '💼 Career Goal' : '✨ Emotional Intelligence';
+  const typeLabel = isCareer ? '💼 Career Goal' : '✨ Emotional IQ (EQ)';
   const focusArea =
     !isCareer && 'focusArea' in goal
       ? goal.focusArea.replace(/-/g, ' ').toUpperCase()

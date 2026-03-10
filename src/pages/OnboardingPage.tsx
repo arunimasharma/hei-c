@@ -67,7 +67,7 @@ export default function OnboardingPage() {
                 Welcome to Hello-EQ
               </h1>
               <p style={{ fontSize: '1.15rem', color: '#6B7280', marginBottom: '0.5rem' }}>
-                Your Emotional Intelligence Career Operating System
+                Your Emotional IQ (EQ) Career Operating System
               </p>
               <p style={{ color: '#9CA3AF', marginBottom: '2.5rem', maxWidth: '440px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.7 }}>
                 Track career events, understand your emotional patterns, and build emotional intelligence for professional growth.

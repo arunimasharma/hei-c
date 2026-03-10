@@ -204,7 +204,7 @@ export default function GoalsPage() {
           >
             <option value="all">All Types</option>
             <option value="career">Career Goals</option>
-            <option value="emotional-intelligence">Emotional Intelligence</option>
+            <option value="emotional-intelligence">Emotional IQ (EQ)</option>
           </select>
         </div>
 
