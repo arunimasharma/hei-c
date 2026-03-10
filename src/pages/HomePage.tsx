@@ -5,7 +5,7 @@ import {
   Sparkles, Send, ChevronDown, ChevronUp, AlertTriangle,
   CheckCircle2, Edit3, ArrowRight, BookOpen,
   Zap, Clock, SkipForward, RefreshCw, TrendingUp,
-  FlaskConical, Star, ChevronRight, Copy, Check, Target,
+  FlaskConical, Star, ChevronRight, Copy, Check,
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Button from '../components/common/Button';
@@ -83,9 +83,6 @@ export default function HomePage() {
   const [questionIdx, setQuestionIdx] = useState(0);
   const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(new Set());
   const [skipConfirmId, setSkipConfirmId] = useState<string | null>(null);
-  const [actionsExpanded, setActionsExpanded] = useState(false);
-  const [reflectionsExpanded, setReflectionsExpanded] = useState(false);
-  const [teHistoryExpanded, setTeHistoryExpanded] = useState(false);
 
   // Growth pillar state (Product Taste + EI + AI/Tech)
   const [productTarget, setProductTarget] = useState('');
@@ -920,7 +917,7 @@ ${instructionByType[linkedInPostType]}`;
                           <button onClick={handleTeSave} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.625rem 1.125rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                             <CheckCircle2 size={15} /> Save to Profile
                           </button>
-                          <button onClick={handleTeReset} style={{ padding: '0.625rem 1.125rem', borderRadius: '10px', border: '1px solid #E5E7EB', backgroundColor: 'white', color: '#6B7280', fontSize: '0.875rem', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          <button onClick={handleTeClose} style={{ padding: '0.625rem 1.125rem', borderRadius: '10px', border: '1px solid #E5E7EB', backgroundColor: 'white', color: '#6B7280', fontSize: '0.875rem', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
                             Try Another
                           </button>
                         </div>
