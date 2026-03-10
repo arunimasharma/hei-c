@@ -55,7 +55,7 @@ Replace "eq" with the appropriate path value.`;
 const ROUTING_CHIPS = [
   { id: 'eq' as const, emoji: '🧠', label: 'Emotional IQ', color: '#4A5FC1', bg: '#EFF6FF', reply: "Let's explore your work emotions. What's been on your mind at work lately?" },
   { id: 'product' as const, emoji: '🧪', label: 'Product Taste', color: '#7C3AED', bg: '#F5F3FF', reply: "Let's sharpen your product intuition! Which product would you like to analyze today?" },
-  { id: 'ai' as const, emoji: '🤖', label: 'AI & Tech Edge', color: '#059669', bg: '#F0FDF4', reply: "Let's work on your AI & tech edge. Here are your personalized action suggestions below:" },
+  { id: 'ai' as const, emoji: '🤖', label: 'AI & Tech Edge', color: '#059669', bg: '#F0FDF4', reply: "Let's build your tech edge. First — what types of products or services are you aiming to master or work on? (e.g. B2B SaaS, consumer apps, developer tools, AI products)" },
 ];
 
 const EVENT_TYPES: EventType[] = [
@@ -109,12 +109,8 @@ export default function HomePage() {
 
   // Growth pillar state (Product Taste + EI + AI/Tech)
   const [productTarget, setProductTarget] = useState('');
-  const [productTargetDraft, setProductTargetDraft] = useState('');
-  const [productTargetEditing, setProductTargetEditing] = useState(false);
   const [coworkerTargetDraft, setCoworkerTargetDraft] = useState('');
   const [coworkerTargetEditing, setCoworkerTargetEditing] = useState(false);
-  const [careerTargetDraft, setCareerTargetDraft] = useState('');
-  const [careerTargetEditing, setCareerTargetEditing] = useState(false);
   const [productFitSummary, setProductFitSummary] = useState('');
   const [productRecs, setProductRecs] = useState<string[]>([]);
   const [productRecsLoading, setProductRecsLoading] = useState(false);
@@ -132,6 +128,9 @@ export default function HomePage() {
   const [linkedInLoading, setLinkedInLoading] = useState(false);
   const [linkedInCopied, setLinkedInCopied] = useState(false);
 
+
+  // Chat-native AI & Tech Edge state
+  const [aiChatPhase, setAiChatPhase] = useState<'goals-product' | 'goals-skills' | 'ready' | 'done'>('goals-product');
 
   // Chat-native product taste state
   const [productChatPhase, setProductChatPhase] = useState<'naming' | 'questioning' | 'analyzing' | 'done'>('naming');
@@ -176,7 +175,20 @@ export default function HomePage() {
     if (pillar && ['product', 'eq', 'ai'].includes(pillar)) {
       const chip = ROUTING_CHIPS.find(c => c.id === pillar);
       if (chip) {
-        setChatMessages([ROUTING_INITIAL_MESSAGE, { role: 'user', content: chip.label }, { role: 'assistant', content: chip.reply }]);
+        let reply = chip.reply;
+        if (pillar === 'ai') {
+          const raw = localStorage.getItem('heq_control_focus');
+          const f = raw ? JSON.parse(raw) : {};
+          const pt = f.product || '';
+          const ct = f.career || '';
+          if (pt && ct) {
+            reply = `Welcome back. Your current focus: **${pt}** — and building **${ct}**.\n\nReady to generate a fresh action plan, or type to update your goals.`;
+            setAiChatPhase('ready');
+          } else {
+            setAiChatPhase('goals-product');
+          }
+        }
+        setChatMessages([ROUTING_INITIAL_MESSAGE, { role: 'user', content: chip.label }, { role: 'assistant', content: reply }]);
         setSelectedPillar(pillar as 'product' | 'eq' | 'ai');
         setRoutingPhase('routed');
       }
@@ -373,6 +385,7 @@ export default function HomePage() {
     setSelectedPillar(null);
     setShowManualPicker(false);
     resetProductChat();
+    resetAiChat();
     resetAnalysis();
     setPhase('writing');
   };
@@ -383,19 +396,48 @@ export default function HomePage() {
     setProductChatAnswers([]);
     setProductChatQuestionIdx(0);
     setProductChatResult(null);
+    setProductRecs([]);
+  };
+
+  const resetAiChat = () => {
+    setAiChatPhase('goals-product');
   };
 
   const handleRoutingChipClick = (pillar: 'eq' | 'product' | 'ai', reply: string) => {
     const chip = ROUTING_CHIPS.find(c => c.id === pillar);
     const label = chip?.label || pillar;
+    let assistantReply = reply;
+    if (pillar === 'ai') {
+      const hasGoals = productTarget && careerTarget;
+      if (hasGoals) {
+        assistantReply = `Welcome back. Your current focus: **${productTarget}** — and building **${careerTarget}**.\n\nReady to generate a fresh action plan, or type to update your goals.`;
+        setAiChatPhase('ready');
+      } else {
+        setAiChatPhase('goals-product');
+      }
+    }
     setChatMessages(prev => [
       ...prev,
       { role: 'user', content: label },
-      { role: 'assistant', content: reply },
+      { role: 'assistant', content: assistantReply },
     ]);
     setSelectedPillar(pillar);
     setRoutingPhase('routed');
     if (pillar === 'product') resetProductChat();
+  };
+
+  const handleProductRecChipClick = (name: string) => {
+    if (productChatPhase !== 'naming' || chatLoading) return;
+    setProductChatName(name);
+    setProductChatQuestionIdx(0);
+    setProductChatAnswers([]);
+    setProductChatPhase('questioning');
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', content: name },
+      { role: 'assistant', content: `Great choice! Let's dig into **${name}**. Answer as many questions as you'd like — you can finish and analyze at any point.` },
+      { role: 'assistant', content: `Q1 / ${TASTE_QUESTIONS.length}: ${TASTE_QUESTIONS[0]}` },
+    ]);
   };
 
   const handleProductChatAnalyze = async (answers: TasteExerciseAnswer[]) => {
@@ -453,6 +495,15 @@ export default function HomePage() {
     setChatMessages([ROUTING_INITIAL_MESSAGE]);
   };
 
+  const handleGenerateAiActions = () => {
+    setAiChatPhase('done');
+    setChatMessages(prev => [...prev, {
+      role: 'assistant',
+      content: "On it — generating your personalized action plan now. Check it out below.",
+    }]);
+    refreshActions();
+  };
+
   const handleChatSend = async () => {
     const text = chatInput.trim();
     if (!text || chatLoading) return;
@@ -493,6 +544,30 @@ export default function HomePage() {
         );
         const question = parseActionResponse(response).trim();
         setChatMessages(prev => [...prev, { role: 'assistant', content: question }]);
+      } else if (selectedPillar === 'ai') {
+        if (aiChatPhase === 'goals-product') {
+          saveProductTarget(text);
+          setAiChatPhase('goals-skills');
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `Noted. Now — what AI tools or technical skills are you most focused on building? (e.g. building with LLMs, Python & data, prompt engineering, AI product strategy)`,
+          }]);
+        } else if (aiChatPhase === 'goals-skills') {
+          saveCareerTarget(text);
+          setAiChatPhase('ready');
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: "Your focus areas are locked in. Tap **Generate Action Plan** below and I'll put together personalized next steps.",
+          }]);
+        } else if (aiChatPhase === 'ready' || aiChatPhase === 'done') {
+          // User typed something while in ready/done — treat as updating goals
+          saveProductTarget(text);
+          setAiChatPhase('goals-skills');
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `Got it — updating your product focus to: ${text}. What AI tools or technical skills should I note for your plan?`,
+          }]);
+        }
       } else if (selectedPillar === 'product') {
         if (productChatPhase === 'naming') {
           // User provided the product name
@@ -863,8 +938,8 @@ ${instructionByType[linkedInPostType]}`;
                         <div ref={chatEndRef} />
                       </div>
 
-                      {/* Input row — routing, EQ journaling, or product taste (naming/questioning) */}
-                      {(isRouting || selectedPillar === 'eq' || (selectedPillar === 'product' && (productChatPhase === 'naming' || productChatPhase === 'questioning'))) && (
+                      {/* Input row — routing, EQ journaling, product taste, or AI goals */}
+                      {(isRouting || selectedPillar === 'eq' || (selectedPillar === 'product' && (productChatPhase === 'naming' || productChatPhase === 'questioning')) || (selectedPillar === 'ai' && (aiChatPhase === 'goals-product' || aiChatPhase === 'goals-skills' || aiChatPhase === 'ready' || aiChatPhase === 'done'))) && (
                         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
                           <textarea
                             ref={textareaRef}
@@ -873,6 +948,9 @@ ${instructionByType[linkedInPostType]}`;
                             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
                             placeholder={
                               isRouting ? "Tell me what's on your mind…"
+                              : selectedPillar === 'ai' && aiChatPhase === 'goals-product' ? 'e.g. B2B SaaS, consumer apps, developer tools…'
+                              : selectedPillar === 'ai' && aiChatPhase === 'goals-skills' ? 'e.g. building with LLMs, Python, prompt engineering…'
+                              : selectedPillar === 'ai' ? 'Type to update your goals…'
                               : selectedPillar === 'product' && productChatPhase === 'naming' ? 'Type the product name…'
                               : selectedPillar === 'product' ? 'Share your answer…'
                               : "Share what's on your mind…"
@@ -892,23 +970,84 @@ ${instructionByType[linkedInPostType]}`;
 
                       {/* Action buttons row */}
                       {!isRouting && (
-                        <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap', flexDirection: 'column' }}>
+                          {/* AI & Tech: Generate Action Plan */}
+                          {selectedPillar === 'ai' && (aiChatPhase === 'ready' || aiChatPhase === 'done') && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                              <button
+                                onClick={handleGenerateAiActions}
+                                disabled={llmState.isLoading}
+                                style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.625rem 1.25rem', borderRadius: '10px', border: 'none', background: llmState.isLoading ? '#E5E7EB' : 'linear-gradient(135deg, #059669 0%, #10B981 100%)', color: llmState.isLoading ? '#9CA3AF' : 'white', fontSize: '0.875rem', fontWeight: 600, cursor: llmState.isLoading ? 'default' : 'pointer', fontFamily: 'inherit' }}
+                              >
+                                <Zap size={14} />
+                                {llmState.isLoading ? 'Generating…' : aiChatPhase === 'done' ? 'Regenerate Action Plan' : 'Generate Action Plan'}
+                              </button>
+                              {aiChatPhase === 'done' && (
+                                <span style={{ fontSize: '0.6875rem', color: '#9CA3AF' }}>Or type above to update your goals first</span>
+                              )}
+                            </div>
+                          )}
+
                           {/* EQ: Finish Entry */}
                           {selectedPillar === 'eq' && chatMessages.some(m => m.role === 'user') && (
                             <button
                               onClick={handleFinishEntry}
                               disabled={chatLoading}
-                              style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit', opacity: chatLoading ? 0.6 : 1 }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit', opacity: chatLoading ? 0.6 : 1, alignSelf: 'flex-start' }}
                             >
                               <CheckCircle2 size={14} /> Finish Entry
                             </button>
                           )}
+
+                          {/* Product naming: suggest products + chips */}
+                          {selectedPillar === 'product' && productChatPhase === 'naming' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              {/* Suggest button */}
+                              {productRecs.length === 0 && (
+                                <button
+                                  onClick={handleGetProductRecs}
+                                  disabled={productRecsLoading || chatLoading}
+                                  style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.375rem', border: '1px dashed #DDD6FE', backgroundColor: 'transparent', color: '#7C3AED', fontSize: '0.8125rem', fontWeight: 500, padding: '0.5rem 0.875rem', borderRadius: '10px', cursor: (productRecsLoading || chatLoading) ? 'default' : 'pointer', fontFamily: 'inherit', opacity: (productRecsLoading || chatLoading) ? 0.6 : 1 }}
+                                >
+                                  <Sparkles size={13} />
+                                  {productRecsLoading ? 'Finding suggestions…' : 'Suggest products to analyze'}
+                                </button>
+                              )}
+                              {/* Suggestion chips */}
+                              {productRecs.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                                  <span style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 500 }}>Pick one to start, or type your own above:</span>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                                    {productRecs.map((rec, i) => (
+                                      <button
+                                        key={i}
+                                        onClick={() => handleProductRecChipClick(rec)}
+                                        disabled={chatLoading}
+                                        style={{ padding: '0.375rem 0.75rem', borderRadius: '999px', border: '1.5px solid #DDD6FE', backgroundColor: 'white', color: '#7C3AED', fontSize: '0.8125rem', fontWeight: 500, cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#F5F3FF'; e.currentTarget.style.borderColor = '#7C3AED'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'white'; e.currentTarget.style.borderColor = '#DDD6FE'; }}
+                                      >
+                                        {rec}
+                                      </button>
+                                    ))}
+                                    <button
+                                      onClick={() => setProductRecs([])}
+                                      style={{ padding: '0.375rem 0.625rem', borderRadius: '999px', border: '1px solid #E5E7EB', backgroundColor: 'transparent', color: '#9CA3AF', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit' }}
+                                    >
+                                      refresh ↺
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Product: Finish & Analyze (available after ≥1 answer, before analysis runs) */}
                           {selectedPillar === 'product' && productChatPhase === 'questioning' && productChatAnswers.length > 0 && (
                             <button
                               onClick={() => handleProductChatAnalyze(productChatAnswers)}
                               disabled={chatLoading}
-                              style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit', opacity: chatLoading ? 0.6 : 1 }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit', opacity: chatLoading ? 0.6 : 1, alignSelf: 'flex-start' }}
                             >
                               <Sparkles size={14} /> Finish & Analyze
                             </button>
@@ -917,7 +1056,7 @@ ${instructionByType[linkedInPostType]}`;
                           {selectedPillar === 'product' && productChatPhase === 'done' && productChatResult && (
                             <button
                               onClick={handleProductChatSave}
-                              style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start' }}
                             >
                               <CheckCircle2 size={14} /> Save to Profile
                             </button>
@@ -1020,36 +1159,8 @@ ${instructionByType[linkedInPostType]}`;
                   <Link to="/growth" style={{ fontSize: '0.6875rem', color: '#C4B5FD', textDecoration: 'none', fontWeight: 500 }}>Goals →</Link>
                 </div>
 
-                {/* Context: working toward + progress + history + recs */}
+                {/* Context: progress + history + recs */}
                 <div style={{ padding: '0.875rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-
-                    {/* Working toward row */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                      <span style={{ fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Working toward</span>
-                      {productTargetEditing ? (
-                        <textarea
-                          autoFocus
-                          value={productTargetDraft}
-                          onChange={e => setProductTargetDraft(e.target.value)}
-                          onBlur={() => { saveProductTarget(productTargetDraft); setProductTargetEditing(false); }}
-                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveProductTarget(productTargetDraft); setProductTargetEditing(false); } }}
-                          style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.625rem 0.75rem', borderRadius: '10px', border: '1.5px solid #DDD6FE', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '52px', backgroundColor: '#FAFAFA' }}
-                        />
-                      ) : (
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => { setProductTargetDraft(productTarget); setProductTargetEditing(true); }}
-                          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setProductTargetDraft(productTarget); setProductTargetEditing(true); } }}
-                          style={{ cursor: 'text', padding: '0.625rem 0.75rem', borderRadius: '10px', border: '1.5px dashed #DDD6FE', backgroundColor: '#FAFAFA', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}
-                        >
-                          <span style={{ fontSize: '0.875rem', color: productTarget ? '#4F46E5' : '#C4B5FD', fontStyle: productTarget ? 'normal' : 'italic', fontWeight: productTarget ? 500 : 400, lineHeight: 1.45, flex: 1 }}>
-                            {productTarget || 'What type of products do you want to master?'}
-                          </span>
-                          <Edit3 size={13} color="#C4B5FD" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
-                        </div>
-                      )}
-                    </div>
 
                     {/* Progress dots */}
                     {(() => {
@@ -1298,33 +1409,24 @@ ${instructionByType[linkedInPostType]}`;
                     <Link to="/growth" style={{ fontSize: '0.6875rem', color: '#059669', textDecoration: 'none', fontWeight: 500 }}>Growth →</Link>
                   </div>
 
-                  {/* Working toward */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    <span style={{ fontSize: '0.6875rem', color: '#059669', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Working toward</span>
-                    {careerTargetEditing ? (
-                      <textarea
-                        autoFocus
-                        value={careerTargetDraft}
-                        onChange={e => setCareerTargetDraft(e.target.value)}
-                        onBlur={() => { saveCareerTarget(careerTargetDraft); setCareerTargetEditing(false); }}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveCareerTarget(careerTargetDraft); setCareerTargetEditing(false); } }}
-                        style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.625rem 0.75rem', borderRadius: '10px', border: '1.5px solid #6EE7B7', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '52px', backgroundColor: '#F0FDF4' }}
-                      />
-                    ) : (
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => { setCareerTargetDraft(careerTarget); setCareerTargetEditing(true); }}
-                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setCareerTargetDraft(careerTarget); setCareerTargetEditing(true); } }}
-                        style={{ cursor: 'text', padding: '0.625rem 0.75rem', borderRadius: '10px', border: '1.5px dashed #6EE7B7', backgroundColor: '#F0FDF4', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}
-                      >
-                        <span style={{ fontSize: '0.875rem', color: careerTarget ? '#059669' : '#34D399', fontStyle: careerTarget ? 'normal' : 'italic', fontWeight: careerTarget ? 500 : 400, lineHeight: 1.45, flex: 1 }}>
-                          {careerTarget || 'What AI tools and technical skills are you building?'}
-                        </span>
-                        <Edit3 size={13} color="#6EE7B7" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
-                      </div>
-                    )}
-                  </div>
+                  {/* Goals summary — set via chat, shown read-only here */}
+                  {(productTarget || careerTarget) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', padding: '0.625rem 0.875rem', borderRadius: '10px', backgroundColor: '#F0FDF4', border: '1px solid #D1FAE5' }}>
+                      <span style={{ fontSize: '0.6875rem', color: '#059669', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Your focus</span>
+                      {productTarget && (
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.375rem' }}>
+                          <span style={{ fontSize: '0.6875rem', color: '#6B7280', fontWeight: 600, marginTop: '0.1rem', flexShrink: 0 }}>Products</span>
+                          <span style={{ fontSize: '0.8125rem', color: '#065F46', lineHeight: 1.4 }}>{productTarget}</span>
+                        </div>
+                      )}
+                      {careerTarget && (
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.375rem' }}>
+                          <span style={{ fontSize: '0.6875rem', color: '#6B7280', fontWeight: 600, marginTop: '0.1rem', flexShrink: 0 }}>Skills</span>
+                          <span style={{ fontSize: '0.8125rem', color: '#065F46', lineHeight: 1.4 }}>{careerTarget}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* AI profile + progress dots */}
                   {(() => {
