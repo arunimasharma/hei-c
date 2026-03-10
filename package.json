@@ -7,11 +7,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@vercel/analytics": "^1.6.1",
+    "dexie": "^4.3.0",
     "lucide-react": "^0.564.0",
     "motion": "^12.34.0",
     "react": "^19.2.0",

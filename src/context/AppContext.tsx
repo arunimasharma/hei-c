@@ -1,9 +1,28 @@
-import { createContext, useContext, useReducer, useEffect, useCallback, useRef, useState, type ReactNode } from 'react';
-import type { UserProfile, EmotionEntry, CareerEvent, MicroAction, AppSettings, JournalReflection, Goal, TasteExercise } from '../types';
+import {
+  createContext, useContext, useReducer, useEffect,
+  useCallback, useRef, useState, type ReactNode,
+} from 'react';
+import type {
+  UserProfile, EmotionEntry, CareerEvent,
+  MicroAction, AppSettings, JournalReflection, Goal, TasteExercise,
+} from '../types';
 import type { LLMActionState } from '../types/llm';
 import { generateSuggestedActions } from '../utils/actionGenerator';
 import { useClaudeActions } from '../hooks/useClaudeActions';
 import { recordActionOutcome, clearMemory } from '../services/memoryManager';
+import {
+  db, migrateFromLocalStorage,
+  dbPut, dbGet, dbGetAll, dbDelete, dbReplaceAll,
+  KV_USER, KV_SETTINGS, KV_AI_STATE,
+} from '../services/db';
+import { evictKeyFromMemory } from '../services/encryptionService';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+interface AiState {
+  aiUsageCount: number;
+  aiUnlocked: boolean;
+}
 
 interface AppState {
   user: UserProfile | null;
@@ -17,6 +36,8 @@ interface AppState {
   aiUsageCount: number;
   aiUnlocked: boolean;
 }
+
+// ── Actions ───────────────────────────────────────────────────────────────────
 
 type Action =
   | { type: 'SET_USER'; payload: UserProfile }
@@ -42,6 +63,8 @@ type Action =
   | { type: 'UNLOCK_AI' }
   | { type: 'CLEAR_ALL' };
 
+// ── Defaults ──────────────────────────────────────────────────────────────────
+
 const defaultSettings: AppSettings = {
   theme: 'light',
   notifications: true,
@@ -61,6 +84,8 @@ const initialState: AppState = {
   aiUnlocked: false,
 };
 
+// ── Reducer ───────────────────────────────────────────────────────────────────
+
 function appReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'SET_USER':
@@ -73,7 +98,7 @@ function appReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         emotions: state.emotions.map(e =>
-          e.id === action.payload.id ? { ...e, ...action.payload.updates } : e
+          e.id === action.payload.id ? { ...e, ...action.payload.updates } : e,
         ),
       };
     case 'DELETE_EMOTION':
@@ -84,7 +109,7 @@ function appReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         events: state.events.map(e =>
-          e.id === action.payload.id ? { ...e, ...action.payload.updates } : e
+          e.id === action.payload.id ? { ...e, ...action.payload.updates } : e,
         ),
       };
     case 'DELETE_EVENT':
@@ -95,14 +120,14 @@ function appReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         actions: state.actions.map(a =>
-          a.id === action.payload ? { ...a, completed: true, completedAt: new Date().toISOString() } : a
+          a.id === action.payload ? { ...a, completed: true, completedAt: new Date().toISOString() } : a,
         ),
       };
     case 'SKIP_ACTION':
       return {
         ...state,
         actions: state.actions.map(a =>
-          a.id === action.payload ? { ...a, skipped: true } : a
+          a.id === action.payload ? { ...a, skipped: true } : a,
         ),
       };
     case 'ADD_REFLECTION':
@@ -111,7 +136,7 @@ function appReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         reflections: state.reflections.map(r =>
-          r.id === action.payload.id ? { ...r, ...action.payload.updates } : r
+          r.id === action.payload.id ? { ...r, ...action.payload.updates } : r,
         ),
       };
     case 'ADD_GOAL':
@@ -120,7 +145,7 @@ function appReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         goals: state.goals.map(g =>
-          g.id === action.payload.id ? { ...g, ...action.payload.updates } : g
+          g.id === action.payload.id ? { ...g, ...action.payload.updates } : g,
         ),
       };
     case 'DELETE_GOAL':
@@ -141,6 +166,8 @@ function appReducer(state: AppState, action: Action): AppState {
       return state;
   }
 }
+
+// ── Context type ──────────────────────────────────────────────────────────────
 
 interface AppContextType {
   state: AppState;
@@ -163,137 +190,215 @@ interface AppContextType {
   updateGoal: (id: string, updates: Partial<Goal>) => void;
   deleteGoal: (id: string) => void;
   addTasteExercise: (exercise: TasteExercise) => void;
-  clearAllData: () => void;
-  logout: () => void;
+  clearAllData: () => Promise<void>;
+  logout: () => Promise<void>;
   llmState: LLMActionState;
   aiGated: boolean;
   checkAndUseAi: () => boolean;
   unlockAi: () => void;
+  /** True once the initial Dexie load completes and state is hydrated. */
+  dbReady: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEYS = {
-  user: 'eicos_user_profile',
-  emotions: 'eicos_emotions',
-  events: 'eicos_events',
-  actions: 'eicos_actions',
-  reflections: 'eicos_reflections',
-  goals: 'eicos_goals',
-  tasteExercises: 'eicos_taste_exercises',
-  settings: 'eicos_settings',
-  aiUsageCount: 'eicos_ai_usage_count',
-  aiUnlocked: 'eicos_ai_unlocked',
-};
+// ── Dexie persistence helpers ─────────────────────────────────────────────────
 
+async function loadFromDexie(): Promise<Partial<AppState>> {
+  const [user, settings, aiState, emotions, events, actions, reflections, goals, tasteExercises] =
+    await Promise.all([
+      dbGet<UserProfile>(db.keyvalue, KV_USER),
+      dbGet<AppSettings>(db.keyvalue, KV_SETTINGS),
+      dbGet<AiState>(db.keyvalue, KV_AI_STATE),
+      dbGetAll<EmotionEntry>(db.emotions),
+      dbGetAll<CareerEvent>(db.events),
+      dbGetAll<MicroAction>(db.actions),
+      dbGetAll<JournalReflection>(db.reflections),
+      dbGetAll<Goal>(db.goals),
+      dbGetAll<TasteExercise>(db.exercises),
+    ]);
 
-function loadFromStorage(): Partial<AppState> {
+  return {
+    user: user ?? null,
+    settings: settings ? { ...defaultSettings, ...settings } : defaultSettings,
+    aiUsageCount: aiState?.aiUsageCount ?? 0,
+    aiUnlocked:   aiState?.aiUnlocked   ?? false,
+    emotions,
+    events,
+    actions,
+    reflections,
+    goals,
+    tasteExercises,
+  };
+}
+
+/** Targeted Dexie write for the specific mutation — avoids full serialisation. */
+async function persistMutation(state: AppState, action: Action): Promise<void> {
   try {
-    const user = localStorage.getItem(STORAGE_KEYS.user);
-    const emotions = localStorage.getItem(STORAGE_KEYS.emotions);
-    const events = localStorage.getItem(STORAGE_KEYS.events);
-    const actions = localStorage.getItem(STORAGE_KEYS.actions);
-    const reflections = localStorage.getItem(STORAGE_KEYS.reflections);
-    const goals = localStorage.getItem(STORAGE_KEYS.goals);
-    const tasteExercises = localStorage.getItem(STORAGE_KEYS.tasteExercises);
-    const settings = localStorage.getItem(STORAGE_KEYS.settings);
-
-    const aiUsageCount = localStorage.getItem(STORAGE_KEYS.aiUsageCount);
-    const aiUnlocked = localStorage.getItem(STORAGE_KEYS.aiUnlocked);
-
-    return {
-      user: user ? JSON.parse(user) : null,
-      emotions: emotions ? JSON.parse(emotions) : [],
-      events: events ? JSON.parse(events) : [],
-      actions: actions ? JSON.parse(actions) : [],
-      reflections: reflections ? JSON.parse(reflections) : [],
-      goals: goals ? JSON.parse(goals) : [],
-      tasteExercises: tasteExercises ? JSON.parse(tasteExercises) : [],
-      settings: settings ? { ...defaultSettings, ...JSON.parse(settings) } : defaultSettings,
-      aiUsageCount: aiUsageCount ? JSON.parse(aiUsageCount) : 0,
-      aiUnlocked: aiUnlocked ? JSON.parse(aiUnlocked) : false,
-    };
-  } catch {
-    console.warn('Failed to load data from localStorage');
-    return {};
+    switch (action.type) {
+      case 'SET_USER':
+      case 'UPDATE_USER':
+        if (state.user) await dbPut(db.keyvalue, KV_USER, state.user);
+        break;
+      case 'UPDATE_SETTINGS':
+        await dbPut(db.keyvalue, KV_SETTINGS, state.settings);
+        break;
+      case 'INCREMENT_AI_USAGE':
+      case 'UNLOCK_AI':
+        await dbPut(db.keyvalue, KV_AI_STATE, { aiUsageCount: state.aiUsageCount, aiUnlocked: state.aiUnlocked } satisfies AiState);
+        break;
+      case 'ADD_EMOTION':
+        await dbPut(db.emotions, action.payload.id, action.payload);
+        break;
+      case 'UPDATE_EMOTION': {
+        const e = state.emotions.find(x => x.id === action.payload.id);
+        if (e) await dbPut(db.emotions, e.id, e);
+        break;
+      }
+      case 'DELETE_EMOTION':
+        await dbDelete(db.emotions, action.payload);
+        break;
+      case 'ADD_EVENT':
+        await dbPut(db.events, action.payload.id, action.payload);
+        break;
+      case 'UPDATE_EVENT': {
+        const e = state.events.find(x => x.id === action.payload.id);
+        if (e) await dbPut(db.events, e.id, e);
+        break;
+      }
+      case 'DELETE_EVENT':
+        await dbDelete(db.events, action.payload);
+        break;
+      case 'SET_ACTIONS':
+        await dbReplaceAll(db.actions, state.actions);
+        break;
+      case 'COMPLETE_ACTION':
+      case 'SKIP_ACTION': {
+        const a = state.actions.find(x => x.id === action.payload);
+        if (a) await dbPut(db.actions, a.id, a);
+        break;
+      }
+      case 'ADD_REFLECTION':
+        await dbPut(db.reflections, action.payload.id, action.payload);
+        break;
+      case 'UPDATE_REFLECTION': {
+        const r = state.reflections.find(x => x.id === action.payload.id);
+        if (r) await dbPut(db.reflections, r.id, r);
+        break;
+      }
+      case 'ADD_GOAL':
+        await dbPut(db.goals, action.payload.id, action.payload);
+        break;
+      case 'UPDATE_GOAL': {
+        const g = state.goals.find(x => x.id === action.payload.id);
+        if (g) await dbPut(db.goals, g.id, g);
+        break;
+      }
+      case 'DELETE_GOAL':
+        await dbDelete(db.goals, action.payload);
+        break;
+      case 'ADD_TASTE_EXERCISE':
+        await dbPut(db.exercises, action.payload.id, action.payload);
+        break;
+      case 'CLEAR_ALL':
+        await Promise.all([
+          db.keyvalue.clear(), db.emotions.clear(), db.events.clear(),
+          db.actions.clear(), db.reflections.clear(), db.goals.clear(), db.exercises.clear(),
+        ]);
+        break;
+      default:
+        break;
+    }
+  } catch (err) {
+    console.warn('[HEQ] Dexie persist error', err);
   }
 }
 
-function saveToStorage(state: AppState) {
-  try {
-    if (state.user) localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(state.user));
-    localStorage.setItem(STORAGE_KEYS.emotions, JSON.stringify(state.emotions));
-    localStorage.setItem(STORAGE_KEYS.events, JSON.stringify(state.events));
-    localStorage.setItem(STORAGE_KEYS.actions, JSON.stringify(state.actions));
-    localStorage.setItem(STORAGE_KEYS.reflections, JSON.stringify(state.reflections));
-    localStorage.setItem(STORAGE_KEYS.goals, JSON.stringify(state.goals));
-    localStorage.setItem(STORAGE_KEYS.tasteExercises, JSON.stringify(state.tasteExercises));
-    localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(state.settings));
-    localStorage.setItem(STORAGE_KEYS.aiUsageCount, JSON.stringify(state.aiUsageCount));
-    localStorage.setItem(STORAGE_KEYS.aiUnlocked, JSON.stringify(state.aiUnlocked));
-  } catch {
-    console.warn('Failed to save data to localStorage');
-  }
-}
+// ── Provider ──────────────────────────────────────────────────────────────────
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [state, rawDispatch] = useReducer(appReducer, initialState);
   const { llmState, generateActions } = useClaudeActions();
   const [aiGated, setAiGated] = useState(false);
+  const [dbReady, setDbReady] = useState(false);
 
-  // Read/write localStorage directly so the check is always synchronous and
-  // never stale regardless of React's async re-render cycle.
+  // Track the most recent action so the persist effect knows what changed.
+  const lastActionRef = useRef<Action | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const dispatch = useCallback((action: Action) => {
+    lastActionRef.current = action;
+    rawDispatch(action);
+  }, []);
+
+  // After every render caused by dispatch, persist the mutation.
+  useEffect(() => {
+    const action = lastActionRef.current;
+    if (!action || !dbReady || action.type === 'LOAD_STATE') return;
+    void persistMutation(stateRef.current, action);
+  });
+
+  // ── AI gate ───────────────────────────────────────────────────────────────
+
   const checkAndUseAi = useCallback((): boolean => {
-    const isUnlocked = localStorage.getItem(STORAGE_KEYS.aiUnlocked);
-    if (isUnlocked === 'true') return true;
-
-    const raw = localStorage.getItem(STORAGE_KEYS.aiUsageCount);
-    const currentCount = raw ? (JSON.parse(raw) as number) : 0;
-
-    if (currentCount < 5) {
-      const next = currentCount + 1;
-      localStorage.setItem(STORAGE_KEYS.aiUsageCount, JSON.stringify(next));
+    if (stateRef.current.aiUnlocked) return true;
+    if (stateRef.current.aiUsageCount < 5) {
       dispatch({ type: 'INCREMENT_AI_USAGE' });
       return true;
     }
-
     setAiGated(true);
     return false;
-  }, []); // no deps — reads live from localStorage every call
+  }, [dispatch]);
 
   const unlockAi = useCallback(() => {
-    localStorage.setItem(STORAGE_KEYS.aiUnlocked, 'true');
     dispatch({ type: 'UNLOCK_AI' });
     setAiGated(false);
-  }, []);
+  }, [dispatch]);
+
+  // ── Bootstrap ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    const saved = loadFromStorage();
-    if (!saved.user) {
-      saved.user = {
-        id: `user_${Date.now()}`,
-        name: 'Friend',
-        role: '',
-        onboardingComplete: false,
-        createdAt: new Date().toISOString(),
-        checkInFrequency: 'as-needed',
-      };
-    }
-    dispatch({ type: 'LOAD_STATE', payload: saved });
-  }, []);
+    let cancelled = false;
+    const bootstrap = async () => {
+      await migrateFromLocalStorage();
+      const saved = await loadFromDexie();
+      if (cancelled) return;
 
-  useEffect(() => {
-    if (state.user) {
-      saveToStorage(state);
-    }
-  }, [state]);
+      if (!saved.user) {
+        saved.user = {
+          id: `user_${Date.now()}`,
+          name: 'Friend',
+          role: '',
+          onboardingComplete: false,
+          createdAt: new Date().toISOString(),
+          checkInFrequency: 'as-needed',
+        };
+        await dbPut(db.keyvalue, KV_USER, saved.user);
+      }
+      rawDispatch({ type: 'LOAD_STATE', payload: saved });
+      setDbReady(true);
+    };
+    void bootstrap();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const addEmotion = (entry: EmotionEntry) => dispatch({ type: 'ADD_EMOTION', payload: entry });
-  const updateEmotion = (id: string, updates: Partial<EmotionEntry>) => dispatch({ type: 'UPDATE_EMOTION', payload: { id, updates } });
-  const deleteEmotion = (id: string) => dispatch({ type: 'DELETE_EMOTION', payload: id });
-  const addEvent = (event: CareerEvent) => dispatch({ type: 'ADD_EVENT', payload: event });
-  const updateEvent = (id: string, updates: Partial<CareerEvent>) => dispatch({ type: 'UPDATE_EVENT', payload: { id, updates } });
-  const deleteEvent = (id: string) => dispatch({ type: 'DELETE_EVENT', payload: id });
+  // ── Action creators ───────────────────────────────────────────────────────
+
+  const addEmotion       = (entry: EmotionEntry)                           => dispatch({ type: 'ADD_EMOTION', payload: entry });
+  const updateEmotion    = (id: string, updates: Partial<EmotionEntry>)    => dispatch({ type: 'UPDATE_EMOTION', payload: { id, updates } });
+  const deleteEmotion    = (id: string)                                    => dispatch({ type: 'DELETE_EMOTION', payload: id });
+  const addEvent         = (event: CareerEvent)                            => dispatch({ type: 'ADD_EVENT', payload: event });
+  const updateEvent      = (id: string, updates: Partial<CareerEvent>)     => dispatch({ type: 'UPDATE_EVENT', payload: { id, updates } });
+  const deleteEvent      = (id: string)                                    => dispatch({ type: 'DELETE_EVENT', payload: id });
+  const addReflection    = (r: JournalReflection)                          => dispatch({ type: 'ADD_REFLECTION', payload: r });
+  const updateReflection = (id: string, updates: Partial<JournalReflection>) => dispatch({ type: 'UPDATE_REFLECTION', payload: { id, updates } });
+  const addTasteExercise = (e: TasteExercise)                              => dispatch({ type: 'ADD_TASTE_EXERCISE', payload: e });
+  const addGoal          = (g: Goal)                                       => dispatch({ type: 'ADD_GOAL', payload: g });
+  const updateGoal       = (id: string, updates: Partial<Goal>)            => dispatch({ type: 'UPDATE_GOAL', payload: { id, updates } });
+  const deleteGoal       = (id: string)                                    => dispatch({ type: 'DELETE_GOAL', payload: id });
+  const updateUserProfile = (updates: Partial<UserProfile>)                => dispatch({ type: 'UPDATE_USER', payload: updates });
+  const updateSettings    = (updates: Partial<AppSettings>)                => dispatch({ type: 'UPDATE_SETTINGS', payload: updates });
 
   const completeAction = (id: string) => {
     const action = state.actions.find(a => a.id === id);
@@ -307,94 +412,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SKIP_ACTION', payload: id });
   };
 
-  // Dismiss for now — hides from view without recording to memory (may suggest again)
-  const dismissAction = (id: string) => {
-    dispatch({ type: 'SKIP_ACTION', payload: id });
-  };
+  const dismissAction = (id: string) => dispatch({ type: 'SKIP_ACTION', payload: id });
 
   const refreshActions = useCallback(() => {
     if (!checkAndUseAi()) return;
-
     if (!state.user) {
-      const suggested = generateSuggestedActions(state.emotions, state.actions, state.goals);
-      const completed = state.actions.filter(a => a.completed);
-      dispatch({ type: 'SET_ACTIONS', payload: [...suggested, ...completed] });
+      const fallback = generateSuggestedActions(state.emotions, state.actions, state.goals);
+      dispatch({ type: 'SET_ACTIONS', payload: [...fallback, ...state.actions.filter(a => a.completed)] });
       return;
     }
-
-    generateActions(state.user, state.emotions, state.events, state.actions, state.goals)
+    void generateActions(state.user, state.emotions, state.events, state.actions, state.goals)
       .then(suggested => {
-        const completed = state.actions.filter(a => a.completed);
-        dispatch({ type: 'SET_ACTIONS', payload: [...suggested, ...completed] });
+        dispatch({ type: 'SET_ACTIONS', payload: [...suggested, ...state.actions.filter(a => a.completed)] });
       });
-  }, [checkAndUseAi, state.user, state.emotions, state.events, state.actions, state.goals, generateActions]);
+  }, [checkAndUseAi, state, generateActions, dispatch]);
 
-  // Auto-refresh when a new emotion is logged and active actions are running low
+  // Auto-refresh when a new emotion is logged and active actions run low.
   const prevEmotionCountRef = useRef(state.emotions.length);
   useEffect(() => {
     const prev = prevEmotionCountRef.current;
     const curr = state.emotions.length;
     prevEmotionCountRef.current = curr;
-    if (curr > prev) {
-      const activeCount = state.actions.filter(a => !a.completed && !a.skipped).length;
-      if (activeCount < 2) {
-        const timer = setTimeout(() => refreshActions(), 300);
-        return () => clearTimeout(timer);
-      }
+    if (curr > prev && state.actions.filter(a => !a.completed && !a.skipped).length < 2) {
+      const t = setTimeout(refreshActions, 300);
+      return () => clearTimeout(t);
     }
-  }, [state.emotions.length, refreshActions]);
+  }, [state.emotions.length, state.actions, refreshActions]);
 
-  const addReflection = (reflection: JournalReflection) => dispatch({ type: 'ADD_REFLECTION', payload: reflection });
-  const updateReflection = (id: string, updates: Partial<JournalReflection>) => dispatch({ type: 'UPDATE_REFLECTION', payload: { id, updates } });
-  const addTasteExercise = (exercise: TasteExercise) => dispatch({ type: 'ADD_TASTE_EXERCISE', payload: exercise });
-
-  const addGoal = (goal: Goal) => dispatch({ type: 'ADD_GOAL', payload: goal });
-  const updateGoal = (id: string, updates: Partial<Goal>) => dispatch({ type: 'UPDATE_GOAL', payload: { id, updates } });
-  const deleteGoal = (id: string) => dispatch({ type: 'DELETE_GOAL', payload: id });
-
-  const updateUserProfile = (updates: Partial<UserProfile>) => dispatch({ type: 'UPDATE_USER', payload: updates });
-  const updateSettings = (updates: Partial<AppSettings>) => dispatch({ type: 'UPDATE_SETTINGS', payload: updates });
-
-  const clearAllData = () => {
-    Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
-    clearMemory();
+  const clearAllData = useCallback(async () => {
     dispatch({ type: 'CLEAR_ALL' });
-  };
-
-  const logout = () => {
-    Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
     clearMemory();
+    evictKeyFromMemory();
+    localStorage.removeItem('heq_migrated_to_idb_v1');
+  }, [dispatch]);
+
+  const logout = useCallback(async () => {
     dispatch({ type: 'CLEAR_ALL' });
-  };
+    clearMemory();
+    evictKeyFromMemory();
+    localStorage.removeItem('heq_migrated_to_idb_v1');
+  }, [dispatch]);
 
   return (
     <AppContext.Provider value={{
-      state,
-      dispatch,
-      addEmotion,
-      updateEmotion,
-      deleteEmotion,
-      addEvent,
-      updateEvent,
-      deleteEvent,
-      completeAction,
-      skipAction,
-      dismissAction,
-      refreshActions,
-      updateUserProfile,
-      updateSettings,
-      addReflection,
-      updateReflection,
-      addGoal,
-      updateGoal,
-      deleteGoal,
+      state, dispatch,
+      addEmotion, updateEmotion, deleteEmotion,
+      addEvent, updateEvent, deleteEvent,
+      completeAction, skipAction, dismissAction, refreshActions,
+      updateUserProfile, updateSettings,
+      addReflection, updateReflection,
+      addGoal, updateGoal, deleteGoal,
       addTasteExercise,
-      clearAllData,
-      logout,
-      llmState,
-      aiGated,
-      checkAndUseAi,
-      unlockAi,
+      clearAllData, logout,
+      llmState, aiGated, checkAndUseAi, unlockAi,
+      dbReady,
     }}>
       {children}
     </AppContext.Provider>
@@ -402,7 +473,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 }
 
 export function useApp(): AppContextType {
-  const context = useContext(AppContext);
-  if (!context) throw new Error('useApp must be used within AppProvider');
-  return context;
+  const ctx = useContext(AppContext);
+  if (!ctx) throw new Error('useApp must be used within AppProvider');
+  return ctx;
 }

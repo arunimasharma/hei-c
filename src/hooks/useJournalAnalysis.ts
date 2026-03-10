@@ -2,14 +2,22 @@ import { useState, useCallback } from 'react';
 import type { UserProfile, JournalReflection } from '../types';
 import type { JournalAnalysisResult, JournalAnalysisState } from '../types/llm';
 import { callClaude, parseActionResponse } from '../services/claudeApi';
-import { JOURNAL_SYSTEM_PROMPT, buildJournalMessage, parseJournalResponse } from '../services/journalPromptBuilder';
+import {
+  JOURNAL_SYSTEM_PROMPT,
+  buildJournalMessage,
+  parseJournalResponse,
+  REASONING_STEPS,
+  EMPTY_CBT,
+} from '../services/journalPromptBuilder';
 import { loadMemory } from '../services/memoryManager';
 
 const initialState: JournalAnalysisState = {
   isAnalyzing: false,
+  reasoningStep: null,
   error: null,
   result: null,
 };
+
 
 export function useJournalAnalysis() {
   const [analysisState, setAnalysisState] = useState<JournalAnalysisState>(initialState);
@@ -20,11 +28,27 @@ export function useJournalAnalysis() {
     recentReflections?: JournalReflection[],
   ): Promise<JournalAnalysisResult | null> => {
     if (!text.trim()) {
-      setAnalysisState({ isAnalyzing: false, error: 'Please write something before analyzing.', result: null });
+      setAnalysisState({ isAnalyzing: false, reasoningStep: null, error: 'Please write something before analysing.', result: null });
       return null;
     }
 
-    setAnalysisState({ isAnalyzing: true, error: null, result: null });
+    // Kick off reasoning step narration
+    let stepHandle: ReturnType<typeof setTimeout> | null = null;
+    let stepIdx = 0;
+
+    const advanceStep = () => {
+      setAnalysisState(prev => ({
+        ...prev,
+        reasoningStep: REASONING_STEPS[stepIdx] ?? REASONING_STEPS[REASONING_STEPS.length - 1],
+      }));
+      stepIdx += 1;
+      if (stepIdx < REASONING_STEPS.length) {
+        stepHandle = setTimeout(advanceStep, 1_800);
+      }
+    };
+
+    setAnalysisState({ isAnalyzing: true, reasoningStep: REASONING_STEPS[0], error: null, result: null });
+    advanceStep();
 
     try {
       const memory = loadMemory();
@@ -33,11 +57,13 @@ export function useJournalAnalysis() {
       const rawText = parseActionResponse(response);
       const result = parseJournalResponse(rawText);
 
-      setAnalysisState({ isAnalyzing: false, error: null, result });
+      if (stepHandle !== null) clearTimeout(stepHandle);
+      setAnalysisState({ isAnalyzing: false, reasoningStep: null, error: null, result });
       return result;
     } catch (err) {
+      if (stepHandle !== null) clearTimeout(stepHandle);
       const message = err instanceof Error ? err.message : 'Analysis failed. Please try again.';
-      setAnalysisState({ isAnalyzing: false, error: message, result: null });
+      setAnalysisState({ isAnalyzing: false, reasoningStep: null, error: message, result: null });
       return null;
     }
   }, []);
@@ -46,5 +72,5 @@ export function useJournalAnalysis() {
     setAnalysisState(initialState);
   }, []);
 
-  return { analysisState, analyzeJournal, resetAnalysis };
+  return { analysisState, analyzeJournal, resetAnalysis, EMPTY_CBT };
 }
