@@ -789,7 +789,7 @@ ${instructionByType[linkedInPostType]}`;
                           ))}
                         </div>
                       </div>
-                    ) : (productFitSummary || productTarget) ? (
+                    ) : (
                       <button
                         onClick={handleGetProductRecs}
                         disabled={productRecsLoading}
@@ -797,10 +797,6 @@ ${instructionByType[linkedInPostType]}`;
                       >
                         {productRecsLoading ? 'Generating…' : '✦ Suggest products to explore next'}
                       </button>
-                    ) : (
-                      <p style={{ fontSize: '0.8125rem', color: '#C4B5FD', margin: 0, fontStyle: 'italic' }}>
-                        Pick any product, reflect on 6 key dimensions, and build the instincts that separate great product thinkers.
-                      </p>
                     )}
                   </div>
                 )}
