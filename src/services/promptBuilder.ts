@@ -1,37 +1,44 @@
 import type { EmotionEntry, CareerEvent, MicroAction, UserProfile, ActionCategory, EmotionType, Goal, EmotionalIntelligenceGoal } from '../types';
 import type { LLMActionResponse, LLMGeneratedAction, MemoryStore } from '../types/llm';
 
-export const SYSTEM_PROMPT = `You are an emotionally intelligent career coach embedded in a personal development app called Hello-EQ. Your role is to suggest 3-5 personalized micro-actions (each under 15 minutes) that help a professional navigate their current emotional state in the context of their career.
+export const SYSTEM_PROMPT = `You are a personal growth advisor embedded in Hello-EQ. Your role is to suggest 3-5 personalized projects and actions that bridge the user's emotional/career context with their stated technical skills and product goals.
+
+CORE PRINCIPLE:
+When tech goals are set, transform emotional context into buildable projects. Instead of "journal about your new role", suggest "Build a daily check-in bot that helps you track progress in your new role." The project should address BOTH the emotional challenge AND practice the stated skills.
 
 GUIDELINES:
-- Each action must be specific, actionable, and completable in the stated time.
-- Tailor actions to the person's role, goals, recent career events, and emotional patterns.
-- If someone has been consistently stressed, do not just suggest breathing -- suggest actions that address root causes (boundary-setting, delegation conversations, task triage).
-- If someone has been completing certain types of actions and skipping others, lean into what works for them.
-- Mix categories for variety, but weight toward what the emotional data suggests is most needed.
-- Use warm, direct, non-clinical language. You are a supportive colleague, not a therapist.
-- Never diagnose mental health conditions or suggest professional therapy (that is out of scope).
-- When the user is experiencing positive emotions (Joy, Pride, Excitement), suggest actions that amplify and build on that momentum rather than only focusing on problem-solving.
+- If the user has product focus + technical skills set: suggest 3-4 concrete mini-projects (category "Build" or "Experiment") and at most 1 non-project action.
+- If NO tech goals are set: suggest actions that address the emotional context directly and encourage goal-setting.
+- Make project suggestions SPECIFIC to their stated product type and skills — not generic. Name tools, frameworks, or product patterns directly.
+- Each project should include a clear first session (30–90 min kickoff) that produces something tangible.
+- Ground every project idea in the user's real emotional context — the project should feel like a meaningful response to what they are going through, not a random tech exercise.
+- Use direct, collegial language. You are a sharp senior colleague who happens to be technically skilled and emotionally aware.
+- Never suggest therapy or diagnose mental health conditions.
+- When emotions are positive (Joy, Pride, Excitement), suggest projects that amplify that energy and build on momentum.
 
 CATEGORIES (use exactly these strings):
-"Stress Relief" | "Confidence Building" | "Energy Boost" | "Reflection" | "Grounding" | "Gratitude" | "Self-Care"
+"Build" | "Experiment" | "Stress Relief" | "Confidence Building" | "Energy Boost" | "Reflection" | "Grounding" | "Gratitude" | "Self-Care"
+
+Use "Build" for: creating an app, tool, bot, automation, dashboard, or system.
+Use "Experiment" for: exploring a framework, prompt, API, or product approach in a hands-on session.
+Use other categories only when the emotional context dominates and a project framing would feel forced.
 
 EMOTION TYPES (reference these exactly):
 "Joy" | "Stress" | "Anxiety" | "Confidence" | "Frustration" | "Pride" | "Fear" | "Excitement" | "Sadness" | "Hope" | "Anger" | "Gratitude"
 
-You MUST respond with ONLY valid JSON matching this exact schema (no markdown, no code fences, no commentary outside the JSON):
+You MUST respond with ONLY valid JSON (no markdown, no code fences):
 {
   "actions": [
     {
-      "title": "string (concise, max 60 chars)",
-      "description": "string (1-2 sentences: describe exactly what to do, what a completed version looks like, and when to do it — write it as a natural, encouraging instruction that feels immediately doable)",
+      "title": "string (max 60 chars — for Build/Experiment lead with the verb: Build, Create, Experiment with, Ship, etc.)",
+      "description": "string (2–3 sentences: what to build or do, why it connects to their emotional context, and what the first 30–60 min session looks like concretely)",
       "category": "one of the CATEGORIES above",
-      "estimatedMinutes": number (1-15),
-      "reasoning": "string (1 sentence: why this action for this person right now)",
-      "suggestedFor": ["EmotionType", "EmotionType"]
+      "estimatedMinutes": number (30–120 for Build/Experiment; 5–30 for others),
+      "reasoning": "string (1 sentence: why this project for this person right now — connect the emotional and technical dots explicitly)",
+      "suggestedFor": ["EmotionType"]
     }
   ],
-  "insight": "string (1 sentence: a pattern you notice in their emotional data)"
+  "insight": "string (1 sentence: a pattern in their emotional data that makes these project suggestions timely)"
 }`;
 
 export function buildUserMessage(
@@ -51,17 +58,21 @@ Role: ${user.role || 'Not specified'}
 Goals: ${user.goals || 'Not specified'}
 Using app since: ${new Date(user.createdAt).toLocaleDateString()}`);
 
-  // Section 1.5: Career steering focus from Control Plane
+  // Section 1.5: Tech & product goals — primary directive for project suggestions
   try {
     const raw = typeof window !== 'undefined' ? window.localStorage.getItem('heq_control_focus') : null;
     if (raw) {
       const focus = JSON.parse(raw) as { product?: string; coworker?: string; career?: string };
       const lines: string[] = [];
-      if (focus.product) lines.push(`Product direction I'm steering toward: ${focus.product}`);
-      if (focus.coworker) lines.push(`Coworker dynamics I want to grow capacity for: ${focus.coworker}`);
-      if (focus.career) lines.push(`Career focus I'm actively building: ${focus.career}`);
+      if (focus.product) lines.push(`Products & services they want to master or work on: ${focus.product}`);
+      if (focus.career) lines.push(`AI tools & technical skills they are actively building: ${focus.career}`);
+      if (focus.coworker) lines.push(`Interpersonal/team dynamics they want to grow capacity for: ${focus.coworker}`);
       if (lines.length > 0) {
-        sections.push(`## CAREER STEERING FOCUS (from user's Control Plane)\n${lines.join('\n')}\n\nIMPORTANT: Bias suggested actions toward these stated directions. Actions should feel like concrete steps in these directions, not generic coping.`);
+        const hasTechGoals = !!(focus.product || focus.career);
+        sections.push(`## TECH & PRODUCT GOALS (primary context for project suggestions)\n${lines.join('\n')}\n\n${hasTechGoals
+          ? 'CRITICAL: Use these goals to generate SPECIFIC project suggestions. Name the actual tools, APIs, frameworks, or product patterns from these goals in your project descriptions. Every Build/Experiment action must directly practice these stated skills or product types.'
+          : 'IMPORTANT: No tech goals set yet. Suggest emotionally relevant actions and, where possible, lightly encourage the user to define their product/skill focus.'
+        }`);
       }
     }
   } catch { /* ignore — localStorage unavailable or malformed */ }
@@ -159,12 +170,13 @@ Using app since: ${new Date(user.createdAt).toLocaleDateString()}`);
     sections.push(`## CURRENTLY ACTIVE ACTIONS (do not repeat these)\n${active.map(a => `- ${a.title}`).join('\n')}`);
   }
 
-  sections.push(`## REQUEST\nBased on the above context, suggest 3-5 new micro-actions. Respond with JSON only.`);
+  sections.push(`## REQUEST\nBased on the above context, suggest 3-5 personalized projects or actions. Prioritize "Build" and "Experiment" projects that connect the emotional context to the stated tech & product goals. Make project titles and descriptions concrete and specific to this person's actual goals — not generic. Respond with JSON only.`);
 
   return sections.join('\n\n');
 }
 
 const VALID_CATEGORIES: ActionCategory[] = [
+  'Build', 'Experiment',
   'Stress Relief', 'Confidence Building', 'Energy Boost',
   'Reflection', 'Grounding', 'Gratitude', 'Self-Care',
 ];
@@ -188,11 +200,11 @@ export function parseAndValidateResponse(rawText: string): LLMActionResponse {
 
   const actions: LLMGeneratedAction[] = parsed.actions.slice(0, 5).map((a: Record<string, unknown>) => ({
     title: String(a.title || '').slice(0, 80),
-    description: String(a.description || '').slice(0, 300),
+    description: String(a.description || '').slice(0, 500),
     category: VALID_CATEGORIES.includes(a.category as ActionCategory)
       ? (a.category as ActionCategory)
-      : 'Self-Care',
-    estimatedMinutes: Math.min(15, Math.max(1, Number(a.estimatedMinutes) || 5)),
+      : 'Build',
+    estimatedMinutes: Math.min(120, Math.max(5, Number(a.estimatedMinutes) || 30)),
     reasoning: String(a.reasoning || ''),
     suggestedFor: Array.isArray(a.suggestedFor)
       ? (a.suggestedFor as string[]).filter(e => VALID_EMOTIONS.includes(e as EmotionType)) as EmotionType[]

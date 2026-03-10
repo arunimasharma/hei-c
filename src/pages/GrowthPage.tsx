@@ -40,6 +40,8 @@ const CONTROL_FOCUS_KEY = 'heq_control_focus';
 const EMPTY_FOCUS: ControlFocus = { product: '', coworker: '', career: '' };
 
 const CATEGORY_COLORS: Record<string, string> = {
+  'Build': '#6366F1',
+  'Experiment': '#F97316',
   'Stress Relief': '#34D399',
   'Confidence Building': '#8B5CF6',
   'Energy Boost': '#F59E0B',

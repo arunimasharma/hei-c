@@ -55,6 +55,7 @@ export type EventType =
   | 'Conflict' | 'Achievement' | 'Learning' | 'Other';
 
 export type ActionCategory =
+  | 'Build' | 'Experiment'
   | 'Stress Relief' | 'Confidence Building' | 'Energy Boost'
   | 'Reflection' | 'Grounding' | 'Gratitude' | 'Self-Care';
 
