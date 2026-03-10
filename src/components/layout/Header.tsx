@@ -91,26 +91,7 @@ export default function Header() {
                 boxShadow: '0 8px 24px rgba(0,0,0,0.1)', border: '1px solid #F3F4F6',
                 minWidth: '200px', overflow: 'hidden', zIndex: 100,
               }}>
-                {/* Mobile-only nav items */}
-                <div className="md:hidden" style={{ padding: '0.5rem', borderBottom: '1px solid #F3F4F6' }}>
-                  {navItems.map(item => (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onClick={() => setMenuOpen(false)}
-                      style={{
-                        display: 'block', padding: '0.625rem 0.875rem', borderRadius: '8px',
-                        fontSize: '0.875rem', fontWeight: 500, textDecoration: 'none',
-                        backgroundColor: isActive(item.path) ? 'rgba(74,95,193,0.08)' : 'transparent',
-                        color: isActive(item.path) ? '#4A5FC1' : '#374151',
-                      }}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-
-                {/* Setup + account actions */}
+                {/* Account actions */}
                 <div style={{ padding: '0.5rem' }}>
                   {state.user && (
                     <div style={{

@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import Header from './Header';
 import AiGateModal from '../common/AiGateModal';
 import { Link, useLocation } from 'react-router';
-import { Home, PlusCircle, Calendar, Zap, Settings } from 'lucide-react';
+import { Home, BarChart3, TrendingUp, User } from 'lucide-react';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -13,10 +13,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const bottomNav = [
     { path: '/', icon: Home, label: 'Home' },
-    { path: '/add-emotion', icon: PlusCircle, label: 'Log' },
-    { path: '/timeline', icon: Calendar, label: 'Timeline' },
-    { path: '/actions', icon: Zap, label: 'Actions' },
-    { path: '/settings', icon: Settings, label: 'Settings' },
+    { path: '/insights', icon: BarChart3, label: 'Insights' },
+    { path: '/growth', icon: TrendingUp, label: 'Growth' },
+    { path: '/account', icon: User, label: 'Account' },
   ];
 
   return (

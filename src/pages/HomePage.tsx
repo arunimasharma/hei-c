@@ -1411,7 +1411,15 @@ ${instructionByType[linkedInPostType]}`;
               {/* ── PILLAR SWITCHER ── */}
               {selectedPillar !== null && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.6875rem', color: '#C4C9D4', fontWeight: 500, flexShrink: 0 }}>Switch to:</span>
+                  <button
+                    onClick={() => setSelectedPillar(null)}
+                    style={{ padding: '0.375rem 0.75rem', borderRadius: '999px', border: '1px solid #E5E7EB', backgroundColor: 'white', fontSize: '0.75rem', color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.25rem', transition: 'all 0.15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#F9FAFB'; e.currentTarget.style.borderColor = '#D1D5DB'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'white'; e.currentTarget.style.borderColor = '#E5E7EB'; }}
+                  >
+                    ← All
+                  </button>
+                  <span style={{ fontSize: '0.6875rem', color: '#E5E7EB', fontWeight: 500, flexShrink: 0 }}>|</span>
                   {([
                     { id: 'product' as const, label: '🧪 Product Taste', color: '#7C3AED' },
                     { id: 'eq' as const, label: '🧠 Emotional IQ', color: '#4A5FC1' },
