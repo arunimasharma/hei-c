@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles, Send, ChevronDown, ChevronUp, AlertTriangle,
@@ -14,13 +14,20 @@ import { useJournalAnalysis } from '../hooks/useJournalAnalysis';
 import { useTasteExercise } from '../hooks/useTasteExercise';
 import { callClaudeMessages, parseActionResponse } from '../services/claudeApi';
 import { EMOTIONS, getEmotionColor } from '../utils/emotionHelpers';
-import type { EmotionType, EventType, JournalReflection, TasteExercise } from '../types';
+import type { EmotionType, EventType, JournalReflection, TasteExercise, TasteExerciseAnswer } from '../types';
+import {
+  TASTE_QUESTIONS,
+  TASTE_ANALYSIS_SYSTEM_PROMPT,
+  buildTasteAnalysisMessage,
+  parseTasteAnalysisResponse,
+  type TasteAnalysisResult,
+} from '../services/tasteExercisePromptBuilder';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
-const INITIAL_CHAT_MESSAGE: ChatMessage = {
+const ROUTING_INITIAL_MESSAGE: ChatMessage = {
   role: 'assistant',
-  content: "Hey! I'm here to listen. What's been on your mind at work lately? Share anything — big or small, and we'll make sense of it together.",
+  content: "Hey! What would you like to work on today? Pick what resonates — or just tell me what's on your mind:",
 };
 
 const CHAT_FOLLOWUP_SYSTEM_PROMPT = `You are Hello-EQ, an empathetic AI journaling coach helping someone reflect on their work emotions and career experiences.
@@ -33,6 +40,24 @@ Based on what the user has shared so far in this journaling session, ask ONE tho
 - Is concise (1–2 sentences max)
 
 Respond with ONLY the question text. No preamble, no sign-off, no explanation.`;
+
+const ROUTING_SYSTEM_PROMPT = `You are Hello-EQ, a warm AI career coach. Based on the user's message, determine the best growth path for them today.
+
+Paths:
+- "eq": Emotional IQ journaling — processing work emotions, stress, team dynamics, interpersonal situations
+- "product": Product Taste — analyzing products, thinking about UX or design, sharpening product intuition
+- "ai": AI & Tech Edge — building AI/tech skills, taking concrete action on technical growth
+
+Respond with ONLY valid JSON (no markdown, no code blocks):
+{"reply":"your warm 1-2 sentence empathetic response","path":"eq","transition":"1-sentence natural intro to their experience"}
+
+Replace "eq" with the appropriate path value.`;
+
+const ROUTING_CHIPS = [
+  { id: 'eq' as const, emoji: '🧠', label: 'Emotional IQ', color: '#4A5FC1', bg: '#EFF6FF', reply: "Let's explore your work emotions. What's been on your mind at work lately?" },
+  { id: 'product' as const, emoji: '🧪', label: 'Product Taste', color: '#7C3AED', bg: '#F5F3FF', reply: "Let's sharpen your product intuition! Which product would you like to analyze today?" },
+  { id: 'ai' as const, emoji: '🤖', label: 'AI & Tech Edge', color: '#059669', bg: '#F0FDF4', reply: "Let's work on your AI & tech edge. Here are your personalized action suggestions below:" },
+];
 
 const EVENT_TYPES: EventType[] = [
   'Meeting', 'Project', 'Review', 'Interview', 'Promotion',
@@ -109,16 +134,26 @@ export default function HomePage() {
   const [linkedInLoading, setLinkedInLoading] = useState(false);
   const [linkedInCopied, setLinkedInCopied] = useState(false);
 
-  // Taste Exercise local state
+  // Taste Exercise local state (legacy card — kept for manual path)
   const [teOpen, setTeOpen] = useState(false);
   const [teProductInput, setTeProductInput] = useState('');
   const [teCurrentAnswer, setTeCurrentAnswer] = useState('');
 
-  // Chat journal state
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([INITIAL_CHAT_MESSAGE]);
+  // Chat-native product taste state
+  const [productChatPhase, setProductChatPhase] = useState<'naming' | 'questioning' | 'analyzing' | 'done'>('naming');
+  const [productChatName, setProductChatName] = useState('');
+  const [productChatAnswers, setProductChatAnswers] = useState<TasteExerciseAnswer[]>([]);
+  const [productChatQuestionIdx, setProductChatQuestionIdx] = useState(0);
+  const [productChatResult, setProductChatResult] = useState<TasteAnalysisResult | null>(null);
+
+  // Routing + chat state
+  const [routingPhase, setRoutingPhase] = useState<'routing' | 'routed'>('routing');
+  const [showManualPicker, setShowManualPicker] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([ROUTING_INITIAL_MESSAGE]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -140,6 +175,19 @@ export default function HomePage() {
     }, 7000);
     return () => clearInterval(timer);
   }, [journalText]);
+
+  // URL param: pre-select pillar on mount
+  useEffect(() => {
+    const pillar = searchParams.get('pillar');
+    if (pillar && ['product', 'eq', 'ai'].includes(pillar)) {
+      const chip = ROUTING_CHIPS.find(c => c.id === pillar);
+      if (chip) {
+        setChatMessages([ROUTING_INITIAL_MESSAGE, { role: 'user', content: chip.label }, { role: 'assistant', content: chip.reply }]);
+        setSelectedPillar(pillar as 'product' | 'eq' | 'ai');
+        setRoutingPhase('routed');
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load growth pillar data from localStorage
   useEffect(() => {
@@ -324,11 +372,91 @@ export default function HomePage() {
     setManualEventType(null);
     setManualCompany('');
     setShowManual(false);
-    setChatMessages([INITIAL_CHAT_MESSAGE]);
+    setChatMessages([ROUTING_INITIAL_MESSAGE]);
     setChatInput('');
     setChatLoading(false);
+    setRoutingPhase('routing');
+    setSelectedPillar(null);
+    setShowManualPicker(false);
+    resetProductChat();
     resetAnalysis();
     setPhase('writing');
+  };
+
+  const resetProductChat = () => {
+    setProductChatPhase('naming');
+    setProductChatName('');
+    setProductChatAnswers([]);
+    setProductChatQuestionIdx(0);
+    setProductChatResult(null);
+  };
+
+  const handleRoutingChipClick = (pillar: 'eq' | 'product' | 'ai', reply: string) => {
+    const chip = ROUTING_CHIPS.find(c => c.id === pillar);
+    const label = chip?.label || pillar;
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', content: label },
+      { role: 'assistant', content: reply },
+    ]);
+    setSelectedPillar(pillar);
+    setRoutingPhase('routed');
+    if (pillar === 'product') resetProductChat();
+  };
+
+  const handleProductChatAnalyze = async (answers: TasteExerciseAnswer[]) => {
+    if (!checkAndUseAi()) return;
+    setProductChatPhase('analyzing');
+    setChatMessages(prev => [...prev, {
+      role: 'assistant',
+      content: `Analyzing your take on ${productChatName}… give me a moment.`,
+    }]);
+    try {
+      const userMessage = buildTasteAnalysisMessage(productChatName, answers);
+      const response = await callClaudeMessages(
+        TASTE_ANALYSIS_SYSTEM_PROMPT,
+        [{ role: 'user', content: userMessage }],
+        600,
+      );
+      const result = parseTasteAnalysisResponse(parseActionResponse(response));
+      setProductChatResult(result);
+      setProductChatAnswers(answers);
+      setProductChatPhase('done');
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Here's your Product Taste analysis for **${productChatName}** — score: ${result.score}/5.`,
+      }]);
+    } catch {
+      setProductChatPhase('questioning');
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Analysis failed — please try again or add more detail to your answers.',
+      }]);
+    }
+  };
+
+  const handleProductChatSave = () => {
+    if (!productChatResult) return;
+    const exercise: TasteExercise = {
+      id: `te_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      userId: state.user?.id || 'anonymous',
+      productName: productChatName,
+      answers: productChatAnswers,
+      summary: productChatResult.summary,
+      score: productChatResult.score,
+      scoreComment: productChatResult.scoreComment,
+      timestamp: new Date().toISOString(),
+      status: 'completed',
+    };
+    addTasteExercise(exercise);
+    setChatMessages(prev => [...prev, {
+      role: 'assistant',
+      content: `Saved! Your ${productChatName} analysis has been added to your profile.`,
+    }]);
+    resetProductChat();
+    setRoutingPhase('routing');
+    setSelectedPillar(null);
+    setChatMessages([ROUTING_INITIAL_MESSAGE]);
   };
 
   const handleChatSend = async () => {
@@ -340,17 +468,75 @@ export default function HomePage() {
     setChatInput('');
     setChatLoading(true);
     try {
-      const response = await callClaudeMessages(
-        CHAT_FOLLOWUP_SYSTEM_PROMPT,
-        updatedMessages.map(m => ({ role: m.role, content: m.content })),
-        180,
-      );
-      const question = parseActionResponse(response).trim();
-      setChatMessages(prev => [...prev, { role: 'assistant', content: question }]);
+      if (routingPhase === 'routing') {
+        // Determine which path to route the user to
+        const response = await callClaudeMessages(
+          ROUTING_SYSTEM_PROMPT,
+          [{ role: 'user', content: text }],
+          250,
+        );
+        const rawText = parseActionResponse(response).trim();
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          const { reply, path, transition } = parsed as { reply: string; path: string; transition?: string };
+          const newMsgs: ChatMessage[] = [{ role: 'assistant', content: reply }];
+          if (transition) newMsgs.push({ role: 'assistant', content: transition });
+          setChatMessages(prev => [...prev, ...newMsgs]);
+          if (path && ['eq', 'product', 'ai'].includes(path)) {
+            setSelectedPillar(path as 'product' | 'eq' | 'ai');
+            setRoutingPhase('routed');
+          }
+        } else {
+          setChatMessages(prev => [...prev, { role: 'assistant', content: rawText || "What's on your mind — emotions at work, a product you've been thinking about, or your tech skills?" }]);
+        }
+      } else if (selectedPillar === 'eq') {
+        // EQ journaling follow-up
+        const response = await callClaudeMessages(
+          CHAT_FOLLOWUP_SYSTEM_PROMPT,
+          updatedMessages.map(m => ({ role: m.role, content: m.content })),
+          180,
+        );
+        const question = parseActionResponse(response).trim();
+        setChatMessages(prev => [...prev, { role: 'assistant', content: question }]);
+      } else if (selectedPillar === 'product') {
+        if (productChatPhase === 'naming') {
+          // User provided the product name
+          const name = text.trim();
+          setProductChatName(name);
+          setProductChatQuestionIdx(0);
+          setProductChatAnswers([]);
+          setProductChatPhase('questioning');
+          setChatMessages(prev => [...prev,
+            { role: 'assistant', content: `Great choice! Let's dig into **${name}**. Answer as many questions as you'd like — you can finish and analyze at any point.` },
+            { role: 'assistant', content: `Q1 / ${TASTE_QUESTIONS.length}: ${TASTE_QUESTIONS[0]}` },
+          ]);
+        } else if (productChatPhase === 'questioning') {
+          // User answered a question
+          const newAnswer: TasteExerciseAnswer = {
+            question: TASTE_QUESTIONS[productChatQuestionIdx],
+            answer: text.trim(),
+          };
+          const newAnswers = [...productChatAnswers, newAnswer];
+          const nextIdx = productChatQuestionIdx + 1;
+          setProductChatAnswers(newAnswers);
+          if (nextIdx < TASTE_QUESTIONS.length) {
+            setProductChatQuestionIdx(nextIdx);
+            setChatMessages(prev => [...prev,
+              { role: 'assistant', content: `Q${nextIdx + 1} / ${TASTE_QUESTIONS.length}: ${TASTE_QUESTIONS[nextIdx]}` },
+            ]);
+          } else {
+            // All questions answered — auto-analyze
+            await handleProductChatAnalyze(newAnswers);
+          }
+        }
+      }
     } catch {
       setChatMessages(prev => [...prev, {
         role: 'assistant',
-        content: "What else is on your mind about this?",
+        content: routingPhase === 'routing'
+          ? "What's been taking up most of your headspace — work emotions, a product you're thinking about, or building your tech skills?"
+          : "What else is on your mind about this?",
       }]);
     } finally {
       setChatLoading(false);
@@ -629,41 +815,237 @@ ${instructionByType[linkedInPostType]}`;
                 );
               })()}
 
-              {/* ── PILLAR PICKER ── */}
-              {selectedPillar === null && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25 }}
-                  style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}
+              {/* ── UNIFIED ROUTING / CHAT CARD ── */}
+              {(() => {
+                const isRouting = routingPhase === 'routing';
+                const pillarMeta: Record<string, { border: string; shadow: string; accent: string; bg: string; gradient: string; icon: React.ReactNode; label: string }> = {
+                  product: { border: '#EDE9FE', shadow: 'rgba(124,58,237,0.06)', accent: '#7C3AED', bg: '#F5F3FF', gradient: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', icon: <FlaskConical size={14} color="white" />, label: 'Product Taste' },
+                  eq: { border: '#DBEAFE', shadow: 'rgba(74,95,193,0.06)', accent: '#4A5FC1', bg: '#EFF6FF', gradient: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', icon: <Sparkles size={14} color="white" />, label: 'Emotional IQ' },
+                  ai: { border: '#D1FAE5', shadow: 'rgba(16,185,129,0.06)', accent: '#059669', bg: '#F0FDF4', gradient: 'linear-gradient(135deg, #059669 0%, #10B981 100%)', icon: <Zap size={14} color="white" />, label: 'AI & Tech Edge' },
+                };
+                const pc = !isRouting && selectedPillar ? pillarMeta[selectedPillar] : null;
+                return (
+                  <div style={{ backgroundColor: 'white', borderRadius: '20px', border: `1px solid ${pc?.border || '#E5E7EB'}`, boxShadow: `0 2px 12px ${pc?.shadow || 'rgba(0,0,0,0.04)'}`, overflow: 'hidden' }}>
+                    {/* Pillar header — shown when routed */}
+                    {pc && selectedPillar && (
+                      <div style={{ padding: '0.875rem 1.5rem', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: pc.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {pc.icon}
+                          </div>
+                          <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1F2937' }}>{pc.label}</span>
+                        </div>
+                        <button
+                          onClick={() => { setRoutingPhase('routing'); setSelectedPillar(null); setChatMessages([ROUTING_INITIAL_MESSAGE]); setChatInput(''); }}
+                          style={{ fontSize: '0.75rem', color: '#9CA3AF', background: 'none', border: '1px solid #E5E7EB', borderRadius: '8px', cursor: 'pointer', padding: '0.25rem 0.625rem', fontFamily: 'inherit' }}
+                        >
+                          ← Start over
+                        </button>
+                      </div>
+                    )}
+
+                    <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                      {/* Routing quick-reply chips — only before first user message */}
+                      {isRouting && !chatMessages.some(m => m.role === 'user') && (
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          {ROUTING_CHIPS.map(chip => (
+                            <button
+                              key={chip.id}
+                              onClick={() => handleRoutingChipClick(chip.id, chip.reply)}
+                              style={{ padding: '0.5rem 1rem', borderRadius: '999px', border: `1.5px solid ${chip.color}30`, backgroundColor: chip.bg, fontSize: '0.875rem', color: chip.color, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '0.375rem', fontWeight: 600 }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = chip.color; e.currentTarget.style.filter = 'brightness(0.96)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = chip.color + '30'; e.currentTarget.style.filter = 'none'; }}
+                            >
+                              {chip.emoji} {chip.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* EQ starter prompts — after routing to EQ, before many user messages */}
+                      {!isRouting && selectedPillar === 'eq' && chatMessages.filter(m => m.role === 'user').length <= 1 && (
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '2px' }}>
+                          {STARTER_PROMPTS.slice(0, 4).map(prompt => (
+                            <button
+                              key={prompt.label}
+                              onClick={() => setChatInput(chatInput ? chatInput : prompt.text)}
+                              style={{ padding: '0.375rem 0.75rem', borderRadius: '999px', border: '1.5px solid #E5E7EB', backgroundColor: 'white', fontSize: '0.8125rem', color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap', flexShrink: 0 }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = '#8B7EC8'; e.currentTarget.style.color = '#4A5FC1'; e.currentTarget.style.backgroundColor = 'rgba(74,95,193,0.04)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.backgroundColor = 'white'; }}
+                            >
+                              <span>{prompt.icon}</span> {prompt.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Chat messages */}
+                      <div style={{ maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <AnimatePresence initial={false}>
+                          {chatMessages.map((msg, i) => (
+                            <motion.div
+                              key={i}
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.2 }}
+                              style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: '0.5rem' }}
+                            >
+                              {msg.role === 'assistant' && (
+                                <img src="/logo.svg" alt="Hello-EQ" style={{ width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0, objectFit: 'cover' }} />
+                              )}
+                              <div style={{ maxWidth: '78%', padding: '0.625rem 0.875rem', borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', backgroundColor: msg.role === 'user' ? '#4A5FC1' : '#F3F4F6', color: msg.role === 'user' ? 'white' : '#1F2937', fontSize: '0.9rem', lineHeight: 1.55 }}>
+                                {msg.content}
+                              </div>
+                            </motion.div>
+                          ))}
+                        </AnimatePresence>
+                        {chatLoading && (
+                          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
+                            <img src="/logo.svg" alt="Hello-EQ" style={{ width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0, objectFit: 'cover' }} />
+                            <div style={{ padding: '0.625rem 0.875rem', borderRadius: '14px 14px 14px 4px', backgroundColor: '#F3F4F6', display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                              {[0, 1, 2].map(d => (
+                                <motion.span key={d} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: d * 0.2 }} style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#9CA3AF', display: 'inline-block' }} />
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                        <div ref={chatEndRef} />
+                      </div>
+
+                      {/* Input row — routing, EQ journaling, or product taste (naming/questioning) */}
+                      {(isRouting || selectedPillar === 'eq' || (selectedPillar === 'product' && (productChatPhase === 'naming' || productChatPhase === 'questioning'))) && (
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+                          <textarea
+                            ref={textareaRef}
+                            value={chatInput}
+                            onChange={e => setChatInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
+                            placeholder={
+                              isRouting ? "Tell me what's on your mind…"
+                              : selectedPillar === 'product' && productChatPhase === 'naming' ? 'Type the product name…'
+                              : selectedPillar === 'product' ? 'Share your answer…'
+                              : "Share what's on your mind…"
+                            }
+                            rows={2}
+                            style={{ flex: 1, border: '1px solid #E5E7EB', borderRadius: '12px', padding: '0.625rem 0.875rem', fontSize: '0.9375rem', lineHeight: 1.6, color: '#1F2937', resize: 'none', fontFamily: 'inherit', outline: 'none', backgroundColor: 'white' }}
+                          />
+                          <button
+                            onClick={handleChatSend}
+                            disabled={!chatInput.trim() || chatLoading}
+                            style={{ width: '40px', height: '40px', borderRadius: '12px', border: 'none', background: chatInput.trim() && !chatLoading ? `linear-gradient(135deg, ${pc?.accent || '#4A5FC1'} 0%, #8B7EC8 100%)` : '#E5E7EB', cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                          >
+                            <Send size={16} color={chatInput.trim() && !chatLoading ? 'white' : '#9CA3AF'} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Action buttons row */}
+                      {!isRouting && (
+                        <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>
+                          {/* EQ: Finish Entry */}
+                          {selectedPillar === 'eq' && chatMessages.some(m => m.role === 'user') && (
+                            <button
+                              onClick={handleFinishEntry}
+                              disabled={chatLoading}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit', opacity: chatLoading ? 0.6 : 1 }}
+                            >
+                              <CheckCircle2 size={14} /> Finish Entry
+                            </button>
+                          )}
+                          {/* Product: Finish & Analyze (available after ≥1 answer, before analysis runs) */}
+                          {selectedPillar === 'product' && productChatPhase === 'questioning' && productChatAnswers.length > 0 && (
+                            <button
+                              onClick={() => handleProductChatAnalyze(productChatAnswers)}
+                              disabled={chatLoading}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit', opacity: chatLoading ? 0.6 : 1 }}
+                            >
+                              <Sparkles size={14} /> Finish & Analyze
+                            </button>
+                          )}
+                          {/* Product: Save result */}
+                          {selectedPillar === 'product' && productChatPhase === 'done' && productChatResult && (
+                            <button
+                              onClick={handleProductChatSave}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                            >
+                              <CheckCircle2 size={14} /> Save to Profile
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Product result card — shown inline after analysis */}
+                      {selectedPillar === 'product' && productChatPhase === 'done' && productChatResult && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          style={{ borderRadius: '14px', border: '1px solid rgba(124,58,237,0.2)', overflow: 'hidden' }}
+                        >
+                          <div style={{ padding: '1rem 1.125rem', background: 'linear-gradient(135deg, rgba(124,58,237,0.06) 0%, rgba(139,126,200,0.1) 100%)', borderBottom: '1px solid rgba(124,58,237,0.1)', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+                            <div style={{ width: '48px', height: '48px', borderRadius: '12px', flexShrink: 0, background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white' }}>{productChatResult.score}</span>
+                            </div>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.2rem' }}>
+                                {Array.from({ length: 5 }, (_, i) => (
+                                  <Star key={i} size={13} fill={i < productChatResult!.score ? '#7C3AED' : 'none'} color={i < productChatResult!.score ? '#7C3AED' : '#E5E7EB'} />
+                                ))}
+                                <span style={{ fontSize: '0.6875rem', color: '#7C3AED', fontWeight: 600, marginLeft: '0.25rem' }}>{productChatName}</span>
+                              </div>
+                              <p style={{ fontSize: '0.8125rem', color: '#6B7280', margin: 0 }}>{productChatResult.scoreComment}</p>
+                            </div>
+                          </div>
+                          <div style={{ padding: '1rem 1.125rem' }}>
+                            <p style={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.65, margin: 0, whiteSpace: 'pre-wrap' }}>{productChatResult.summary}</p>
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ── OR SELECT MANUALLY ── */}
+              <div>
+                <button
+                  onClick={() => setShowManualPicker(!showManualPicker)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem 0', fontFamily: 'inherit', color: '#9CA3AF', fontSize: '0.8125rem', fontWeight: 500 }}
                 >
-                  <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', fontWeight: 500, margin: 0 }}>
-                    What would you like to work on today?
-                  </p>
-                  {([
-                    { id: 'product' as const, emoji: '🧪', gradient: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', title: 'Product Taste', desc: 'Analyze a product and sharpen your intuition', accent: '#7C3AED', bg: '#F5F3FF' },
-                    { id: 'eq' as const, emoji: '🧠', gradient: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', title: 'Emotional IQ (EQ)', desc: 'Journal your work emotions and grow self-awareness', accent: '#4A5FC1', bg: '#EFF6FF' },
-                    { id: 'ai' as const, emoji: '🤖', gradient: 'linear-gradient(135deg, #059669 0%, #10B981 100%)', title: 'AI & Tech Edge', desc: 'Take action on your AI and tech skill-building', accent: '#059669', bg: '#F0FDF4' },
-                  ] as const).map(opt => (
-                    <button
-                      key={opt.id}
-                      onClick={() => setSelectedPillar(opt.id)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', borderRadius: '16px', border: '1px solid #F3F4F6', backgroundColor: 'white', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%', transition: 'background-color 0.15s, border-color 0.15s', boxSizing: 'border-box' }}
-                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = opt.bg; e.currentTarget.style.borderColor = opt.accent + '30'; }}
-                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'white'; e.currentTarget.style.borderColor = '#F3F4F6'; }}
-                    >
-                      <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: opt.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '1.125rem' }}>
-                        {opt.emoji}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#1F2937', margin: '0 0 0.15rem' }}>{opt.title}</p>
-                        <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>{opt.desc}</p>
-                      </div>
-                      <ChevronRight size={16} color="#D1D5DB" style={{ flexShrink: 0 }} />
-                    </button>
-                  ))}
-                </motion.div>
-              )}
+                  {showManualPicker ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  {showManualPicker ? 'Hide manual options' : 'Or select a path manually'}
+                </button>
+                {showManualPicker && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.625rem' }}
+                  >
+                    {([
+                      { id: 'product' as const, emoji: '🧪', gradient: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', title: 'Product Taste', desc: 'Analyze a product and sharpen your intuition', accent: '#7C3AED', bg: '#F5F3FF' },
+                      { id: 'eq' as const, emoji: '🧠', gradient: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', title: 'Emotional IQ (EQ)', desc: 'Journal your work emotions and grow self-awareness', accent: '#4A5FC1', bg: '#EFF6FF' },
+                      { id: 'ai' as const, emoji: '🤖', gradient: 'linear-gradient(135deg, #059669 0%, #10B981 100%)', title: 'AI & Tech Edge', desc: 'Take action on your AI and tech skill-building', accent: '#059669', bg: '#F0FDF4' },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.id}
+                        onClick={() => { handleRoutingChipClick(opt.id, ROUTING_CHIPS.find(c => c.id === opt.id)?.reply || ''); setShowManualPicker(false); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.875rem 1.25rem', borderRadius: '16px', border: '1px solid #F3F4F6', backgroundColor: 'white', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%', transition: 'background-color 0.15s, border-color 0.15s', boxSizing: 'border-box' }}
+                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = opt.bg; e.currentTarget.style.borderColor = opt.accent + '30'; }}
+                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'white'; e.currentTarget.style.borderColor = '#F3F4F6'; }}
+                      >
+                        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: opt.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '1rem' }}>
+                          {opt.emoji}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: '0 0 0.1rem' }}>{opt.title}</p>
+                          <p style={{ fontSize: '0.75rem', color: '#9CA3AF', margin: 0 }}>{opt.desc}</p>
+                        </div>
+                        <ChevronRight size={15} color="#D1D5DB" style={{ flexShrink: 0 }} />
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </div>
 
 
               {selectedPillar === 'product' && (
@@ -925,178 +1307,45 @@ ${instructionByType[linkedInPostType]}`;
 
               {selectedPillar === 'eq' && (
                 <>
-              {/* ── UNIFIED EMOTIONAL IQ CARD ── */}
-              <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #DBEAFE', overflow: 'hidden', boxShadow: '0 2px 12px rgba(74,95,193,0.06)' }}>
-
-                {/* Single continuous body — no internal section breaks */}
-                <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-
-                  {/* Title row */}
+              {/* ── EQ CONTEXT CARD (working toward + progress) ── */}
+              <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #DBEAFE', overflow: 'hidden' }}>
+                <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Sparkles size={14} color="white" />
-                      </div>
-                      <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1F2937' }}>Emotional IQ (EQ)</span>
-                      {state.reflections.filter(r => r.status === 'approved').length > 0 && (
-                        <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: '#EFF6FF', color: '#4A5FC1' }}>
-                          {state.reflections.filter(r => r.status === 'approved').length}
-                        </span>
-                      )}
-                    </div>
-                    <Link to="/insights" style={{ fontSize: '0.6875rem', color: '#BFDBFE', textDecoration: 'none', fontWeight: 500 }}>Insights →</Link>
+                    <AnimatePresence mode="wait">
+                      <motion.p key={questionIdx} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.3 }} style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151', margin: 0, lineHeight: 1.4 }}>
+                        {COMPANION_QUESTIONS[questionIdx]}
+                      </motion.p>
+                    </AnimatePresence>
+                    <Link to="/insights" style={{ fontSize: '0.6875rem', color: '#BFDBFE', textDecoration: 'none', fontWeight: 500, flexShrink: 0, marginLeft: '0.5rem' }}>Insights →</Link>
                   </div>
-
-                  {/* Rotating companion question — flows naturally after the title */}
-                  <AnimatePresence mode="wait">
-                    <motion.p
-                      key={questionIdx}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.3 }}
-                      style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', margin: 0, lineHeight: 1.4 }}
-                    >
-                      {COMPANION_QUESTIONS[questionIdx]}
-                    </motion.p>
-                  </AnimatePresence>
-
-                  {/* Working toward */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '0.6875rem', color: '#93C5FD', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Working toward</span>
                       <Link to="/growth" style={{ fontSize: '0.6875rem', color: '#BFDBFE', textDecoration: 'none' }}>Goals →</Link>
                     </div>
                     {coworkerTargetEditing ? (
-                      <textarea
-                        autoFocus
-                        value={coworkerTargetDraft}
-                        onChange={e => setCoworkerTargetDraft(e.target.value)}
-                        onBlur={() => { saveCoworkerTarget(coworkerTargetDraft); setCoworkerTargetEditing(false); }}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveCoworkerTarget(coworkerTargetDraft); setCoworkerTargetEditing(false); } }}
-                        style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.625rem 0.75rem', borderRadius: '10px', border: '1.5px solid #BFDBFE', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '52px', backgroundColor: '#F8FAFF' }}
-                      />
+                      <textarea autoFocus value={coworkerTargetDraft} onChange={e => setCoworkerTargetDraft(e.target.value)} onBlur={() => { saveCoworkerTarget(coworkerTargetDraft); setCoworkerTargetEditing(false); }} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveCoworkerTarget(coworkerTargetDraft); setCoworkerTargetEditing(false); } }} style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.5rem 0.75rem', borderRadius: '10px', border: '1.5px solid #BFDBFE', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '48px', backgroundColor: '#F8FAFF' }} />
                     ) : (
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => { setCoworkerTargetDraft(coworkerTarget); setCoworkerTargetEditing(true); }}
-                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setCoworkerTargetDraft(coworkerTarget); setCoworkerTargetEditing(true); } }}
-                        style={{ cursor: 'text', padding: '0.625rem 0.75rem', borderRadius: '10px', border: '1.5px dashed #BFDBFE', backgroundColor: '#F8FAFF', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}
-                      >
-                        <span style={{ fontSize: '0.875rem', color: coworkerTarget ? '#3B82F6' : '#BFDBFE', fontStyle: coworkerTarget ? 'normal' : 'italic', fontWeight: coworkerTarget ? 500 : 400, lineHeight: 1.45, flex: 1 }}>
-                          {coworkerTarget || 'What emotional dynamics and culture do you want to grow into?'}
-                        </span>
-                        <Edit3 size={13} color="#BFDBFE" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+                      <div role="button" tabIndex={0} onClick={() => { setCoworkerTargetDraft(coworkerTarget); setCoworkerTargetEditing(true); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setCoworkerTargetDraft(coworkerTarget); setCoworkerTargetEditing(true); } }} style={{ cursor: 'text', padding: '0.5rem 0.75rem', borderRadius: '10px', border: '1.5px dashed #BFDBFE', backgroundColor: '#F8FAFF', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.8125rem', color: coworkerTarget ? '#3B82F6' : '#BFDBFE', fontStyle: coworkerTarget ? 'normal' : 'italic', fontWeight: coworkerTarget ? 500 : 400, lineHeight: 1.45, flex: 1 }}>{coworkerTarget || 'What emotional dynamics do you want to grow into?'}</span>
+                        <Edit3 size={13} color="#BFDBFE" style={{ flexShrink: 0, marginTop: '0.1rem' }} />
                       </div>
                     )}
                   </div>
-
-                  {/* Progress dots + emotion pills in one compact band */}
                   {(() => {
-                    const approved = state.reflections.filter(r => r.status === 'approved');
-                    const count = approved.length;
+                    const count = state.reflections.filter(r => r.status === 'approved').length;
                     const milestone = 5;
-                    const filled = Math.min(count, milestone);
                     return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                          {Array.from({ length: milestone }, (_, i) => (
-                            <div key={i} style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: i < filled ? '#4A5FC1' : '#DBEAFE', transition: 'background-color 0.3s ease', flexShrink: 0 }} />
-                          ))}
-                          <span style={{ fontSize: '0.6875rem', color: '#93C5FD', marginLeft: '0.25rem', whiteSpace: 'nowrap' }}>
-                            {count < milestone ? `${milestone - count} more to full profile` : `${count} reflections ✓`}
-                          </span>
-                        </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                        {Array.from({ length: milestone }, (_, i) => (
+                          <div key={i} style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: i < Math.min(count, milestone) ? '#4A5FC1' : '#DBEAFE', transition: 'background-color 0.3s ease', flexShrink: 0 }} />
+                        ))}
+                        <span style={{ fontSize: '0.6875rem', color: '#93C5FD', marginLeft: '0.25rem', whiteSpace: 'nowrap' }}>
+                          {count < milestone ? `${milestone - count} more to full profile` : `${count} reflections ✓`}
+                        </span>
                       </div>
                     );
                   })()}
-
-                  {/* Starter prompt chips — only before first user message */}
-                  {!chatMessages.some(m => m.role === 'user') && (
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '2px' }}>
-                      {STARTER_PROMPTS.slice(0, 4).map((prompt) => (
-                        <button
-                          key={prompt.label}
-                          onClick={() => setChatInput(chatInput ? chatInput : prompt.text)}
-                          style={{ padding: '0.375rem 0.75rem', borderRadius: '999px', border: '1.5px solid #E5E7EB', backgroundColor: 'white', fontSize: '0.8125rem', color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap', flexShrink: 0 }}
-                          onMouseEnter={e => { e.currentTarget.style.borderColor = '#8B7EC8'; e.currentTarget.style.color = '#4A5FC1'; e.currentTarget.style.backgroundColor = 'rgba(74,95,193,0.04)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.backgroundColor = 'white'; }}
-                        >
-                          <span>{prompt.icon}</span> {prompt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Chat messages */}
-                  {chatMessages.length > 0 && (
-                    <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      <AnimatePresence initial={false}>
-                        {chatMessages.map((msg, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.2 }}
-                            style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: '0.5rem' }}
-                          >
-                            {msg.role === 'assistant' && (
-                              <img src="/logo.svg" alt="Hello-EQ" style={{ width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0, objectFit: 'cover' }} />
-                            )}
-                            <div style={{ maxWidth: '78%', padding: '0.625rem 0.875rem', borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', backgroundColor: msg.role === 'user' ? '#4A5FC1' : '#F3F4F6', color: msg.role === 'user' ? 'white' : '#1F2937', fontSize: '0.9rem', lineHeight: 1.55 }}>
-                              {msg.content}
-                            </div>
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
-                      {chatLoading && (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
-                          <img src="/logo.svg" alt="Hello-EQ" style={{ width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0, objectFit: 'cover' }} />
-                          <div style={{ padding: '0.625rem 0.875rem', borderRadius: '14px 14px 14px 4px', backgroundColor: '#F3F4F6', display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
-                            {[0, 1, 2].map(d => (
-                              <motion.span key={d} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: d * 0.2 }} style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#9CA3AF', display: 'inline-block' }} />
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                      <div ref={chatEndRef} />
-                    </div>
-                  )}
-
-                  {/* Input row */}
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
-                    <textarea
-                      ref={textareaRef}
-                      value={chatInput}
-                      onChange={e => setChatInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
-                      placeholder="Share what's on your mind…"
-                      rows={2}
-                      style={{ flex: 1, border: '1px solid #E5E7EB', borderRadius: '12px', padding: '0.625rem 0.875rem', fontSize: '0.9375rem', lineHeight: 1.6, color: '#1F2937', resize: 'none', fontFamily: 'inherit', outline: 'none', backgroundColor: 'white' }}
-                    />
-                    <button
-                      onClick={handleChatSend}
-                      disabled={!chatInput.trim() || chatLoading}
-                      style={{ width: '40px', height: '40px', borderRadius: '12px', border: 'none', background: chatInput.trim() && !chatLoading ? 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)' : '#E5E7EB', cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                    >
-                      <Send size={16} color={chatInput.trim() && !chatLoading ? 'white' : '#9CA3AF'} />
-                    </button>
-                  </div>
-
-                  {/* Finish Entry */}
-                  {chatMessages.some(m => m.role === 'user') && (
-                    <div style={{ display: 'flex', gap: '0.625rem' }}>
-                      <button
-                        onClick={handleFinishEntry}
-                        disabled={chatLoading}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit', opacity: chatLoading ? 0.6 : 1 }}
-                      >
-                        <CheckCircle2 size={14} /> Finish Entry
-                      </button>
-                    </div>
-                  )}
-
                 </div>
               </div>
 
@@ -1412,12 +1661,12 @@ ${instructionByType[linkedInPostType]}`;
               {selectedPillar !== null && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <button
-                    onClick={() => setSelectedPillar(null)}
+                    onClick={() => { setRoutingPhase('routing'); setSelectedPillar(null); setChatMessages([ROUTING_INITIAL_MESSAGE]); setChatInput(''); }}
                     style={{ padding: '0.375rem 0.75rem', borderRadius: '999px', border: '1px solid #E5E7EB', backgroundColor: 'white', fontSize: '0.75rem', color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.25rem', transition: 'all 0.15s' }}
                     onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#F9FAFB'; e.currentTarget.style.borderColor = '#D1D5DB'; }}
                     onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'white'; e.currentTarget.style.borderColor = '#E5E7EB'; }}
                   >
-                    ← All
+                    ← New session
                   </button>
                   <span style={{ fontSize: '0.6875rem', color: '#E5E7EB', fontWeight: 500, flexShrink: 0 }}>|</span>
                   {([
@@ -1427,7 +1676,7 @@ ${instructionByType[linkedInPostType]}`;
                   ] as const).filter(p => p.id !== selectedPillar).map(p => (
                     <button
                       key={p.id}
-                      onClick={() => setSelectedPillar(p.id)}
+                      onClick={() => handleRoutingChipClick(p.id, ROUTING_CHIPS.find(c => c.id === p.id)?.reply || '')}
                       style={{ padding: '0.375rem 0.875rem', borderRadius: '999px', border: '1px solid #F0F0F0', backgroundColor: 'white', fontSize: '0.75rem', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 0.15s' }}
                       onMouseEnter={e => { e.currentTarget.style.color = p.color; e.currentTarget.style.borderColor = p.color + '40'; e.currentTarget.style.backgroundColor = p.color + '08'; }}
                       onMouseLeave={e => { e.currentTarget.style.color = '#9CA3AF'; e.currentTarget.style.borderColor = '#F0F0F0'; e.currentTarget.style.backgroundColor = 'white'; }}

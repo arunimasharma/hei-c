@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import Header from './Header';
 import AiGateModal from '../common/AiGateModal';
 import { Link, useLocation } from 'react-router';
-import { Home, BarChart3, TrendingUp, User } from 'lucide-react';
+import { Brain, FlaskConical, Zap } from 'lucide-react';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -11,12 +11,18 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const location = useLocation();
 
+  // Three pillar tabs for bottom nav
   const bottomNav = [
-    { path: '/', icon: Home, label: 'Home' },
-    { path: '/insights', icon: BarChart3, label: 'Insights' },
-    { path: '/growth', icon: TrendingUp, label: 'Growth' },
-    { path: '/account', icon: User, label: 'Account' },
+    { path: '/?pillar=eq', pillar: 'eq', icon: Brain, label: 'EQ', activeColor: '#4A5FC1' },
+    { path: '/?pillar=product', pillar: 'product', icon: FlaskConical, label: 'Product', activeColor: '#7C3AED' },
+    { path: '/?pillar=ai', pillar: 'ai', icon: Zap, label: 'AI & Tech', activeColor: '#059669' },
   ];
+
+  const isTabActive = (pillar: string) => {
+    if (location.pathname !== '/') return false;
+    const params = new URLSearchParams(location.search);
+    return params.get('pillar') === pillar;
+  };
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8F9FE', width: '100%' }}>
@@ -28,7 +34,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </main>
 
-      {/* Mobile bottom nav */}
+      {/* Mobile bottom nav — three pillars */}
       <nav className="md:hidden" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
         backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',
@@ -36,17 +42,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', padding: '0.5rem 0.5rem' }}>
           {bottomNav.map(item => {
-            const active = location.pathname === item.path;
+            const active = isTabActive(item.pillar);
             return (
               <Link
-                key={item.path}
+                key={item.pillar}
                 to={item.path}
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
                   gap: '0.125rem', padding: '0.5rem 0.75rem', borderRadius: '12px',
                   transition: 'all 0.2s', textDecoration: 'none',
-                  color: active ? '#4A5FC1' : '#9CA3AF',
-                  backgroundColor: active ? 'rgba(74,95,193,0.06)' : 'transparent',
+                  color: active ? item.activeColor : '#9CA3AF',
+                  backgroundColor: active ? `${item.activeColor}0D` : 'transparent',
                 }}
               >
                 <item.icon size={20} strokeWidth={active ? 2.5 : 2} />

@@ -1,0 +1,21 @@
+{
+  "name": "Hello-EQ — Career Operating System",
+  "short_name": "Hello-EQ",
+  "description": "Your private, AI-powered Emotional Intelligence career companion.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F8F9FE",
+  "theme_color": "#4A5FC1",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "health", "lifestyle"],
+  "screenshots": []
+}
