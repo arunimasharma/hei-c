@@ -99,6 +99,7 @@ export default function HomePage() {
   const [eiSummary, setEiSummary] = useState('');
   const [careerTarget, setCareerTarget] = useState('');
   const [aiProjectSummary, setAiProjectSummary] = useState('');
+  const [selectedPillar, setSelectedPillar] = useState<'product' | 'eq' | 'ai' | null>(null);
 
   // LinkedIn post generator state
   const [linkedInModalOpen, setLinkedInModalOpen] = useState(false);
@@ -628,8 +629,45 @@ ${instructionByType[linkedInPostType]}`;
                 );
               })()}
 
-              {/* ── UNIFIED PRODUCT TASTE CARD ── */}
-              <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #EDE9FE', overflow: 'hidden', boxShadow: '0 2px 12px rgba(124,58,237,0.06)' }}>
+              {/* ── PILLAR PICKER ── */}
+              {selectedPillar === null && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25 }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}
+                >
+                  <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', fontWeight: 500, margin: 0 }}>
+                    What would you like to work on today?
+                  </p>
+                  {([
+                    { id: 'product' as const, emoji: '🧪', gradient: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', title: 'Product Taste', desc: 'Analyze a product and sharpen your intuition', accent: '#7C3AED', bg: '#F5F3FF' },
+                    { id: 'eq' as const, emoji: '🧠', gradient: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', title: 'Emotional IQ (EQ)', desc: 'Journal your work emotions and grow self-awareness', accent: '#4A5FC1', bg: '#EFF6FF' },
+                    { id: 'ai' as const, emoji: '🤖', gradient: 'linear-gradient(135deg, #059669 0%, #10B981 100%)', title: 'AI & Tech Edge', desc: 'Take action on your AI and tech skill-building', accent: '#059669', bg: '#F0FDF4' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setSelectedPillar(opt.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', borderRadius: '16px', border: '1px solid #F3F4F6', backgroundColor: 'white', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%', transition: 'background-color 0.15s, border-color 0.15s', boxSizing: 'border-box' }}
+                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = opt.bg; e.currentTarget.style.borderColor = opt.accent + '30'; }}
+                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'white'; e.currentTarget.style.borderColor = '#F3F4F6'; }}
+                    >
+                      <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: opt.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '1.125rem' }}>
+                        {opt.emoji}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#1F2937', margin: '0 0 0.15rem' }}>{opt.title}</p>
+                        <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>{opt.desc}</p>
+                      </div>
+                      <ChevronRight size={16} color="#D1D5DB" style={{ flexShrink: 0 }} />
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+
+
+              {selectedPillar === 'product' && (
+                <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #EDE9FE', overflow: 'hidden', boxShadow: '0 2px 12px rgba(124,58,237,0.06)' }}>
 
                 {/* Header row */}
                 <div style={{ padding: '0.875rem 1.25rem', borderBottom: teOpen ? '1px solid #F3F4F6' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -883,6 +921,10 @@ ${instructionByType[linkedInPostType]}`;
                 </AnimatePresence>
               </div>
 
+              )}
+
+              {selectedPillar === 'eq' && (
+                <>
               {/* ── UNIFIED EMOTIONAL IQ CARD ── */}
               <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #DBEAFE', overflow: 'hidden', boxShadow: '0 2px 12px rgba(74,95,193,0.06)' }}>
 
@@ -1168,8 +1210,11 @@ ${instructionByType[linkedInPostType]}`;
                 )}
               </div>
 
-              {/* ── UNIFIED AI & TECH EDGE CARD ── */}
-              <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #D1FAE5', overflow: 'hidden', boxShadow: '0 2px 12px rgba(16,185,129,0.06)' }}>
+                </>
+              )}
+
+              {selectedPillar === 'ai' && (
+                <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #D1FAE5', overflow: 'hidden', boxShadow: '0 2px 12px rgba(16,185,129,0.06)' }}>
                 <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
 
                   {/* Title row */}
@@ -1361,8 +1406,32 @@ ${instructionByType[linkedInPostType]}`;
                 </div>
               </div>
 
-              {/* ── LINKEDIN POST GENERATOR ── */}
-              <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #F3F4F6', overflow: 'hidden' }}>
+              )}
+
+              {/* ── PILLAR SWITCHER ── */}
+              {selectedPillar !== null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.6875rem', color: '#C4C9D4', fontWeight: 500, flexShrink: 0 }}>Switch to:</span>
+                  {([
+                    { id: 'product' as const, label: '🧪 Product Taste', color: '#7C3AED' },
+                    { id: 'eq' as const, label: '🧠 Emotional IQ', color: '#4A5FC1' },
+                    { id: 'ai' as const, label: '🤖 AI & Tech Edge', color: '#059669' },
+                  ] as const).filter(p => p.id !== selectedPillar).map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setSelectedPillar(p.id)}
+                      style={{ padding: '0.375rem 0.875rem', borderRadius: '999px', border: '1px solid #F0F0F0', backgroundColor: 'white', fontSize: '0.75rem', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.color = p.color; e.currentTarget.style.borderColor = p.color + '40'; e.currentTarget.style.backgroundColor = p.color + '08'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = '#9CA3AF'; e.currentTarget.style.borderColor = '#F0F0F0'; e.currentTarget.style.backgroundColor = 'white'; }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {selectedPillar !== null && (
+                <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #F3F4F6', overflow: 'hidden' }}>
                 {/* Header — always visible, no expand needed */}
                 <div style={{
                   padding: '0.875rem 1.25rem',
@@ -1468,6 +1537,8 @@ ${instructionByType[linkedInPostType]}`;
                   )}
                 </AnimatePresence>
               </div>
+
+              )}
 
               {/* ── LINKEDIN DIRECTION MODAL ── */}
               <AnimatePresence>
