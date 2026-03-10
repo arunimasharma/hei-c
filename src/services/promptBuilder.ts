@@ -51,6 +51,21 @@ Role: ${user.role || 'Not specified'}
 Goals: ${user.goals || 'Not specified'}
 Using app since: ${new Date(user.createdAt).toLocaleDateString()}`);
 
+  // Section 1.5: Career steering focus from Control Plane
+  try {
+    const raw = typeof window !== 'undefined' ? window.localStorage.getItem('heq_control_focus') : null;
+    if (raw) {
+      const focus = JSON.parse(raw) as { product?: string; coworker?: string; career?: string };
+      const lines: string[] = [];
+      if (focus.product) lines.push(`Product direction I'm steering toward: ${focus.product}`);
+      if (focus.coworker) lines.push(`Coworker dynamics I want to grow capacity for: ${focus.coworker}`);
+      if (focus.career) lines.push(`Career focus I'm actively building: ${focus.career}`);
+      if (lines.length > 0) {
+        sections.push(`## CAREER STEERING FOCUS (from user's Control Plane)\n${lines.join('\n')}\n\nIMPORTANT: Bias suggested actions toward these stated directions. Actions should feel like concrete steps in these directions, not generic coping.`);
+      }
+    }
+  } catch { /* ignore — localStorage unavailable or malformed */ }
+
   // Section 2: Active goals
   const activeGoals = goals.filter(g => g.status === 'active');
   if (activeGoals.length > 0) {

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Plus, Zap, Target, Sparkles, RefreshCw, CheckCircle2, SkipForward, Clock, Lightbulb, ChevronDown, ChevronUp, TrendingUp, Info, Brain, Trophy, Cpu } from 'lucide-react';
+import { Plus, Target, Sparkles, RefreshCw, CheckCircle2, SkipForward, Clock, Lightbulb, ChevronDown, ChevronUp, TrendingUp, Info, Brain, Trophy, Cpu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Button from '../components/common/Button';
@@ -34,6 +34,10 @@ type IdealScenario = {
 };
 
 const IDEAL_SCENARIO_KEY = 'heq_ideal_scenario';
+
+type ControlFocus = { product: string; coworker: string; career: string };
+const CONTROL_FOCUS_KEY = 'heq_control_focus';
+const EMPTY_FOCUS: ControlFocus = { product: '', coworker: '', career: '' };
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Stress Relief': '#34D399',
@@ -86,7 +90,7 @@ export default function GrowthPage() {
   const { state, addGoal, updateGoal, deleteGoal, completeAction, skipAction, dismissAction, refreshActions, llmState, checkAndUseAi } = useApp();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<(Goal & { type: 'career' | 'emotional-intelligence' }) | undefined>();
-  const [activeTab, setActiveTab] = useState<'actions' | 'goals' | 'profile'>('actions');
+  const [activeTab, setActiveTab] = useState<'goals' | 'profile'>('goals');
 
   // Ideal Work Scenario state
   const [idealScenario, setIdealScenario] = useState<IdealScenario | null>(null);
@@ -94,13 +98,35 @@ export default function GrowthPage() {
   const [idealError, setIdealError] = useState('');
   const [profileReasoningOpen, setProfileReasoningOpen] = useState<Record<'product' | 'coworker', boolean>>({ product: false, coworker: false });
 
-  // Load cached scenario from localStorage on mount
+  // Control Plane focus state
+  const [controlFocus, setControlFocus] = useState<ControlFocus>(EMPTY_FOCUS);
+  const [focusDraft, setFocusDraft] = useState<ControlFocus>(EMPTY_FOCUS);
+  const [focusSaved, setFocusSaved] = useState(false);
+
+  // Load cached scenario + control focus from localStorage on mount
   useEffect(() => {
     try {
       const cached = localStorage.getItem(IDEAL_SCENARIO_KEY);
       if (cached) setIdealScenario(JSON.parse(cached));
     } catch { /* ignore */ }
+    try {
+      const savedFocus = localStorage.getItem(CONTROL_FOCUS_KEY);
+      if (savedFocus) {
+        const parsed = JSON.parse(savedFocus) as ControlFocus;
+        setControlFocus(parsed);
+        setFocusDraft(parsed);
+      }
+    } catch { /* ignore */ }
   }, []);
+
+  const handleSaveFocus = () => {
+    localStorage.setItem(CONTROL_FOCUS_KEY, JSON.stringify(focusDraft));
+    setControlFocus(focusDraft);
+    setFocusSaved(true);
+    setTimeout(() => setFocusSaved(false), 2200);
+  };
+
+  const focusHasChanges = JSON.stringify(focusDraft) !== JSON.stringify(controlFocus);
 
   const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(new Set());
   const [skipConfirmId, setSkipConfirmId] = useState<string | null>(null);
@@ -306,19 +332,11 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
         <div style={{ display: 'flex', gap: '0.5rem', backgroundColor: '#F3F4F6', padding: '0.5rem', borderRadius: '10px', width: 'fit-content' }}>
           <Button
             size="sm"
-            variant={activeTab === 'actions' ? 'primary' : 'ghost'}
-            onClick={() => setActiveTab('actions')}
-            style={{ cursor: 'pointer' }}
-          >
-            <Zap size={16} /> Actions
-          </Button>
-          <Button
-            size="sm"
             variant={activeTab === 'goals' ? 'primary' : 'ghost'}
             onClick={() => setActiveTab('goals')}
             style={{ cursor: 'pointer' }}
           >
-            <Target size={16} /> Goals
+            <Target size={16} /> Goals &amp; Actions
           </Button>
           <Button
             size="sm"
@@ -330,335 +348,7 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
           </Button>
         </div>
 
-        {/* Actions Content */}
-        {activeTab === 'actions' && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
-          >
-            {stale && (
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '12px',
-                backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Info size={15} style={{ color: '#3B82F6', flexShrink: 0 }} />
-                  <p style={{ fontSize: '0.8125rem', color: '#1D4ED8', margin: 0 }}>
-                    You logged new emotions since these were generated.
-                  </p>
-                </div>
-                <button
-                  onClick={refreshActions}
-                  style={{
-                    fontSize: '0.8125rem', fontWeight: 600, color: '#2563EB',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    padding: '0.25rem 0.5rem', borderRadius: '6px', whiteSpace: 'nowrap', fontFamily: 'inherit',
-                  }}
-                >
-                  Update actions
-                </button>
-              </div>
-            )}
-
-            {llmState.insight && llmState.isAiGenerated && (
-              <div style={{
-                display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
-                padding: '0.875rem 1.125rem', borderRadius: '14px',
-                backgroundColor: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.15)',
-              }}>
-                <Lightbulb size={16} style={{ color: '#7C3AED', flexShrink: 0, marginTop: '0.125rem' }} />
-                <div>
-                  <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#7C3AED', margin: '0 0 0.2rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pattern detected</p>
-                  <p style={{ fontSize: '0.875rem', color: '#4C1D95', margin: 0, lineHeight: 1.5 }}>{llmState.insight}</p>
-                </div>
-              </div>
-            )}
-
-            {llmState.error && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '0.625rem',
-                padding: '0.625rem 1rem', borderRadius: '10px',
-                backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB',
-              }}>
-                <Brain size={14} style={{ color: '#9CA3AF', flexShrink: 0 }} />
-                <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
-                  Showing pattern-based suggestions tailored to your recent emotions.
-                </p>
-              </div>
-            )}
-
-            {weekSummary && weekSummary.top.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Tailored to:</span>
-                {weekSummary.top.map(({ emotion, avg }) => (
-                  <span key={emotion} style={{
-                    fontSize: '0.75rem', fontWeight: 500, padding: '0.2rem 0.625rem',
-                    borderRadius: '999px', backgroundColor: '#F3F4F6', color: '#374151',
-                    display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
-                  }}>
-                    {emotion} <span style={{ color: '#9CA3AF' }}>· {avg.toFixed(0)}/10</span>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
-                  Recommended Actions ({stats.pendingActions})
-                </h2>
-                {llmState.isAiGenerated && (
-                  <span style={{
-                    fontSize: '0.625rem', fontWeight: 700, padding: '0.125rem 0.5rem',
-                    borderRadius: '999px', backgroundColor: 'rgba(139,92,246,0.1)', color: '#7C3AED',
-                  }}>
-                    <Sparkles size={10} style={{ display: 'inline', marginRight: '0.2rem', verticalAlign: 'middle' }} />AI
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={refreshActions}
-                disabled={llmState.isLoading}
-                style={{
-                  padding: '0.375rem 0.625rem', borderRadius: '8px', border: '1px solid #E5E7EB',
-                  backgroundColor: 'white', cursor: llmState.isLoading ? 'default' : 'pointer',
-                  color: '#6B7280', display: 'flex', alignItems: 'center', gap: '0.375rem',
-                  fontSize: '0.75rem', fontFamily: 'inherit',
-                }}
-              >
-                <RefreshCw size={13} style={{ animation: llmState.isLoading ? 'spin 1s linear infinite' : 'none' }} />
-                {llmState.isLoading ? 'Generating…' : 'Refresh'}
-              </button>
-            </div>
-
-            {llmState.isLoading && (
-              <Card>
-                <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-                  <p style={{ color: '#9CA3AF', margin: 0, fontSize: '0.875rem' }}>
-                    Analyzing your emotional patterns…
-                  </p>
-                </div>
-              </Card>
-            )}
-
-            {!llmState.isLoading && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {activeActions.length > 0 ? (
-                  activeActions.map((action, idx) => {
-                    const catColor = CATEGORY_COLORS[action.category] || '#6B7280';
-                    const catIcon = CATEGORY_ICONS[action.category] || '✦';
-                    const isExpanded = expandedReasoning.has(action.id);
-                    return (
-                      <motion.div
-                        key={action.id}
-                        initial={{ opacity: 0, x: -16 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.04 }}
-                        style={{
-                          backgroundColor: 'white', borderRadius: '14px',
-                          border: '1px solid #F3F4F6', overflow: 'hidden',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                        }}
-                      >
-                        <div style={{ padding: '1rem 1.125rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-                          <div style={{ display: 'flex', gap: '0.75rem', flex: 1, minWidth: 0 }}>
-                            <div style={{
-                              width: '38px', height: '38px', borderRadius: '10px', flexShrink: 0,
-                              backgroundColor: `${catColor}18`, display: 'flex', alignItems: 'center',
-                              justifyContent: 'center', fontSize: '1rem',
-                            }}>
-                              {catIcon}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <h3 style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#1F2937', margin: 0, lineHeight: 1.3 }}>
-                                {action.title}
-                              </h3>
-                              <p style={{ color: '#6B7280', fontSize: '0.8375rem', margin: '0.3rem 0 0', lineHeight: 1.5 }}>
-                                {action.description}
-                              </p>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                                <span style={{
-                                  fontSize: '0.6875rem', fontWeight: 600, padding: '0.2rem 0.5rem',
-                                  borderRadius: '999px', backgroundColor: `${catColor}15`, color: catColor,
-                                  textTransform: 'uppercase', letterSpacing: '0.03em',
-                                }}>
-                                  {action.category}
-                                </span>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.75rem', color: '#9CA3AF' }}>
-                                  <Clock size={11} /> {action.estimatedMinutes} min
-                                </span>
-                                {action.reasoning && (
-                                  <button
-                                    onClick={() => toggleReasoning(action.id)}
-                                    style={{
-                                      display: 'flex', alignItems: 'center', gap: '0.2rem',
-                                      fontSize: '0.75rem', color: '#6B7280', fontWeight: 500,
-                                      background: 'none', border: 'none', cursor: 'pointer',
-                                      padding: '0.125rem 0.25rem', borderRadius: '4px', fontFamily: 'inherit',
-                                    }}
-                                  >
-                                    {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                                    Why this?
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0 }}>
-                            <button
-                              onClick={() => completeAction(action.id)}
-                              title="Mark done"
-                              style={{
-                                padding: '0.5rem', borderRadius: '10px', border: 'none',
-                                backgroundColor: '#F0FDF4', color: '#16A34A', cursor: 'pointer', display: 'flex',
-                              }}
-                            >
-                              <CheckCircle2 size={18} />
-                            </button>
-                            <button
-                              onClick={() => setSkipConfirmId(action.id)}
-                              title="Skip"
-                              style={{
-                                padding: '0.5rem', borderRadius: '10px', border: 'none',
-                                backgroundColor: skipConfirmId === action.id ? '#FEF3C7' : '#F9FAFB',
-                                color: skipConfirmId === action.id ? '#D97706' : '#9CA3AF',
-                                cursor: 'pointer', display: 'flex',
-                              }}
-                            >
-                              <SkipForward size={18} />
-                            </button>
-                          </div>
-                        </div>
-
-                        <AnimatePresence>
-                          {skipConfirmId === action.id && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.18 }}
-                              style={{ overflow: 'hidden' }}
-                            >
-                              <div style={{
-                                padding: '0.625rem 1.125rem 0.75rem',
-                                borderTop: '1px solid #FDE68A', backgroundColor: '#FFFBEB',
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
-                              }}>
-                                <p style={{ fontSize: '0.8125rem', color: '#92400E', margin: 0 }}>Skip this action?</p>
-                                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                                  <button
-                                    onClick={() => { dismissAction(action.id); setSkipConfirmId(null); }}
-                                    style={{ fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem', borderRadius: '6px', border: '1px solid #FCD34D', backgroundColor: 'white', color: '#92400E', cursor: 'pointer', fontFamily: 'inherit' }}
-                                  >Skip for now</button>
-                                  <button
-                                    onClick={() => { skipAction(action.id); setSkipConfirmId(null); }}
-                                    style={{ fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem', borderRadius: '6px', border: 'none', backgroundColor: '#F59E0B', color: 'white', cursor: 'pointer', fontFamily: 'inherit' }}
-                                  >Skip forever</button>
-                                  <button
-                                    onClick={() => setSkipConfirmId(null)}
-                                    style={{ fontSize: '0.75rem', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: '0.3rem 0.25rem', fontFamily: 'inherit' }}
-                                  >Cancel</button>
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-
-                        <AnimatePresence>
-                          {isExpanded && action.reasoning && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.18 }}
-                              style={{ overflow: 'hidden' }}
-                            >
-                              <div style={{
-                                padding: '0.625rem 1.125rem 0.875rem',
-                                borderTop: `1px solid ${catColor}20`,
-                                backgroundColor: `${catColor}06`,
-                                display: 'flex', alignItems: 'flex-start', gap: '0.5rem',
-                              }}>
-                                <TrendingUp size={13} style={{ color: catColor, flexShrink: 0, marginTop: '0.15rem' }} />
-                                <p style={{ fontSize: '0.8125rem', color: '#4B5563', lineHeight: 1.55, margin: 0 }}>
-                                  {action.reasoning}
-                                </p>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.div>
-                    );
-                  })
-                ) : (
-                  <Card>
-                    <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-                      {emotions.length === 0 ? (
-                        <>
-                          <Brain size={32} style={{ color: '#D1D5DB', margin: '0 auto 0.75rem', display: 'block' }} />
-                          <p style={{ color: '#6B7280', margin: '0 0 1rem', fontSize: '0.875rem' }}>
-                            Log how you're feeling to get actions tailored to your current state.
-                          </p>
-                          <Button size="sm" variant="outline" onClick={refreshActions}>Generate anyway</Button>
-                        </>
-                      ) : (
-                        <>
-                          <Trophy size={32} style={{ color: '#D1D5DB', margin: '0 auto 0.75rem', display: 'block' }} />
-                          <p style={{ color: '#6B7280', margin: '0 0 1rem', fontSize: '0.875rem' }}>
-                            All caught up. Generate a fresh set based on your latest emotions.
-                          </p>
-                          <Button size="sm" variant="outline" onClick={refreshActions}>
-                            {llmState.isLoading ? 'Generating…' : 'Generate new actions'}
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </Card>
-                )}
-              </div>
-            )}
-
-            {completedActions.length > 0 && (
-              <div>
-                <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#6B7280', margin: '0.5rem 0 0.75rem' }}>
-                  Completed ({stats.completedActions})
-                </h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', opacity: 0.7 }}>
-                  {completedActions.slice(0, 5).map((action) => {
-                    const catColor = CATEGORY_COLORS[action.category] || '#6B7280';
-                    return (
-                      <div key={action.id} style={{
-                        backgroundColor: 'white', borderRadius: '12px',
-                        border: '1px solid #F3F4F6', padding: '0.75rem 1rem',
-                        display: 'flex', alignItems: 'center', gap: '0.75rem',
-                      }}>
-                        <CheckCircle2 size={16} style={{ color: '#22C55E', flexShrink: 0 }} />
-                        <div style={{ flex: 1 }}>
-                          <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151', margin: 0, textDecoration: 'line-through', textDecorationColor: '#86EFAC' }}>
-                            {action.title}
-                          </p>
-                          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem' }}>
-                            <span style={{ fontSize: '0.6875rem', color: catColor, fontWeight: 600 }}>{action.category}</span>
-                            {action.completedAt && (
-                              <span style={{ fontSize: '0.6875rem', color: '#9CA3AF' }}>
-                                · {new Date(action.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {/* Goals Content */}
+        {/* ── CONTROL PLANE (Goals tab) ── */}
         {activeTab === 'goals' && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -666,57 +356,597 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
             transition={{ duration: 0.2 }}
             style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
           >
-            <div>
-              <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', marginBottom: '1rem', margin: 0 }}>
-                Active Goals ({stats.activeGoals})
-              </h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {activeGoals.length > 0 ? (
-                  activeGoals.map((goal, idx) => (
-                    <motion.div
-                      key={goal.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                    >
-                      <GoalCard
-                        goal={goal}
-                        onEdit={handleEdit}
-                        onDelete={deleteGoal}
-                        onUpdateProgress={(id, progress) => updateGoal(id, { progress })}
-                        onUpdateStatus={(id, status) => updateGoal(id, { status })}
-                      />
-                    </motion.div>
-                  ))
-                ) : (
-                  <Card>
-                    <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-                      <p style={{ color: '#6B7280', margin: 0 }}>
-                        No active goals. Create one to get started!
-                      </p>
-                    </div>
-                  </Card>
-                )}
+            {/* Banner */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 60%, #4C1D95 100%)',
+              borderRadius: '16px', padding: '1.125rem 1.375rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                  <Cpu size={15} color="#A5B4FC" />
+                  <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#A5B4FC', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                    Control Plane
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'white', margin: 0 }}>
+                  Steer your AI — set your direction, shape every recommendation
+                </p>
+                <p style={{ fontSize: '0.75rem', color: '#A5B4FC', margin: '0.25rem 0 0' }}>
+                  Your targets here flow into Actions, Work Profile analysis, and journal prompts
+                </p>
               </div>
+              <button
+                onClick={handleSaveFocus}
+                disabled={!focusHasChanges && !focusSaved}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.375rem',
+                  padding: '0.5rem 1.125rem', borderRadius: '10px', border: 'none',
+                  background: focusSaved ? '#6EE7B7' : focusHasChanges ? 'white' : 'rgba(255,255,255,0.12)',
+                  color: focusSaved ? '#065F46' : focusHasChanges ? '#312E81' : '#A5B4FC',
+                  fontSize: '0.8125rem', fontWeight: 700, cursor: focusHasChanges ? 'pointer' : 'default',
+                  fontFamily: 'inherit', flexShrink: 0, transition: 'all 0.15s',
+                }}
+              >
+                {focusSaved ? <><CheckCircle2 size={13} /> Saved & active</> : <><TrendingUp size={13} /> {focusHasChanges ? 'Save & activate' : 'Up to date'}</>}
+              </button>
             </div>
 
-            {completedGoals.length > 0 && (
-              <div>
-                <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#6B7280', marginBottom: '1rem', margin: 0 }}>
-                  Completed Goals ({stats.completedGoals})
-                </h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', opacity: 0.7 }}>
-                  {completedGoals.map((goal) => (
-                    <GoalCard
-                      key={goal.id}
-                      goal={goal}
-                      onEdit={handleEdit}
-                      onDelete={deleteGoal}
-                      onUpdateProgress={(id, progress) => updateGoal(id, { progress })}
-                      onUpdateStatus={(id, status) => updateGoal(id, { status })}
-                    />
+            {/* Three steering lanes */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
+
+              {/* Lane 1 — Product Direction */}
+              {(() => {
+                const current = idealScenario?.productProfile.headline;
+                const isSet = !!controlFocus.product;
+                return (
+                  <div style={{ backgroundColor: 'white', borderRadius: '14px', border: '1px solid #E0E7FF', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                    {/* Lane header */}
+                    <div style={{ padding: '0.75rem 1rem', background: 'linear-gradient(135deg, #EEF2FF, #E0E7FF)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.875rem' }}>🎯</span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4338CA', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Product Direction</span>
+                      </div>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isSet ? '#6366F1' : '#C7D2FE', boxShadow: isSet ? '0 0 0 3px #C7D2FE' : 'none', transition: 'all 0.2s' }} />
+                    </div>
+
+                    <div style={{ padding: '0.875rem 1rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {/* Current state */}
+                      <div>
+                        <p style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#9CA3AF', margin: '0 0 0.25rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Current (AI analysis)</p>
+                        <p style={{ fontSize: '0.8125rem', color: current ? '#374151' : '#D1D5DB', margin: 0, fontStyle: current ? 'normal' : 'italic', lineHeight: 1.4 }}>
+                          {current || 'Generate Work Profile to see current state'}
+                        </p>
+                      </div>
+
+                      {/* Delta arrow */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                        <div style={{ flex: 1, height: '1px', borderTop: '1.5px dashed #E0E7FF' }} />
+                        <span style={{ fontSize: '0.75rem', color: '#818CF8', fontWeight: 600 }}>↓ target</span>
+                        <div style={{ flex: 1, height: '1px', borderTop: '1.5px dashed #E0E7FF' }} />
+                      </div>
+
+                      {/* Target input */}
+                      <textarea
+                        value={focusDraft.product}
+                        onChange={e => setFocusDraft(p => ({ ...p, product: e.target.value }))}
+                        placeholder="e.g. Build taste for AI-native B2C products and developer tools"
+                        rows={2}
+                        style={{
+                          width: '100%', padding: '0.625rem 0.75rem', borderRadius: '8px',
+                          border: '1.5px solid #E0E7FF', fontSize: '0.8125rem', fontFamily: 'inherit',
+                          color: '#1F2937', outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5,
+                        }}
+                        onFocus={e => { e.target.style.borderColor = '#6366F1'; }}
+                        onBlur={e => { e.target.style.borderColor = '#E0E7FF'; }}
+                      />
+                    </div>
+
+                    {/* Downstream connectors */}
+                    <div style={{ padding: '0.625rem 1rem', borderTop: '1px solid #EEF2FF', backgroundColor: '#F9FAFB', display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                      <span style={{ fontSize: '0.6875rem', color: '#9CA3AF', alignSelf: 'center' }}>steers →</span>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1875rem 0.5rem', borderRadius: '6px', backgroundColor: '#F5F3FF', color: '#7C3AED' }}>🧪 Taste Exercises</span>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1875rem 0.5rem', borderRadius: '6px', backgroundColor: '#EEF2FF', color: '#4338CA' }}>📊 Product Fit Profile</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Lane 2 — Emotional Bandwidth */}
+              {(() => {
+                const current = idealScenario?.coworkerProfile.headline;
+                const isSet = !!controlFocus.coworker;
+                const eqGoalsCount = activeGoals.filter(g => 'focusArea' in g).length;
+                return (
+                  <div style={{ backgroundColor: 'white', borderRadius: '14px', border: '1px solid #D1FAE5', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ padding: '0.75rem 1rem', background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.875rem' }}>🤝</span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065F46', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Emotional Bandwidth</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {eqGoalsCount > 0 && <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#059669' }}>{eqGoalsCount} goal{eqGoalsCount !== 1 ? 's' : ''}</span>}
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isSet ? '#10B981' : '#A7F3D0', boxShadow: isSet ? '0 0 0 3px #A7F3D0' : 'none', transition: 'all 0.2s' }} />
+                      </div>
+                    </div>
+
+                    <div style={{ padding: '0.875rem 1rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <div>
+                        <p style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#9CA3AF', margin: '0 0 0.25rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Current (AI analysis)</p>
+                        <p style={{ fontSize: '0.8125rem', color: current ? '#374151' : '#D1D5DB', margin: 0, fontStyle: current ? 'normal' : 'italic', lineHeight: 1.4 }}>
+                          {current || 'Generate Work Profile to see current state'}
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                        <div style={{ flex: 1, height: '1px', borderTop: '1.5px dashed #D1FAE5' }} />
+                        <span style={{ fontSize: '0.75rem', color: '#34D399', fontWeight: 600 }}>↓ target</span>
+                        <div style={{ flex: 1, height: '1px', borderTop: '1.5px dashed #D1FAE5' }} />
+                      </div>
+
+                      <textarea
+                        value={focusDraft.coworker}
+                        onChange={e => setFocusDraft(p => ({ ...p, coworker: e.target.value }))}
+                        placeholder="e.g. Grow capacity to work with high-demand, fast-moving engineering leads"
+                        rows={2}
+                        style={{
+                          width: '100%', padding: '0.625rem 0.75rem', borderRadius: '8px',
+                          border: '1.5px solid #D1FAE5', fontSize: '0.8125rem', fontFamily: 'inherit',
+                          color: '#1F2937', outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5,
+                        }}
+                        onFocus={e => { e.target.style.borderColor = '#10B981'; }}
+                        onBlur={e => { e.target.style.borderColor = '#D1FAE5'; }}
+                      />
+                    </div>
+
+                    <div style={{ padding: '0.625rem 1rem', borderTop: '1px solid #ECFDF5', backgroundColor: '#F9FAFB', display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                      <span style={{ fontSize: '0.6875rem', color: '#9CA3AF', alignSelf: 'center' }}>steers →</span>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1875rem 0.5rem', borderRadius: '6px', backgroundColor: '#F0FDF4', color: '#059669' }}>📓 Journal Prompts</span>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1875rem 0.5rem', borderRadius: '6px', backgroundColor: '#ECFDF5', color: '#065F46' }}>🤝 Coworker Profile</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Lane 3 — Career Focus */}
+              {(() => {
+                const projects = idealScenario?.automationProjects;
+                const isSet = !!controlFocus.career;
+                const careerGoalsCount = activeGoals.filter(g => !('focusArea' in g)).length;
+                const completedActionsCount = completedActions.length;
+                return (
+                  <div style={{ backgroundColor: 'white', borderRadius: '14px', border: '1px solid #EDE9FE', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ padding: '0.75rem 1rem', background: 'linear-gradient(135deg, #F5F3FF, #EDE9FE)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.875rem' }}>🚀</span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#5B21B6', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Career Focus</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {careerGoalsCount > 0 && <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#7C3AED' }}>{careerGoalsCount} goal{careerGoalsCount !== 1 ? 's' : ''}</span>}
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isSet ? '#7C3AED' : '#DDD6FE', boxShadow: isSet ? '0 0 0 3px #DDD6FE' : 'none', transition: 'all 0.2s' }} />
+                      </div>
+                    </div>
+
+                    <div style={{ padding: '0.875rem 1rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <div>
+                        <p style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#9CA3AF', margin: '0 0 0.25rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Current (AI analysis)</p>
+                        <p style={{ fontSize: '0.8125rem', color: projects ? '#374151' : '#D1D5DB', margin: 0, fontStyle: projects ? 'normal' : 'italic', lineHeight: 1.4 }}>
+                          {projects ? projects[0]?.title : 'Generate Work Profile to see current state'}
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                        <div style={{ flex: 1, height: '1px', borderTop: '1.5px dashed #EDE9FE' }} />
+                        <span style={{ fontSize: '0.75rem', color: '#A78BFA', fontWeight: 600 }}>↓ target</span>
+                        <div style={{ flex: 1, height: '1px', borderTop: '1.5px dashed #EDE9FE' }} />
+                      </div>
+
+                      <textarea
+                        value={focusDraft.career}
+                        onChange={e => setFocusDraft(p => ({ ...p, career: e.target.value }))}
+                        placeholder="e.g. Senior PM at an AI-native company — building systems thinking + shipping velocity"
+                        rows={2}
+                        style={{
+                          width: '100%', padding: '0.625rem 0.75rem', borderRadius: '8px',
+                          border: '1.5px solid #EDE9FE', fontSize: '0.8125rem', fontFamily: 'inherit',
+                          color: '#1F2937', outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5,
+                        }}
+                        onFocus={e => { e.target.style.borderColor = '#7C3AED'; }}
+                        onBlur={e => { e.target.style.borderColor = '#EDE9FE'; }}
+                      />
+                    </div>
+
+                    <div style={{ padding: '0.625rem 1rem', borderTop: '1px solid #F5F3FF', backgroundColor: '#F9FAFB', display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                      <span style={{ fontSize: '0.6875rem', color: '#9CA3AF', alignSelf: 'center' }}>steers →</span>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1875rem 0.5rem', borderRadius: '6px', backgroundColor: '#F5F3FF', color: '#7C3AED' }}>⚡ AI Actions ({completedActionsCount} done)</span>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1875rem 0.5rem', borderRadius: '6px', backgroundColor: '#EDE9FE', color: '#5B21B6' }}>🤖 Automation Projects</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+
+            {/* ── Recommended Actions subsection ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {stale && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '12px',
+                  backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Info size={15} style={{ color: '#3B82F6', flexShrink: 0 }} />
+                    <p style={{ fontSize: '0.8125rem', color: '#1D4ED8', margin: 0 }}>
+                      You logged new emotions since these were generated.
+                    </p>
+                  </div>
+                  <button
+                    onClick={refreshActions}
+                    style={{
+                      fontSize: '0.8125rem', fontWeight: 600, color: '#2563EB',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      padding: '0.25rem 0.5rem', borderRadius: '6px', whiteSpace: 'nowrap', fontFamily: 'inherit',
+                    }}
+                  >
+                    Update actions
+                  </button>
+                </div>
+              )}
+
+              {llmState.insight && llmState.isAiGenerated && (
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+                  padding: '0.875rem 1.125rem', borderRadius: '14px',
+                  backgroundColor: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.15)',
+                }}>
+                  <Lightbulb size={16} style={{ color: '#7C3AED', flexShrink: 0, marginTop: '0.125rem' }} />
+                  <div>
+                    <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#7C3AED', margin: '0 0 0.2rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pattern detected</p>
+                    <p style={{ fontSize: '0.875rem', color: '#4C1D95', margin: 0, lineHeight: 1.5 }}>{llmState.insight}</p>
+                  </div>
+                </div>
+              )}
+
+              {llmState.error && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '0.625rem',
+                  padding: '0.625rem 1rem', borderRadius: '10px',
+                  backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB',
+                }}>
+                  <Brain size={14} style={{ color: '#9CA3AF', flexShrink: 0 }} />
+                  <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
+                    Showing pattern-based suggestions tailored to your recent emotions.
+                  </p>
+                </div>
+              )}
+
+              {weekSummary && weekSummary.top.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Tailored to:</span>
+                  {weekSummary.top.map(({ emotion, avg }) => (
+                    <span key={emotion} style={{
+                      fontSize: '0.75rem', fontWeight: 500, padding: '0.2rem 0.625rem',
+                      borderRadius: '999px', backgroundColor: '#F3F4F6', color: '#374151',
+                      display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                    }}>
+                      {emotion} <span style={{ color: '#9CA3AF' }}>· {avg.toFixed(0)}/10</span>
+                    </span>
                   ))}
                 </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
+                    Recommended Actions ({stats.pendingActions})
+                  </h2>
+                  {llmState.isAiGenerated && (
+                    <span style={{
+                      fontSize: '0.625rem', fontWeight: 700, padding: '0.125rem 0.5rem',
+                      borderRadius: '999px', backgroundColor: 'rgba(139,92,246,0.1)', color: '#7C3AED',
+                    }}>
+                      <Sparkles size={10} style={{ display: 'inline', marginRight: '0.2rem', verticalAlign: 'middle' }} />AI
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={refreshActions}
+                  disabled={llmState.isLoading}
+                  style={{
+                    padding: '0.375rem 0.625rem', borderRadius: '8px', border: '1px solid #E5E7EB',
+                    backgroundColor: 'white', cursor: llmState.isLoading ? 'default' : 'pointer',
+                    color: '#6B7280', display: 'flex', alignItems: 'center', gap: '0.375rem',
+                    fontSize: '0.75rem', fontFamily: 'inherit',
+                  }}
+                >
+                  <RefreshCw size={13} style={{ animation: llmState.isLoading ? 'spin 1s linear infinite' : 'none' }} />
+                  {llmState.isLoading ? 'Generating…' : 'Refresh'}
+                </button>
+              </div>
+
+              {llmState.isLoading && (
+                <Card>
+                  <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                    <p style={{ color: '#9CA3AF', margin: 0, fontSize: '0.875rem' }}>
+                      Analyzing your emotional patterns…
+                    </p>
+                  </div>
+                </Card>
+              )}
+
+              {!llmState.isLoading && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {activeActions.length > 0 ? (
+                    activeActions.map((action, idx) => {
+                      const catColor = CATEGORY_COLORS[action.category] || '#6B7280';
+                      const catIcon = CATEGORY_ICONS[action.category] || '✦';
+                      const isExpanded = expandedReasoning.has(action.id);
+                      return (
+                        <motion.div
+                          key={action.id}
+                          initial={{ opacity: 0, x: -16 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.04 }}
+                          style={{
+                            backgroundColor: 'white', borderRadius: '14px',
+                            border: '1px solid #F3F4F6', overflow: 'hidden',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                          }}
+                        >
+                          <div style={{ padding: '1rem 1.125rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                            <div style={{ display: 'flex', gap: '0.75rem', flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                width: '38px', height: '38px', borderRadius: '10px', flexShrink: 0,
+                                backgroundColor: `${catColor}18`, display: 'flex', alignItems: 'center',
+                                justifyContent: 'center', fontSize: '1rem',
+                              }}>
+                                {catIcon}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <h3 style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#1F2937', margin: 0, lineHeight: 1.3 }}>
+                                  {action.title}
+                                </h3>
+                                <p style={{ color: '#6B7280', fontSize: '0.8375rem', margin: '0.3rem 0 0', lineHeight: 1.5 }}>
+                                  {action.description}
+                                </p>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                                  <span style={{
+                                    fontSize: '0.6875rem', fontWeight: 600, padding: '0.2rem 0.5rem',
+                                    borderRadius: '999px', backgroundColor: `${catColor}15`, color: catColor,
+                                    textTransform: 'uppercase', letterSpacing: '0.03em',
+                                  }}>
+                                    {action.category}
+                                  </span>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.75rem', color: '#9CA3AF' }}>
+                                    <Clock size={11} /> {action.estimatedMinutes} min
+                                  </span>
+                                  {action.reasoning && (
+                                    <button
+                                      onClick={() => toggleReasoning(action.id)}
+                                      style={{
+                                        display: 'flex', alignItems: 'center', gap: '0.2rem',
+                                        fontSize: '0.75rem', color: '#6B7280', fontWeight: 500,
+                                        background: 'none', border: 'none', cursor: 'pointer',
+                                        padding: '0.125rem 0.25rem', borderRadius: '4px', fontFamily: 'inherit',
+                                      }}
+                                    >
+                                      {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                      Why this?
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0 }}>
+                              <button
+                                onClick={() => completeAction(action.id)}
+                                title="Mark done"
+                                style={{
+                                  padding: '0.5rem', borderRadius: '10px', border: 'none',
+                                  backgroundColor: '#F0FDF4', color: '#16A34A', cursor: 'pointer', display: 'flex',
+                                }}
+                              >
+                                <CheckCircle2 size={18} />
+                              </button>
+                              <button
+                                onClick={() => setSkipConfirmId(action.id)}
+                                title="Skip"
+                                style={{
+                                  padding: '0.5rem', borderRadius: '10px', border: 'none',
+                                  backgroundColor: skipConfirmId === action.id ? '#FEF3C7' : '#F9FAFB',
+                                  color: skipConfirmId === action.id ? '#D97706' : '#9CA3AF',
+                                  cursor: 'pointer', display: 'flex',
+                                }}
+                              >
+                                <SkipForward size={18} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <AnimatePresence>
+                            {skipConfirmId === action.id && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.18 }}
+                                style={{ overflow: 'hidden' }}
+                              >
+                                <div style={{
+                                  padding: '0.625rem 1.125rem 0.75rem',
+                                  borderTop: '1px solid #FDE68A', backgroundColor: '#FFFBEB',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
+                                }}>
+                                  <p style={{ fontSize: '0.8125rem', color: '#92400E', margin: 0 }}>Skip this action?</p>
+                                  <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                                    <button
+                                      onClick={() => { dismissAction(action.id); setSkipConfirmId(null); }}
+                                      style={{ fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem', borderRadius: '6px', border: '1px solid #FCD34D', backgroundColor: 'white', color: '#92400E', cursor: 'pointer', fontFamily: 'inherit' }}
+                                    >Skip for now</button>
+                                    <button
+                                      onClick={() => { skipAction(action.id); setSkipConfirmId(null); }}
+                                      style={{ fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem', borderRadius: '6px', border: 'none', backgroundColor: '#F59E0B', color: 'white', cursor: 'pointer', fontFamily: 'inherit' }}
+                                    >Skip forever</button>
+                                    <button
+                                      onClick={() => setSkipConfirmId(null)}
+                                      style={{ fontSize: '0.75rem', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: '0.3rem 0.25rem', fontFamily: 'inherit' }}
+                                    >Cancel</button>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          <AnimatePresence>
+                            {isExpanded && action.reasoning && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.18 }}
+                                style={{ overflow: 'hidden' }}
+                              >
+                                <div style={{
+                                  padding: '0.625rem 1.125rem 0.875rem',
+                                  borderTop: `1px solid ${catColor}20`,
+                                  backgroundColor: `${catColor}06`,
+                                  display: 'flex', alignItems: 'flex-start', gap: '0.5rem',
+                                }}>
+                                  <TrendingUp size={13} style={{ color: catColor, flexShrink: 0, marginTop: '0.15rem' }} />
+                                  <p style={{ fontSize: '0.8125rem', color: '#4B5563', lineHeight: 1.55, margin: 0 }}>
+                                    {action.reasoning}
+                                  </p>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                      );
+                    })
+                  ) : (
+                    <Card>
+                      <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                        {emotions.length === 0 ? (
+                          <>
+                            <Brain size={32} style={{ color: '#D1D5DB', margin: '0 auto 0.75rem', display: 'block' }} />
+                            <p style={{ color: '#6B7280', margin: '0 0 1rem', fontSize: '0.875rem' }}>
+                              Log how you're feeling to get actions tailored to your current state.
+                            </p>
+                            <Button size="sm" variant="outline" onClick={refreshActions}>Generate anyway</Button>
+                          </>
+                        ) : (
+                          <>
+                            <Trophy size={32} style={{ color: '#D1D5DB', margin: '0 auto 0.75rem', display: 'block' }} />
+                            <p style={{ color: '#6B7280', margin: '0 0 1rem', fontSize: '0.875rem' }}>
+                              All caught up. Generate a fresh set based on your latest emotions.
+                            </p>
+                            <Button size="sm" variant="outline" onClick={refreshActions}>
+                              {llmState.isLoading ? 'Generating…' : 'Generate new actions'}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+              {completedActions.length > 0 && (
+                <div>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#6B7280', margin: '0.5rem 0 0.75rem' }}>
+                    Completed ({stats.completedActions})
+                  </h2>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', opacity: 0.7 }}>
+                    {completedActions.slice(0, 5).map((action) => {
+                      const catColor = CATEGORY_COLORS[action.category] || '#6B7280';
+                      return (
+                        <div key={action.id} style={{
+                          backgroundColor: 'white', borderRadius: '12px',
+                          border: '1px solid #F3F4F6', padding: '0.75rem 1rem',
+                          display: 'flex', alignItems: 'center', gap: '0.75rem',
+                        }}>
+                          <CheckCircle2 size={16} style={{ color: '#22C55E', flexShrink: 0 }} />
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151', margin: 0, textDecoration: 'line-through', textDecorationColor: '#86EFAC' }}>
+                              {action.title}
+                            </p>
+                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem' }}>
+                              <span style={{ fontSize: '0.6875rem', color: catColor, fontWeight: 600 }}>{action.category}</span>
+                              {action.completedAt && (
+                                <span style={{ fontSize: '0.6875rem', color: '#9CA3AF' }}>
+                                  · {new Date(action.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Connector divider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#F3F4F6' }} />
+              <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#D1D5DB', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                supporting goals
+              </span>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#F3F4F6' }} />
+            </div>
+
+            {/* Goals — grouped by lane type */}
+            {activeGoals.length === 0 && completedGoals.length === 0 ? (
+              <Card>
+                <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
+                  <p style={{ color: '#6B7280', margin: 0, fontSize: '0.875rem' }}>
+                    No goals yet. Use <strong>+ New Goal</strong> to set milestones that anchor your steering lanes.
+                  </p>
+                </div>
+              </Card>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {/* EI goals — green left border (Emotional Bandwidth lane) */}
+                {activeGoals.filter(g => 'focusArea' in g).map((goal, idx) => (
+                  <motion.div key={goal.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.04 }}>
+                    <div style={{ borderLeft: '3px solid #34D399', borderRadius: '0 12px 12px 0', overflow: 'hidden' }}>
+                      <GoalCard goal={goal} onEdit={handleEdit} onDelete={deleteGoal}
+                        onUpdateProgress={(id, progress) => updateGoal(id, { progress })}
+                        onUpdateStatus={(id, status) => updateGoal(id, { status })} />
+                    </div>
+                  </motion.div>
+                ))}
+
+                {/* Career goals — purple left border (Career Focus lane) */}
+                {activeGoals.filter(g => !('focusArea' in g)).map((goal, idx) => (
+                  <motion.div key={goal.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: (idx + activeGoals.filter(g => 'focusArea' in g).length) * 0.04 }}>
+                    <div style={{ borderLeft: '3px solid #7C3AED', borderRadius: '0 12px 12px 0', overflow: 'hidden' }}>
+                      <GoalCard goal={goal} onEdit={handleEdit} onDelete={deleteGoal}
+                        onUpdateProgress={(id, progress) => updateGoal(id, { progress })}
+                        onUpdateStatus={(id, status) => updateGoal(id, { status })} />
+                    </div>
+                  </motion.div>
+                ))}
+
+                {/* Completed goals */}
+                {completedGoals.length > 0 && (
+                  <div style={{ opacity: 0.55 }}>
+                    <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#9CA3AF', margin: '0.25rem 0 0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Completed ({completedGoals.length})
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {completedGoals.map(goal => (
+                        <div key={goal.id} style={{ borderLeft: `3px solid ${'focusArea' in goal ? '#A7F3D0' : '#DDD6FE'}`, borderRadius: '0 12px 12px 0', overflow: 'hidden' }}>
+                          <GoalCard goal={goal} onEdit={handleEdit} onDelete={deleteGoal}
+                            onUpdateProgress={(id, progress) => updateGoal(id, { progress })}
+                            onUpdateStatus={(id, status) => updateGoal(id, { status })} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </motion.div>

@@ -5,7 +5,7 @@ import {
   Sparkles, Send, ChevronDown, ChevronUp, AlertTriangle,
   CheckCircle2, Edit3, ArrowRight, BookOpen,
   Zap, Clock, SkipForward, RefreshCw, TrendingUp,
-  FlaskConical, Star, ChevronRight, Copy, Check,
+  FlaskConical, Star, ChevronRight, Copy, Check, Target,
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Button from '../components/common/Button';
@@ -87,6 +87,22 @@ export default function HomePage() {
   const [reflectionsExpanded, setReflectionsExpanded] = useState(false);
   const [teHistoryExpanded, setTeHistoryExpanded] = useState(false);
 
+  // Growth pillar state (Product Taste + EI + AI/Tech)
+  const [productTarget, setProductTarget] = useState('');
+  const [productTargetDraft, setProductTargetDraft] = useState('');
+  const [productTargetEditing, setProductTargetEditing] = useState(false);
+  const [coworkerTargetDraft, setCoworkerTargetDraft] = useState('');
+  const [coworkerTargetEditing, setCoworkerTargetEditing] = useState(false);
+  const [careerTargetDraft, setCareerTargetDraft] = useState('');
+  const [careerTargetEditing, setCareerTargetEditing] = useState(false);
+  const [productFitSummary, setProductFitSummary] = useState('');
+  const [productRecs, setProductRecs] = useState<string[]>([]);
+  const [productRecsLoading, setProductRecsLoading] = useState(false);
+  const [coworkerTarget, setCoworkerTarget] = useState('');
+  const [eiSummary, setEiSummary] = useState('');
+  const [careerTarget, setCareerTarget] = useState('');
+  const [aiProjectSummary, setAiProjectSummary] = useState('');
+
   // LinkedIn post generator state
   const [linkedInModalOpen, setLinkedInModalOpen] = useState(false);
   const [linkedInPostType, setLinkedInPostType] = useState<'emotional' | 'product' | 'mixed'>('mixed');
@@ -126,6 +142,70 @@ export default function HomePage() {
     }, 3500);
     return () => clearInterval(timer);
   }, [journalText]);
+
+  // Load growth pillar data from localStorage
+  useEffect(() => {
+    try {
+      const focusRaw = localStorage.getItem('heq_control_focus');
+      if (focusRaw) {
+        const f = JSON.parse(focusRaw);
+        setProductTarget(f.product || '');
+        setCoworkerTarget(f.coworker || '');
+        setCareerTarget(f.career || '');
+      }
+    } catch { /* ignore */ }
+    try {
+      const scenarioRaw = localStorage.getItem('heq_ideal_scenario');
+      if (scenarioRaw) {
+        const s = JSON.parse(scenarioRaw);
+        setProductFitSummary(s.productProfile?.headline || '');
+        setEiSummary(s.coworkerProfile?.headline || '');
+        setAiProjectSummary(s.automationProjects?.[0]?.title || '');
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const saveProductTarget = (val: string) => {
+    try {
+      const raw = localStorage.getItem('heq_control_focus');
+      const existing = raw ? JSON.parse(raw) : {};
+      localStorage.setItem('heq_control_focus', JSON.stringify({ ...existing, product: val }));
+      setProductTarget(val);
+    } catch { /* ignore */ }
+  };
+
+  const saveCoworkerTarget = (val: string) => {
+    try {
+      const raw = localStorage.getItem('heq_control_focus');
+      const existing = raw ? JSON.parse(raw) : {};
+      localStorage.setItem('heq_control_focus', JSON.stringify({ ...existing, coworker: val }));
+      setCoworkerTarget(val);
+    } catch { /* ignore */ }
+  };
+
+  const saveCareerTarget = (val: string) => {
+    try {
+      const raw = localStorage.getItem('heq_control_focus');
+      const existing = raw ? JSON.parse(raw) : {};
+      localStorage.setItem('heq_control_focus', JSON.stringify({ ...existing, career: val }));
+      setCareerTarget(val);
+    } catch { /* ignore */ }
+  };
+
+  const handleGetProductRecs = async () => {
+    if (!checkAndUseAi()) return;
+    setProductRecsLoading(true);
+    try {
+      const systemPrompt = `You are a product career advisor. Based on a user's current product fit profile and their target product direction, suggest 5 specific products or product categories they should analyze next to build relevant taste and intuition. Return ONLY a JSON array of 5 strings, each a concise product name. Example: ["Figma","Linear","Notion AI","Vercel","Supabase"]`;
+      const userMsg = `Current product fit: ${productFitSummary || 'Not yet analyzed'}\nTarget direction: ${productTarget || 'Not set yet'}\nPast exercises: ${state.tasteExercises.slice(0, 5).map(e => e.productName).join(', ') || 'None yet'}`;
+      const resp = await callClaudeMessages(systemPrompt, [{ role: 'user', content: userMsg }], 200);
+      const text = parseActionResponse(resp);
+      const match = text.match(/\[[\s\S]*\]/);
+      if (match) setProductRecs(JSON.parse(match[0]));
+    } catch { /* ignore */ } finally {
+      setProductRecsLoading(false);
+    }
+  };
 
   // Manual overrides
   const [manualEmotion, setManualEmotion] = useState<EmotionType | null>(null);
@@ -532,210 +612,513 @@ ${instructionByType[linkedInPostType]}`;
               transition={{ duration: 0.3 }}
               style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
             >
-              {/* ── JOURNAL CARD (hero) ── */}
-              <div style={{
-                backgroundColor: 'white', borderRadius: '20px', border: '1px solid #E5E7EB',
-                boxShadow: '0 4px 24px rgba(0,0,0,0.04)', overflow: 'hidden',
-              }}>
-                {/* Companion header */}
-                <div style={{
-                  padding: '1.375rem 1.5rem 1rem',
-                  background: 'linear-gradient(135deg, rgba(74,95,193,0.04) 0%, rgba(139,126,200,0.07) 100%)',
-                  borderBottom: '1px solid #F3F4F6',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{
-                      width: '34px', height: '34px', borderRadius: '10px', flexShrink: 0,
-                      background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Sparkles size={15} color="white" />
+              {/* ── THREE GROWTH PILLARS ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.625rem' }}>
+                {/* Pillar 1: Product Taste */}
+                {(() => {
+                  const count = state.tasteExercises.length;
+                  return (
+                    <div style={{ borderRadius: '14px', border: '1px solid #F3F4F6', backgroundColor: 'white', borderLeft: '3px solid #7C3AED', padding: '0.75rem 0.875rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🧪 Product Taste</span>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1F2937' }}>
+                        {count > 0 ? `${count} exercise${count !== 1 ? 's' : ''} logged` : 'No exercises yet'}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: productTarget ? '#4F46E5' : '#D1D5DB', lineHeight: 1.3 }}>
+                        {productTarget ? `↗ ${productTarget.length > 45 ? productTarget.slice(0, 45) + '…' : productTarget}` : 'Set a direction below ↓'}
+                      </span>
                     </div>
-                    <AnimatePresence mode="wait">
-                      <motion.p
-                        key={questionIdx}
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        transition={{ duration: 0.3 }}
-                        style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', margin: 0 }}
+                  );
+                })()}
+
+                {/* Pillar 2: Emotional Intelligence */}
+                {(() => {
+                  const approved = state.reflections.filter(r => r.status === 'approved');
+                  const lastEmotion = approved[0]?.approvedEmotion;
+                  return (
+                    <div style={{ borderRadius: '14px', border: '1px solid #F3F4F6', backgroundColor: 'white', borderLeft: '3px solid #4A5FC1', padding: '0.75rem 0.875rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#4A5FC1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🧠 Emotional IQ</span>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1F2937' }}>
+                        {approved.length > 0 ? `${approved.length} reflection${approved.length !== 1 ? 's' : ''}${lastEmotion ? ` · ${lastEmotion}` : ''}` : 'Start journaling'}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: coworkerTarget ? '#4A5FC1' : '#D1D5DB', lineHeight: 1.3 }}>
+                        {coworkerTarget ? `↗ ${coworkerTarget.length > 45 ? coworkerTarget.slice(0, 45) + '…' : coworkerTarget}` : eiSummary || 'Set your EI focus on Growth page'}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                {/* Pillar 3: AI & Tech Edge */}
+                <div style={{ borderRadius: '14px', border: '1px solid #F3F4F6', backgroundColor: 'white', borderLeft: '3px solid #10B981', padding: '0.75rem 0.875rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                  <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🤖 AI & Tech Edge</span>
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1F2937' }}>
+                    {aiProjectSummary || (careerTarget ? 'Focus set' : 'Not started')}
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: careerTarget ? '#059669' : '#D1D5DB', lineHeight: 1.3 }}>
+                    {careerTarget ? `↗ ${careerTarget.length > 45 ? careerTarget.slice(0, 45) + '…' : careerTarget}` : <Link to="/growth" style={{ color: '#D1D5DB', textDecoration: 'none' }}>Set focus on Growth page →</Link>}
+                  </span>
+                </div>
+              </div>
+
+              {/* ── UNIFIED PRODUCT TASTE CARD ── */}
+              <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #EDE9FE', overflow: 'hidden', boxShadow: '0 2px 12px rgba(124,58,237,0.06)' }}>
+
+                {/* Header row */}
+                <div style={{ padding: '0.875rem 1.25rem', borderBottom: teOpen ? '1px solid #F3F4F6' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <FlaskConical size={14} color="white" />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1F2937' }}>Product Taste</span>
+                      {state.tasteExercises.length > 0 && (
+                        <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: '#F5F3FF', color: '#7C3AED', marginLeft: '0.4rem' }}>
+                          {state.tasteExercises.length}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Link to="/growth" style={{ fontSize: '0.6875rem', color: '#C4B5FD', textDecoration: 'none', fontWeight: 500 }}>Goals →</Link>
+                    {teOpen && te.tePhase !== 'analyzing' && (
+                      <button onClick={handleTeClose} style={{ fontSize: '0.8125rem', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                        Close
+                      </button>
+                    )}
+                    {!teOpen && (
+                      <button
+                        onClick={() => setTeOpen(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.375rem 0.875rem', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
                       >
-                        {COMPANION_QUESTIONS[questionIdx]}
-                      </motion.p>
-                    </AnimatePresence>
+                        Start <ChevronRight size={13} />
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Starter prompt chips — shown only before first user message */}
-                {!chatMessages.some(m => m.role === 'user') && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.15 }}
-                    style={{ padding: '0.875rem 1.25rem 0.375rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}
-                  >
-                    {STARTER_PROMPTS.map((prompt) => (
-                      <button
-                        key={prompt.label}
-                        onClick={() => setChatInput(chatInput ? chatInput : prompt.text)}
-                        style={{
-                          padding: '0.375rem 0.75rem', borderRadius: '999px',
-                          border: '1.5px solid #E5E7EB', backgroundColor: 'white',
-                          fontSize: '0.8125rem', color: '#6B7280', cursor: 'pointer',
-                          fontFamily: 'inherit', transition: 'all 0.15s',
-                          display: 'flex', alignItems: 'center', gap: '0.3rem',
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.borderColor = '#8B7EC8';
-                          e.currentTarget.style.color = '#4A5FC1';
-                          e.currentTarget.style.backgroundColor = 'rgba(74,95,193,0.04)';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.borderColor = '#E5E7EB';
-                          e.currentTarget.style.color = '#6B7280';
-                          e.currentTarget.style.backgroundColor = 'white';
-                        }}
-                      >
-                        <span>{prompt.icon}</span> {prompt.label}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
+                {/* Direction + progress + history — shown when exercise is NOT open */}
+                {!teOpen && (
+                  <div style={{ padding: '0.875rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
-                {/* Chat messages area */}
-                {chatMessages.length > 0 && (
-                  <div style={{
-                    maxHeight: '320px', overflowY: 'auto',
-                    padding: '0.875rem 1.25rem',
-                    display: 'flex', flexDirection: 'column', gap: '0.75rem',
-                  }}>
-                    <AnimatePresence initial={false}>
-                      {chatMessages.map((msg, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.2 }}
-                          style={{
-                            display: 'flex',
-                            justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                            alignItems: 'flex-end', gap: '0.5rem',
-                          }}
-                        >
-                          {msg.role === 'assistant' && (
-                            <div style={{
-                              width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0,
-                              background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}>
-                              <Sparkles size={13} color="white" />
-                            </div>
-                          )}
-                          <div style={{
-                            maxWidth: '78%',
-                            padding: '0.625rem 0.875rem',
-                            borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                            backgroundColor: msg.role === 'user' ? '#4A5FC1' : '#F3F4F6',
-                            color: msg.role === 'user' ? 'white' : '#1F2937',
-                            fontSize: '0.9rem', lineHeight: 1.55,
-                          }}>
-                            {msg.content}
+                    {/* Working toward row */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: '0.15rem', flexShrink: 0 }}>Working toward</span>
+                      <div style={{ flex: 1 }}>
+                        {productTargetEditing ? (
+                          <textarea
+                            autoFocus
+                            value={productTargetDraft}
+                            onChange={e => setProductTargetDraft(e.target.value)}
+                            onBlur={() => { saveProductTarget(productTargetDraft); setProductTargetEditing(false); }}
+                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveProductTarget(productTargetDraft); setProductTargetEditing(false); } }}
+                            style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid #DDD6FE', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '52px', backgroundColor: '#FAFAFA' }}
+                          />
+                        ) : (
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => { setProductTargetDraft(productTarget); setProductTargetEditing(true); }}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setProductTargetDraft(productTarget); setProductTargetEditing(true); } }}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            {productTarget ? (
+                              <span style={{ fontSize: '0.875rem', color: '#4F46E5', fontWeight: 500, lineHeight: 1.45 }}>
+                                {productTarget}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.875rem', color: '#C4B5FD', fontStyle: 'italic' }}>
+                                What type of products do you want to master? Tap to set a direction…
+                              </span>
+                            )}
                           </div>
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
-                    {chatLoading && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}
-                      >
-                        <div style={{
-                          width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0,
-                          background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <Sparkles size={13} color="white" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Progress bar */}
+                    {(() => {
+                      const count = state.tasteExercises.length;
+                      const milestone = 5;
+                      const pct = Math.min(count / milestone, 1);
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.6875rem', color: '#8B5CF6', fontWeight: 500 }}>
+                              {count} exercise{count !== 1 ? 's' : ''} building your product intuition
+                            </span>
+                            <span style={{ fontSize: '0.6875rem', color: '#C4B5FD' }}>
+                              {count < milestone ? `${milestone - count} more to full profile` : 'Profile ready ✓'}
+                            </span>
+                          </div>
+                          <div style={{ height: '4px', backgroundColor: '#EDE9FE', borderRadius: '99px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct * 100}%`, backgroundColor: '#7C3AED', borderRadius: '99px', transition: 'width 0.4s ease' }} />
+                          </div>
                         </div>
-                        <div style={{
-                          padding: '0.625rem 0.875rem', borderRadius: '14px 14px 14px 4px',
-                          backgroundColor: '#F3F4F6', display: 'flex', gap: '0.25rem', alignItems: 'center',
-                        }}>
-                          {[0, 1, 2].map(d => (
-                            <motion.span
-                              key={d}
-                              animate={{ opacity: [0.3, 1, 0.3] }}
-                              transition={{ duration: 1.2, repeat: Infinity, delay: d * 0.2 }}
-                              style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#9CA3AF', display: 'inline-block' }}
-                            />
+                      );
+                    })()}
+
+                    {/* Recent exercises inline */}
+                    {state.tasteExercises.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <span style={{ fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Recent</span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                          {state.tasteExercises.slice(0, 4).map(ex => {
+                            const scoreColor = ex.score >= 8 ? '#16A34A' : ex.score >= 6 ? '#D97706' : '#DC2626';
+                            const scoreBg = ex.score >= 8 ? '#F0FDF4' : ex.score >= 6 ? '#FFFBEB' : '#FEF2F2';
+                            return (
+                              <span key={ex.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', padding: '0.25rem 0.625rem', backgroundColor: '#FAFAFA', border: '1px solid #F3F4F6', borderRadius: '999px', color: '#374151' }}>
+                                {ex.productName}
+                                <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: scoreColor, backgroundColor: scoreBg, padding: '0.05rem 0.3rem', borderRadius: '4px' }}>{ex.score}/10</span>
+                              </span>
+                            );
+                          })}
+                          {state.tasteExercises.length > 4 && (
+                            <Link to="/insights" style={{ fontSize: '0.75rem', color: '#7C3AED', textDecoration: 'none', padding: '0.25rem 0.5rem', alignSelf: 'center' }}>
+                              +{state.tasteExercises.length - 4} more →
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recommended products */}
+                    {productRecs.length > 0 ? (
+                      <div>
+                        <span style={{ fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Explore next</span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginTop: '0.3rem' }}>
+                          {productRecs.map((rec, i) => (
+                            <span key={i} style={{ fontSize: '0.75rem', padding: '0.25rem 0.625rem', backgroundColor: '#EEF2FF', color: '#4F46E5', borderRadius: '999px', fontWeight: 500 }}>
+                              {rec}
+                            </span>
                           ))}
                         </div>
-                      </motion.div>
+                      </div>
+                    ) : (productFitSummary || productTarget) ? (
+                      <button
+                        onClick={handleGetProductRecs}
+                        disabled={productRecsLoading}
+                        style={{ alignSelf: 'flex-start', border: '1px dashed #DDD6FE', backgroundColor: 'transparent', color: '#7C3AED', fontSize: '0.75rem', padding: '0.375rem 0.75rem', borderRadius: '8px', cursor: productRecsLoading ? 'default' : 'pointer', fontFamily: 'inherit', opacity: productRecsLoading ? 0.6 : 1 }}
+                      >
+                        {productRecsLoading ? 'Generating…' : '✦ Suggest products to explore next'}
+                      </button>
+                    ) : (
+                      <p style={{ fontSize: '0.8125rem', color: '#C4B5FD', margin: 0, fontStyle: 'italic' }}>
+                        Pick any product, reflect on 6 key dimensions, and build the instincts that separate great product thinkers.
+                      </p>
                     )}
-                    <div ref={chatEndRef} />
                   </div>
                 )}
 
-                {/* Chat input row */}
-                <div style={{
-                  padding: '0.625rem 1rem',
-                  borderTop: chatMessages.length > 0 ? '1px solid #F3F4F6' : 'none',
-                  display: 'flex', gap: '0.5rem', alignItems: 'flex-end',
-                }}>
-                  <textarea
-                    ref={textareaRef}
-                    value={chatInput}
-                    onChange={e => setChatInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleChatSend();
-                      }
-                    }}
-                    placeholder="Share what's on your mind… (Enter to send)"
-                    rows={2}
-                    style={{
-                      flex: 1, border: '1px solid #E5E7EB', borderRadius: '12px',
-                      padding: '0.625rem 0.875rem', fontSize: '0.9375rem', lineHeight: 1.6,
-                      color: '#1F2937', resize: 'none', fontFamily: 'inherit',
-                      outline: 'none', backgroundColor: 'white',
-                    }}
-                  />
-                  <button
-                    onClick={handleChatSend}
-                    disabled={!chatInput.trim() || chatLoading}
-                    style={{
-                      width: '40px', height: '40px', borderRadius: '12px', border: 'none',
-                      background: chatInput.trim() && !chatLoading
-                        ? 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)'
-                        : '#E5E7EB',
-                      cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    }}
-                  >
-                    <Send size={16} color={chatInput.trim() && !chatLoading ? 'white' : '#9CA3AF'} />
-                  </button>
-                </div>
-
-                {/* Finish Entry — shown after first message */}
-                {chatMessages.some(m => m.role === 'user') && (
-                  <div style={{ padding: '0.5rem 1rem 0.875rem', display: 'flex', gap: '0.625rem' }}>
-                    <button
-                      onClick={handleFinishEntry}
-                      disabled={chatLoading}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '0.375rem',
-                        padding: '0.5rem 1rem', borderRadius: '10px', border: 'none',
-                        background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',
-                        color: 'white', fontSize: '0.8125rem', fontWeight: 600,
-                        cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit',
-                        opacity: chatLoading ? 0.6 : 1,
-                      }}
+                {/* Exercise phases — shown when teOpen */}
+                <AnimatePresence mode="wait">
+                  {/* Product select */}
+                  {teOpen && te.tePhase === 'product-select' && (
+                    <motion.div
+                      key="te-product-select"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      style={{ padding: '0 1.25rem 1.25rem', borderTop: '1px solid #F3F4F6' }}
                     >
-                      <CheckCircle2 size={14} /> Finish Entry
+                      <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: '0.875rem 0' }}>
+                        What product or service would you like to analyze?
+                      </p>
+                      <div style={{ display: 'flex', gap: '0.625rem' }}>
+                        <input
+                          type="text"
+                          value={teProductInput}
+                          onChange={e => setTeProductInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleTeStart(); }}
+                          placeholder="e.g. Notion, Spotify, Apple Maps..."
+                          autoFocus
+                          style={{ flex: 1, padding: '0.625rem 0.875rem', borderRadius: '10px', border: '1px solid #E5E7EB', fontSize: '0.875rem', fontFamily: 'inherit', color: '#1F2937', outline: 'none' }}
+                        />
+                        <button
+                          onClick={handleTeStart}
+                          disabled={!teProductInput.trim()}
+                          style={{ padding: '0.625rem 1.125rem', borderRadius: '10px', border: 'none', background: teProductInput.trim() ? 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)' : '#E5E7EB', color: teProductInput.trim() ? 'white' : '#9CA3AF', fontSize: '0.875rem', fontWeight: 600, cursor: teProductInput.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}
+                        >
+                          Start
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Questioning */}
+                  {teOpen && te.tePhase === 'questioning' && (
+                    <motion.div
+                      key="te-questioning"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid rgba(124,58,237,0.15)', overflow: 'hidden' }}
+                    >
+                      <div style={{ padding: '0.875rem 1.25rem', background: 'linear-gradient(135deg, rgba(124,58,237,0.05) 0%, rgba(139,126,200,0.08) 100%)', borderBottom: '1px solid rgba(124,58,237,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <FlaskConical size={14} color="#7C3AED" />
+                          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#7C3AED' }}>{te.productName}</span>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Q{te.questionIdx + 1} of {te.totalQuestions}</span>
+                      </div>
+                      <div style={{ height: '2px', backgroundColor: '#F3F4F6' }}>
+                        <div style={{ height: '100%', backgroundColor: '#7C3AED', width: `${((te.questionIdx) / te.totalQuestions) * 100}%`, transition: 'width 0.3s ease' }} />
+                      </div>
+                      <div style={{ padding: '1.25rem' }}>
+                        <p style={{ fontSize: '0.9375rem', fontWeight: 500, color: '#1F2937', lineHeight: 1.5, margin: '0 0 0.875rem' }}>{te.currentQuestion}</p>
+                        <textarea
+                          value={teCurrentAnswer}
+                          onChange={e => setTeCurrentAnswer(e.target.value)}
+                          placeholder="Type your answer here..."
+                          autoFocus
+                          style={{ width: '100%', minHeight: '90px', border: '1px solid #E5E7EB', borderRadius: '10px', padding: '0.75rem', fontSize: '0.875rem', lineHeight: 1.6, color: '#1F2937', resize: 'none', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                        />
+                        {te.error && <p style={{ fontSize: '0.8125rem', color: '#DC2626', margin: '0.5rem 0 0' }}>{te.error}</p>}
+                        <div style={{ display: 'flex', gap: '0.625rem', marginTop: '0.875rem', justifyContent: 'flex-end' }}>
+                          {!te.isLastQuestion && (
+                            <button onClick={handleTeNext} disabled={!teCurrentAnswer.trim()} style={{ padding: '0.5rem 1.125rem', borderRadius: '10px', border: 'none', backgroundColor: teCurrentAnswer.trim() ? '#7C3AED' : '#E5E7EB', color: teCurrentAnswer.trim() ? 'white' : '#9CA3AF', fontSize: '0.875rem', fontWeight: 600, cursor: teCurrentAnswer.trim() ? 'pointer' : 'default', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                              Next <ChevronRight size={14} />
+                            </button>
+                          )}
+                          <button onClick={handleTeFinish} disabled={te.answers.length === 0 && !teCurrentAnswer.trim()} style={{ padding: '0.5rem 1.125rem', borderRadius: '10px', border: 'none', background: (te.answers.length > 0 || teCurrentAnswer.trim()) ? 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)' : '#E5E7EB', color: (te.answers.length > 0 || teCurrentAnswer.trim()) ? 'white' : '#9CA3AF', fontSize: '0.875rem', fontWeight: 600, cursor: (te.answers.length > 0 || teCurrentAnswer.trim()) ? 'pointer' : 'default', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                            <Sparkles size={14} /> Analyze
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Analyzing */}
+                  {teOpen && te.tePhase === 'analyzing' && (
+                    <motion.div key="te-analyzing" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid rgba(124,58,237,0.15)', padding: '2rem 1.25rem', textAlign: 'center' }}>
+                      <motion.div animate={{ rotate: 360 }} transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }} style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                        <FlaskConical size={22} color="white" />
+                      </motion.div>
+                      <p style={{ fontWeight: 600, color: '#1F2937', margin: '0 0 0.25rem' }}>Analyzing your product take...</p>
+                      <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>Evaluating depth, specificity, and product intuition</p>
+                    </motion.div>
+                  )}
+
+                  {/* Done */}
+                  {teOpen && te.tePhase === 'done' && te.result && (
+                    <motion.div key="te-done" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid rgba(124,58,237,0.2)', overflow: 'hidden' }}>
+                      <div style={{ padding: '1.25rem', background: 'linear-gradient(135deg, rgba(124,58,237,0.06) 0%, rgba(139,126,200,0.1) 100%)', borderBottom: '1px solid rgba(124,58,237,0.1)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ width: '52px', height: '52px', borderRadius: '14px', flexShrink: 0, background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ fontSize: '1.375rem', fontWeight: 800, color: 'white' }}>{te.result.score}</span>
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.25rem' }}>
+                            {Array.from({ length: 5 }, (_, i) => (
+                              <Star key={i} size={14} fill={i < te.result!.score ? '#7C3AED' : 'none'} color={i < te.result!.score ? '#7C3AED' : '#E5E7EB'} />
+                            ))}
+                          </div>
+                          <p style={{ fontSize: '0.8125rem', color: '#6B7280', margin: 0 }}>{te.result.scoreComment}</p>
+                        </div>
+                      </div>
+                      <div style={{ padding: '1.25rem' }}>
+                        <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#7C3AED', margin: '0 0 0.625rem' }}>{te.productName} — Analysis</p>
+                        <p style={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.65, margin: '0 0 1.125rem', whiteSpace: 'pre-wrap' }}>{te.result.summary}</p>
+                        <div style={{ display: 'flex', gap: '0.625rem', paddingTop: '0.875rem', borderTop: '1px solid #F3F4F6' }}>
+                          <button onClick={handleTeSave} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.625rem 1.125rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            <CheckCircle2 size={15} /> Save to Profile
+                          </button>
+                          <button onClick={handleTeReset} style={{ padding: '0.625rem 1.125rem', borderRadius: '10px', border: '1px solid #E5E7EB', backgroundColor: 'white', color: '#6B7280', fontSize: '0.875rem', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            Try Another
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* ── UNIFIED EMOTIONAL IQ CARD ── */}
+              <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #DBEAFE', overflow: 'hidden', boxShadow: '0 2px 12px rgba(74,95,193,0.06)' }}>
+
+                {/* Single continuous body — no internal section breaks */}
+                <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+
+                  {/* Title row */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Sparkles size={14} color="white" />
+                      </div>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1F2937' }}>Emotional IQ</span>
+                      {state.reflections.filter(r => r.status === 'approved').length > 0 && (
+                        <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: '#EFF6FF', color: '#4A5FC1' }}>
+                          {state.reflections.filter(r => r.status === 'approved').length}
+                        </span>
+                      )}
+                    </div>
+                    <Link to="/insights" style={{ fontSize: '0.6875rem', color: '#BFDBFE', textDecoration: 'none', fontWeight: 500 }}>Insights →</Link>
+                  </div>
+
+                  {/* Rotating companion question — flows naturally after the title */}
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={questionIdx}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.3 }}
+                      style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', margin: 0, lineHeight: 1.4 }}
+                    >
+                      {COMPANION_QUESTIONS[questionIdx]}
+                    </motion.p>
+                  </AnimatePresence>
+
+                  {/* Working toward */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.6875rem', color: '#93C5FD', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: '0.2rem', flexShrink: 0 }}>Working toward</span>
+                    <div style={{ flex: 1 }}>
+                      {coworkerTargetEditing ? (
+                        <textarea
+                          autoFocus
+                          value={coworkerTargetDraft}
+                          onChange={e => setCoworkerTargetDraft(e.target.value)}
+                          onBlur={() => { saveCoworkerTarget(coworkerTargetDraft); setCoworkerTargetEditing(false); }}
+                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveCoworkerTarget(coworkerTargetDraft); setCoworkerTargetEditing(false); } }}
+                          style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid #BFDBFE', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '52px', backgroundColor: '#F8FAFF' }}
+                        />
+                      ) : (
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => { setCoworkerTargetDraft(coworkerTarget); setCoworkerTargetEditing(true); }}
+                          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setCoworkerTargetDraft(coworkerTarget); setCoworkerTargetEditing(true); } }}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {coworkerTarget ? (
+                            <span style={{ fontSize: '0.875rem', color: '#3B82F6', fontWeight: 500, lineHeight: 1.45 }}>{coworkerTarget}</span>
+                          ) : (
+                            <span style={{ fontSize: '0.875rem', color: '#BFDBFE', fontStyle: 'italic' }}>
+                              What emotional dynamics and culture do you want to grow into? Tap to set a focus…
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <Link to="/growth" style={{ fontSize: '0.6875rem', color: '#BFDBFE', textDecoration: 'none', flexShrink: 0, paddingTop: '0.2rem' }}>Goals →</Link>
+                  </div>
+
+                  {/* Progress + emotion pills in one compact band */}
+                  {(() => {
+                    const approved = state.reflections.filter(r => r.status === 'approved');
+                    const count = approved.length;
+                    const pct = Math.min(count / 5, 1);
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                          <div style={{ flex: 1, height: '4px', backgroundColor: '#DBEAFE', borderRadius: '99px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct * 100}%`, backgroundColor: '#4A5FC1', borderRadius: '99px', transition: 'width 0.4s ease' }} />
+                          </div>
+                          <span style={{ fontSize: '0.6875rem', color: '#93C5FD', whiteSpace: 'nowrap' }}>
+                            {count < 5 ? `${count}/5 reflections` : `${count} reflections ✓`}
+                          </span>
+                        </div>
+                        {count > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                            {approved.slice(0, 4).map(r => (
+                              <span key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', padding: '0.2rem 0.55rem', backgroundColor: '#F0F9FF', border: '1px solid #DBEAFE', borderRadius: '999px', color: '#374151' }}>
+                                {r.approvedEmotion ? getEmotionIcon(r.approvedEmotion) : '📝'}{r.approvedEmotion || new Date(r.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                            ))}
+                            {count > 4 && (
+                              <Link to="/insights?tab=reflections" style={{ fontSize: '0.75rem', color: '#4A5FC1', textDecoration: 'none', padding: '0.2rem 0.4rem', alignSelf: 'center' }}>
+                                +{count - 4} →
+                              </Link>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Starter prompt chips — only before first user message */}
+                  {!chatMessages.some(m => m.role === 'user') && (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {STARTER_PROMPTS.map((prompt) => (
+                        <button
+                          key={prompt.label}
+                          onClick={() => setChatInput(chatInput ? chatInput : prompt.text)}
+                          style={{ padding: '0.375rem 0.75rem', borderRadius: '999px', border: '1.5px solid #E5E7EB', backgroundColor: 'white', fontSize: '0.8125rem', color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = '#8B7EC8'; e.currentTarget.style.color = '#4A5FC1'; e.currentTarget.style.backgroundColor = 'rgba(74,95,193,0.04)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.backgroundColor = 'white'; }}
+                        >
+                          <span>{prompt.icon}</span> {prompt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Chat messages */}
+                  {chatMessages.length > 0 && (
+                    <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <AnimatePresence initial={false}>
+                        {chatMessages.map((msg, i) => (
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.2 }}
+                            style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: '0.5rem' }}
+                          >
+                            {msg.role === 'assistant' && (
+                              <img src="/logo.svg" alt="Hello-EQ" style={{ width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0, objectFit: 'cover' }} />
+                            )}
+                            <div style={{ maxWidth: '78%', padding: '0.625rem 0.875rem', borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', backgroundColor: msg.role === 'user' ? '#4A5FC1' : '#F3F4F6', color: msg.role === 'user' ? 'white' : '#1F2937', fontSize: '0.9rem', lineHeight: 1.55 }}>
+                              {msg.content}
+                            </div>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                      {chatLoading && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
+                          <img src="/logo.svg" alt="Hello-EQ" style={{ width: '26px', height: '26px', borderRadius: '8px', flexShrink: 0, objectFit: 'cover' }} />
+                          <div style={{ padding: '0.625rem 0.875rem', borderRadius: '14px 14px 14px 4px', backgroundColor: '#F3F4F6', display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                            {[0, 1, 2].map(d => (
+                              <motion.span key={d} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: d * 0.2 }} style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#9CA3AF', display: 'inline-block' }} />
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                      <div ref={chatEndRef} />
+                    </div>
+                  )}
+
+                  {/* Input row */}
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+                    <textarea
+                      ref={textareaRef}
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
+                      placeholder="Share what's on your mind… (Enter to send)"
+                      rows={2}
+                      style={{ flex: 1, border: '1px solid #E5E7EB', borderRadius: '12px', padding: '0.625rem 0.875rem', fontSize: '0.9375rem', lineHeight: 1.6, color: '#1F2937', resize: 'none', fontFamily: 'inherit', outline: 'none', backgroundColor: 'white' }}
+                    />
+                    <button
+                      onClick={handleChatSend}
+                      disabled={!chatInput.trim() || chatLoading}
+                      style={{ width: '40px', height: '40px', borderRadius: '12px', border: 'none', background: chatInput.trim() && !chatLoading ? 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)' : '#E5E7EB', cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                    >
+                      <Send size={16} color={chatInput.trim() && !chatLoading ? 'white' : '#9CA3AF'} />
                     </button>
                   </div>
-                )}
+
+                  {/* Finish Entry */}
+                  {chatMessages.some(m => m.role === 'user') && (
+                    <div style={{ display: 'flex', gap: '0.625rem' }}>
+                      <button
+                        onClick={handleFinishEntry}
+                        disabled={chatLoading}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: chatLoading ? 'default' : 'pointer', fontFamily: 'inherit', opacity: chatLoading ? 0.6 : 1 }}
+                      >
+                        <CheckCircle2 size={14} /> Finish Entry
+                      </button>
+                    </div>
+                  )}
+
+                </div>
               </div>
 
               {/* Error banner */}
@@ -848,760 +1231,198 @@ ${instructionByType[linkedInPostType]}`;
                 )}
               </div>
 
-              {/* ── SUGGESTED ACTIONS (collapsible) ── */}
-              {(() => {
-                const activeActions = state.actions.filter(a => !a.completed && !a.skipped);
-                const shown = activeActions.slice(0, 3);
-                return (
-                  <div style={{
-                    backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6',
-                    overflow: 'hidden',
-                  }}>
-                    <button
-                      onClick={() => setActionsExpanded(!actionsExpanded)}
-                      style={{
-                        width: '100%', padding: '0.875rem 1.25rem',
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        border: 'none', backgroundColor: 'transparent', cursor: 'pointer',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Zap size={14} color="#F59E0B" />
-                        <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>Suggested Actions</span>
-                        {llmState.isAiGenerated && (
-                          <span style={{
-                            fontSize: '0.625rem', fontWeight: 700, padding: '0.125rem 0.5rem',
-                            borderRadius: '999px', backgroundColor: 'rgba(139,92,246,0.1)', color: '#7C3AED',
-                          }}>AI</span>
-                        )}
-                        {shown.length > 0 && (
-                          <span style={{
-                            fontSize: '0.6875rem', fontWeight: 600, padding: '0.125rem 0.5rem',
-                            borderRadius: '999px', backgroundColor: '#FEF3C7', color: '#D97706',
-                          }}>{shown.length}</span>
+              {/* ── UNIFIED AI & TECH EDGE CARD ── */}
+              <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #D1FAE5', overflow: 'hidden', boxShadow: '0 2px 12px rgba(16,185,129,0.06)' }}>
+                <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+
+                  {/* Title row */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Zap size={14} color="white" />
+                      </div>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1F2937' }}>AI &amp; Tech Edge</span>
+                      {state.actions.filter(a => !a.completed && !a.skipped).length > 0 && (
+                        <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: '#ECFDF5', color: '#059669' }}>
+                          {state.actions.filter(a => !a.completed && !a.skipped).length}
+                        </span>
+                      )}
+                      {llmState.isAiGenerated && (
+                        <span style={{ fontSize: '0.625rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: 'rgba(139,92,246,0.1)', color: '#7C3AED' }}>AI</span>
+                      )}
+                    </div>
+                    <Link to="/growth" style={{ fontSize: '0.6875rem', color: '#6EE7B7', textDecoration: 'none', fontWeight: 500 }}>Growth →</Link>
+                  </div>
+
+                  {/* Working toward */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.6875rem', color: '#6EE7B7', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: '0.2rem', flexShrink: 0 }}>Working toward</span>
+                    <div style={{ flex: 1 }}>
+                      {careerTargetEditing ? (
+                        <textarea
+                          autoFocus
+                          value={careerTargetDraft}
+                          onChange={e => setCareerTargetDraft(e.target.value)}
+                          onBlur={() => { saveCareerTarget(careerTargetDraft); setCareerTargetEditing(false); }}
+                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveCareerTarget(careerTargetDraft); setCareerTargetEditing(false); } }}
+                          style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid #A7F3D0', fontSize: '0.8125rem', color: '#374151', fontFamily: 'inherit', outline: 'none', lineHeight: 1.45, minHeight: '52px', backgroundColor: '#F0FDF4' }}
+                        />
+                      ) : (
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => { setCareerTargetDraft(careerTarget); setCareerTargetEditing(true); }}
+                          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setCareerTargetDraft(careerTarget); setCareerTargetEditing(true); } }}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {careerTarget ? (
+                            <span style={{ fontSize: '0.875rem', color: '#059669', fontWeight: 500, lineHeight: 1.45 }}>{careerTarget}</span>
+                          ) : (
+                            <span style={{ fontSize: '0.875rem', color: '#6EE7B7', fontStyle: 'italic' }}>
+                              What AI tools and technical skills are you building? Tap to set a focus…
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* AI profile + progress */}
+                  {(() => {
+                    const completed = state.actions.filter(a => a.completed).length;
+                    const total = state.actions.length;
+                    const pct = total > 0 ? Math.min(completed / Math.max(total, 5), 1) : 0;
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                          <div style={{ flex: 1, height: '4px', backgroundColor: '#D1FAE5', borderRadius: '99px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct * 100}%`, backgroundColor: '#10B981', borderRadius: '99px', transition: 'width 0.4s ease' }} />
+                          </div>
+                          <span style={{ fontSize: '0.6875rem', color: '#6EE7B7', whiteSpace: 'nowrap' }}>
+                            {completed > 0 ? `${completed} action${completed !== 1 ? 's' : ''} done` : aiProjectSummary || 'No actions yet'}
+                          </span>
+                        </div>
+                        {aiProjectSummary && completed === 0 && (
+                          <span style={{ fontSize: '0.75rem', color: '#6B7280', fontStyle: 'italic' }}>{aiProjectSummary}</span>
                         )}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                        {activeActions.length > 3 && actionsExpanded && (
-                          <Link
-                            to="/growth"
-                            onClick={e => e.stopPropagation()}
-                            style={{ fontSize: '0.75rem', color: '#4A5FC1', textDecoration: 'none', fontWeight: 500 }}
+                    );
+                  })()}
+
+                  {/* Actions label + refresh */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.6875rem', color: '#6EE7B7', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Suggested Actions</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {state.actions.filter(a => !a.completed && !a.skipped).length > 3 && (
+                        <Link to="/growth" style={{ fontSize: '0.75rem', color: '#059669', textDecoration: 'none', fontWeight: 500 }}>View all →</Link>
+                      )}
+                      <button
+                        onClick={refreshActions}
+                        disabled={llmState.isLoading}
+                        style={{ padding: '0.2rem', borderRadius: '6px', border: 'none', backgroundColor: 'transparent', cursor: llmState.isLoading ? 'default' : 'pointer', color: '#9CA3AF', display: 'flex' }}
+                        title="Refresh actions"
+                      >
+                        <RefreshCw size={13} style={{ animation: llmState.isLoading ? 'spin 1s linear infinite' : 'none' }} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Actions list — always visible, no accordion */}
+                  {llmState.isLoading && (
+                    <div style={{ padding: '1rem', borderRadius: '12px', backgroundColor: '#F0FDF4', textAlign: 'center' }}>
+                      <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>Generating personalized suggestions…</p>
+                    </div>
+                  )}
+
+                  {!llmState.isLoading && state.actions.filter(a => !a.completed && !a.skipped).length === 0 && (
+                    <div style={{ padding: '1rem', borderRadius: '12px', backgroundColor: '#F9FAFB', textAlign: 'center' }}>
+                      <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: '0 0 0.5rem' }}>Log a reflection to get personalized action suggestions.</p>
+                      <button onClick={refreshActions} style={{ fontSize: '0.8125rem', color: '#059669', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                        Generate suggestions →
+                      </button>
+                    </div>
+                  )}
+
+                  {!llmState.isLoading && state.actions.filter(a => !a.completed && !a.skipped).length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {state.actions.filter(a => !a.completed && !a.skipped).slice(0, 3).map(action => {
+                        const catColor = CATEGORY_COLORS[action.category] || '#6B7280';
+                        const isExpanded = expandedReasoning.has(action.id);
+                        return (
+                          <motion.div
+                            key={action.id}
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            style={{ backgroundColor: '#FAFAFA', borderRadius: '12px', border: '1px solid #F3F4F6', overflow: 'hidden' }}
                           >
-                            View all
-                          </Link>
-                        )}
-                        <button
-                          onClick={e => { e.stopPropagation(); refreshActions(); }}
-                          disabled={llmState.isLoading}
-                          style={{
-                            padding: '0.25rem', borderRadius: '8px', border: 'none',
-                            backgroundColor: 'transparent', cursor: llmState.isLoading ? 'default' : 'pointer',
-                            color: '#9CA3AF', display: 'flex',
-                          }}
-                          title="Refresh actions"
-                        >
-                          <RefreshCw size={13} style={{ animation: llmState.isLoading ? 'spin 1s linear infinite' : 'none' }} />
-                        </button>
-                        {actionsExpanded ? <ChevronUp size={15} color="#D1D5DB" /> : <ChevronDown size={15} color="#D1D5DB" />}
-                      </div>
-                    </button>
-
-                    <AnimatePresence>
-                      {actionsExpanded && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          style={{ overflow: 'hidden' }}
-                        >
-                          <div style={{ padding: '0 0.75rem 0.75rem' }}>
-                            {llmState.isLoading && (
-                              <div style={{
-                                padding: '1.25rem', borderRadius: '12px', backgroundColor: '#F9FAFB',
-                                textAlign: 'center',
-                              }}>
-                                <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
-                                  Generating personalized suggestions...
-                                </p>
+                            <div style={{ padding: '0.75rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                              <div style={{ width: '32px', height: '32px', borderRadius: '9px', flexShrink: 0, backgroundColor: `${catColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Zap size={14} style={{ color: catColor }} />
                               </div>
-                            )}
-
-                            {!llmState.isLoading && shown.length > 0 && (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                {shown.map(action => {
-                                  const catColor = CATEGORY_COLORS[action.category] || '#6B7280';
-                                  const isExpanded = expandedReasoning.has(action.id);
-                                  return (
-                                    <motion.div
-                                      key={action.id}
-                                      initial={{ opacity: 0, y: 6 }}
-                                      animate={{ opacity: 1, y: 0 }}
-                                      style={{
-                                        backgroundColor: '#FAFAFA', borderRadius: '12px',
-                                        border: '1px solid #F3F4F6', overflow: 'hidden',
-                                      }}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: '0 0 0.25rem' }}>{action.title}</p>
+                                {action.description && (
+                                  <p style={{ fontSize: '0.8125rem', color: '#4B5563', lineHeight: 1.5, margin: '0 0 0.375rem' }}>{action.description}</p>
+                                )}
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '0.6875rem', fontWeight: 500, padding: '0.125rem 0.5rem', borderRadius: '999px', backgroundColor: `${catColor}15`, color: catColor }}>{action.category}</span>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.6875rem', color: '#9CA3AF' }}>
+                                    <Clock size={11} /> {action.estimatedMinutes} min
+                                  </span>
+                                  {action.reasoning && (
+                                    <button
+                                      onClick={() => toggleReasoning(action.id)}
+                                      style={{ display: 'flex', alignItems: 'center', gap: '0.15rem', fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}
                                     >
-                                      <div style={{ padding: '0.75rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                                        <div style={{
-                                          width: '32px', height: '32px', borderRadius: '9px', flexShrink: 0,
-                                          backgroundColor: `${catColor}18`,
-                                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        }}>
-                                          <Zap size={14} style={{ color: catColor }} />
-                                        </div>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                          <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: '0 0 0.25rem' }}>
-                                            {action.title}
-                                          </p>
-                                          {action.description && (
-                                            <p style={{ fontSize: '0.8125rem', color: '#4B5563', lineHeight: 1.5, margin: '0 0 0.375rem' }}>
-                                              {action.description}
-                                            </p>
-                                          )}
-                                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                                            <span style={{
-                                              fontSize: '0.6875rem', fontWeight: 500, padding: '0.125rem 0.5rem',
-                                              borderRadius: '999px', backgroundColor: `${catColor}15`, color: catColor,
-                                            }}>
-                                              {action.category}
-                                            </span>
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.6875rem', color: '#9CA3AF' }}>
-                                              <Clock size={11} /> {action.estimatedMinutes} min
-                                            </span>
-                                            {action.reasoning && (
-                                              <button
-                                                onClick={() => toggleReasoning(action.id)}
-                                                style={{
-                                                  display: 'flex', alignItems: 'center', gap: '0.15rem',
-                                                  fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 500,
-                                                  background: 'none', border: 'none', cursor: 'pointer',
-                                                  padding: 0, fontFamily: 'inherit',
-                                                }}
-                                              >
-                                                {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                                                Why this?
-                                              </button>
-                                            )}
-                                          </div>
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '0.25rem', flexShrink: 0 }}>
-                                          <button
-                                            onClick={() => completeAction(action.id)}
-                                            style={{
-                                              padding: '0.4rem', borderRadius: '8px', border: 'none',
-                                              backgroundColor: '#F0FDF4', color: '#16A34A', cursor: 'pointer', display: 'flex',
-                                            }}
-                                            title="Mark done"
-                                          >
-                                            <CheckCircle2 size={15} />
-                                          </button>
-                                          <button
-                                            onClick={() => setSkipConfirmId(action.id)}
-                                            title="Skip"
-                                            style={{
-                                              padding: '0.4rem', borderRadius: '8px', border: 'none',
-                                              backgroundColor: skipConfirmId === action.id ? '#FEF3C7' : '#F9FAFB',
-                                              color: skipConfirmId === action.id ? '#D97706' : '#9CA3AF',
-                                              cursor: 'pointer', display: 'flex',
-                                            }}
-                                          >
-                                            <SkipForward size={15} />
-                                          </button>
-                                        </div>
-                                      </div>
-                                      {/* Skip confirmation panel */}
-                                      <AnimatePresence>
-                                        {skipConfirmId === action.id && (
-                                          <motion.div
-                                            initial={{ height: 0, opacity: 0 }}
-                                            animate={{ height: 'auto', opacity: 1 }}
-                                            exit={{ height: 0, opacity: 0 }}
-                                            transition={{ duration: 0.18 }}
-                                            style={{ overflow: 'hidden' }}
-                                          >
-                                            <div style={{
-                                              padding: '0.625rem 1.125rem 0.75rem',
-                                              borderTop: '1px solid #FDE68A',
-                                              backgroundColor: '#FFFBEB',
-                                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
-                                            }}>
-                                              <p style={{ fontSize: '0.8125rem', color: '#92400E', margin: 0 }}>
-                                                Skip this action?
-                                              </p>
-                                              <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                                                <button
-                                                  onClick={() => { dismissAction(action.id); setSkipConfirmId(null); }}
-                                                  style={{
-                                                    fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem',
-                                                    borderRadius: '6px', border: '1px solid #FCD34D',
-                                                    backgroundColor: 'white', color: '#92400E', cursor: 'pointer', fontFamily: 'inherit',
-                                                  }}
-                                                >
-                                                  Skip for now
-                                                </button>
-                                                <button
-                                                  onClick={() => { skipAction(action.id); setSkipConfirmId(null); }}
-                                                  style={{
-                                                    fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem',
-                                                    borderRadius: '6px', border: 'none',
-                                                    backgroundColor: '#F59E0B', color: 'white', cursor: 'pointer', fontFamily: 'inherit',
-                                                  }}
-                                                >
-                                                  Skip forever
-                                                </button>
-                                                <button
-                                                  onClick={() => setSkipConfirmId(null)}
-                                                  style={{
-                                                    fontSize: '0.75rem', color: '#9CA3AF', background: 'none',
-                                                    border: 'none', cursor: 'pointer', padding: '0.3rem 0.25rem', fontFamily: 'inherit',
-                                                  }}
-                                                >
-                                                  Cancel
-                                                </button>
-                                              </div>
-                                            </div>
-                                          </motion.div>
-                                        )}
-                                      </AnimatePresence>
-
-                                      {/* Reasoning panel */}
-                                      <AnimatePresence>
-                                        {isExpanded && action.reasoning && (
-                                          <motion.div
-                                            initial={{ height: 0, opacity: 0 }}
-                                            animate={{ height: 'auto', opacity: 1 }}
-                                            exit={{ height: 0, opacity: 0 }}
-                                            transition={{ duration: 0.15 }}
-                                            style={{ overflow: 'hidden' }}
-                                          >
-                                            <div style={{
-                                              padding: '0.5rem 1rem 0.75rem',
-                                              borderTop: `1px solid ${catColor}20`,
-                                              backgroundColor: `${catColor}06`,
-                                              display: 'flex', alignItems: 'flex-start', gap: '0.4rem',
-                                            }}>
-                                              <TrendingUp size={12} style={{ color: catColor, flexShrink: 0, marginTop: '0.15rem' }} />
-                                              <p style={{ fontSize: '0.75rem', color: '#6B7280', lineHeight: 1.5, margin: 0 }}>
-                                                {action.reasoning}
-                                              </p>
-                                            </div>
-                                          </motion.div>
-                                        )}
-                                      </AnimatePresence>
-                                    </motion.div>
-                                  );
-                                })}
+                                      {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />} Why this?
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                            )}
-
-                            {!llmState.isLoading && shown.length === 0 && (
-                              <div style={{
-                                padding: '1.25rem', borderRadius: '12px', backgroundColor: '#F9FAFB',
-                                textAlign: 'center',
-                              }}>
-                                <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: '0 0 0.625rem' }}>
-                                  Log a reflection to get personalized action suggestions.
-                                </p>
-                                <button
-                                  onClick={refreshActions}
-                                  style={{
-                                    fontSize: '0.8125rem', color: '#4A5FC1', fontWeight: 500,
-                                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                                  }}
-                                >
-                                  Generate suggestions →
+                              <div style={{ display: 'flex', gap: '0.25rem', flexShrink: 0 }}>
+                                <button onClick={() => completeAction(action.id)} style={{ padding: '0.4rem', borderRadius: '8px', border: 'none', backgroundColor: '#F0FDF4', color: '#16A34A', cursor: 'pointer', display: 'flex' }} title="Mark done">
+                                  <CheckCircle2 size={15} />
+                                </button>
+                                <button onClick={() => setSkipConfirmId(action.id)} title="Skip" style={{ padding: '0.4rem', borderRadius: '8px', border: 'none', backgroundColor: skipConfirmId === action.id ? '#FEF3C7' : '#F9FAFB', color: skipConfirmId === action.id ? '#D97706' : '#9CA3AF', cursor: 'pointer', display: 'flex' }}>
+                                  <SkipForward size={15} />
                                 </button>
                               </div>
-                            )}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                );
-              })()}
-
-              {/* ── RECENT REFLECTIONS (collapsible) ── */}
-              {state.reflections.filter(r => r.status === 'approved').length > 0 && (
-                <div style={{
-                  backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6',
-                  overflow: 'hidden',
-                }}>
-                  <button
-                    onClick={() => setReflectionsExpanded(!reflectionsExpanded)}
-                    style={{
-                      width: '100%', padding: '0.875rem 1.25rem',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      border: 'none', backgroundColor: 'transparent', cursor: 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <BookOpen size={14} color="#9CA3AF" />
-                      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>Recent Reflections</span>
-                      <span style={{
-                        fontSize: '0.6875rem', fontWeight: 600, padding: '0.125rem 0.5rem',
-                        borderRadius: '999px', backgroundColor: '#F3F4F6', color: '#6B7280',
-                      }}>
-                        {state.reflections.filter(r => r.status === 'approved').length}
-                      </span>
-                    </div>
-                    {reflectionsExpanded ? <ChevronUp size={15} color="#D1D5DB" /> : <ChevronDown size={15} color="#D1D5DB" />}
-                  </button>
-
-                  <AnimatePresence>
-                    {reflectionsExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        style={{ overflow: 'hidden' }}
-                      >
-                        <div style={{ padding: '0 0.75rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                          {state.reflections.filter(r => r.status === 'approved').slice(0, 3).map(r => (
-                            <div key={r.id} style={{
-                              backgroundColor: '#FAFAFA', borderRadius: '10px', border: '1px solid #F3F4F6',
-                              padding: '0.625rem 0.875rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
-                            }}>
-                              <span style={{ fontSize: '1.125rem' }}>
-                                {r.approvedEmotion ? getEmotionIcon(r.approvedEmotion) : '📝'}
-                              </span>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{
-                                  fontSize: '0.8125rem', color: '#374151', overflow: 'hidden',
-                                  textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0,
-                                }}>
-                                  {r.text}
-                                </p>
-                                <p style={{ fontSize: '0.6875rem', color: '#9CA3AF', margin: '0.125rem 0 0' }}>
-                                  {new Date(r.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                  {r.approvedEmotion && ` · ${r.approvedEmotion}`}
-                                </p>
-                              </div>
                             </div>
-                          ))}
-                          {state.reflections.filter(r => r.status === 'approved').length > 3 && (
-                            <Link
-                              to="/insights?tab=reflections"
-                              style={{
-                                fontSize: '0.8125rem', color: '#4A5FC1', textDecoration: 'none',
-                                fontWeight: 500, padding: '0.375rem 0.875rem',
-                              }}
-                            >
-                              View all ({state.reflections.filter(r => r.status === 'approved').length}) →
-                            </Link>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
 
-              {/* ── PAST TASTE EXERCISES ── */}
-              {state.tasteExercises.length > 0 && (
-                <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6', overflow: 'hidden' }}>
-                  <button
-                    onClick={() => setTeHistoryExpanded(!teHistoryExpanded)}
-                    style={{
-                      width: '100%', padding: '0.875rem 1.25rem',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      border: 'none', backgroundColor: 'transparent', cursor: 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <FlaskConical size={14} color="#7C3AED" />
-                      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>Past Taste Exercises</span>
-                      <span style={{
-                        fontSize: '0.6875rem', fontWeight: 600, padding: '0.125rem 0.5rem',
-                        borderRadius: '999px', backgroundColor: '#F5F3FF', color: '#7C3AED',
-                      }}>
-                        {state.tasteExercises.length}
-                      </span>
+                            {/* Skip confirmation */}
+                            <AnimatePresence>
+                              {skipConfirmId === action.id && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} style={{ overflow: 'hidden' }}>
+                                  <div style={{ padding: '0.625rem 1.125rem 0.75rem', borderTop: '1px solid #FDE68A', backgroundColor: '#FFFBEB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                                    <p style={{ fontSize: '0.8125rem', color: '#92400E', margin: 0 }}>Skip this action?</p>
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                                      <button onClick={() => { dismissAction(action.id); setSkipConfirmId(null); }} style={{ fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem', borderRadius: '6px', border: '1px solid #FCD34D', backgroundColor: 'white', color: '#92400E', cursor: 'pointer', fontFamily: 'inherit' }}>Skip for now</button>
+                                      <button onClick={() => { skipAction(action.id); setSkipConfirmId(null); }} style={{ fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem', borderRadius: '6px', border: 'none', backgroundColor: '#F59E0B', color: 'white', cursor: 'pointer', fontFamily: 'inherit' }}>Skip forever</button>
+                                      <button onClick={() => setSkipConfirmId(null)} style={{ fontSize: '0.75rem', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: '0.3rem 0.25rem', fontFamily: 'inherit' }}>Cancel</button>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+
+                            {/* Reasoning panel */}
+                            <AnimatePresence>
+                              {isExpanded && action.reasoning && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} style={{ overflow: 'hidden' }}>
+                                  <div style={{ padding: '0.5rem 1rem 0.75rem', borderTop: `1px solid ${catColor}20`, backgroundColor: `${catColor}06`, display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
+                                    <TrendingUp size={12} style={{ color: catColor, flexShrink: 0, marginTop: '0.15rem' }} />
+                                    <p style={{ fontSize: '0.75rem', color: '#6B7280', lineHeight: 1.5, margin: 0 }}>{action.reasoning}</p>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </motion.div>
+                        );
+                      })}
                     </div>
-                    {teHistoryExpanded ? <ChevronUp size={15} color="#D1D5DB" /> : <ChevronDown size={15} color="#D1D5DB" />}
-                  </button>
+                  )}
 
-                  <AnimatePresence>
-                    {teHistoryExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        style={{ overflow: 'hidden' }}
-                      >
-                        <div style={{ padding: '0 0.75rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                          {state.tasteExercises.slice(0, 3).map(ex => {
-                            const scoreColor = ex.score >= 8 ? '#16A34A' : ex.score >= 6 ? '#D97706' : '#DC2626';
-                            const scoreBg = ex.score >= 8 ? '#F0FDF4' : ex.score >= 6 ? '#FFFBEB' : '#FEF2F2';
-                            return (
-                              <div key={ex.id} style={{
-                                backgroundColor: '#FAFAFA', borderRadius: '10px', border: '1px solid #F3F4F6',
-                                padding: '0.625rem 0.875rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
-                              }}>
-                                <span style={{ fontSize: '1.125rem' }}>🧪</span>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{
-                                    fontSize: '0.8125rem', color: '#374151', fontWeight: 600,
-                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0,
-                                  }}>
-                                    {ex.productName}
-                                  </p>
-                                  <p style={{
-                                    fontSize: '0.6875rem', color: '#9CA3AF', margin: '0.125rem 0 0',
-                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                  }}>
-                                    {new Date(ex.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                    {ex.scoreComment ? ` · ${ex.scoreComment}` : ''}
-                                  </p>
-                                </div>
-                                <span style={{
-                                  fontSize: '0.75rem', fontWeight: 700, padding: '0.1875rem 0.5rem',
-                                  borderRadius: '6px', backgroundColor: scoreBg, color: scoreColor,
-                                  whiteSpace: 'nowrap', flexShrink: 0,
-                                }}>
-                                  {ex.score}/10
-                                </span>
-                              </div>
-                            );
-                          })}
-                          {state.tasteExercises.length > 3 && (
-                            <Link
-                              to="/insights"
-                              style={{
-                                fontSize: '0.8125rem', color: '#7C3AED', textDecoration: 'none',
-                                fontWeight: 500, padding: '0.375rem 0.875rem',
-                              }}
-                            >
-                              View all ({state.tasteExercises.length}) →
-                            </Link>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                 </div>
-              )}
-
-              {/* ── PRODUCT TASTE EXERCISE (secondary, at bottom) ── */}
-              <div style={{
-                backgroundColor: 'white', borderRadius: '16px', border: '1px solid #F3F4F6',
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  padding: '0.875rem 1.25rem',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <FlaskConical size={14} color="#7C3AED" />
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>
-                      Product Taste Exercise
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {teOpen && te.tePhase !== 'analyzing' && (
-                      <button
-                        onClick={handleTeClose}
-                        style={{ fontSize: '0.8125rem', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                      >
-                        Close
-                      </button>
-                    )}
-                    {!teOpen && (
-                      <button
-                        onClick={() => setTeOpen(true)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '0.375rem',
-                          padding: '0.375rem 0.875rem', borderRadius: '8px', border: 'none',
-                          background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)',
-                          color: 'white', fontSize: '0.8125rem', fontWeight: 600,
-                          cursor: 'pointer', fontFamily: 'inherit',
-                        }}
-                      >
-                        Start <ChevronRight size={13} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {!teOpen && (
-                  <div style={{ padding: '0 1.25rem 1rem' }}>
-                    <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
-                      Pick any product, reflect on 6 key dimensions, and build the instincts that separate great product thinkers from the rest.
-                    </p>
-                  </div>
-                )}
-
-                <AnimatePresence mode="wait">
-                  {/* Product select */}
-                  {teOpen && te.tePhase === 'product-select' && (
-                    <motion.div
-                      key="te-product-select"
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      style={{ padding: '0 1.25rem 1.25rem', borderTop: '1px solid #F3F4F6' }}
-                    >
-                      <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: '0.875rem 0' }}>
-                        What product or service would you like to analyze?
-                      </p>
-                      <div style={{ display: 'flex', gap: '0.625rem' }}>
-                        <input
-                          type="text"
-                          value={teProductInput}
-                          onChange={e => setTeProductInput(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') handleTeStart(); }}
-                          placeholder="e.g. Notion, Spotify, Apple Maps..."
-                          autoFocus
-                          style={{
-                            flex: 1, padding: '0.625rem 0.875rem', borderRadius: '10px',
-                            border: '1px solid #E5E7EB', fontSize: '0.875rem', fontFamily: 'inherit',
-                            color: '#1F2937', outline: 'none',
-                          }}
-                        />
-                        <button
-                          onClick={handleTeStart}
-                          disabled={!teProductInput.trim()}
-                          style={{
-                            padding: '0.625rem 1.125rem', borderRadius: '10px', border: 'none',
-                            background: teProductInput.trim()
-                              ? 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)'
-                              : '#E5E7EB',
-                            color: teProductInput.trim() ? 'white' : '#9CA3AF',
-                            fontSize: '0.875rem', fontWeight: 600, cursor: teProductInput.trim() ? 'pointer' : 'default',
-                            fontFamily: 'inherit',
-                          }}
-                        >
-                          Start
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* Questioning */}
-                  {teOpen && te.tePhase === 'questioning' && (
-                    <motion.div
-                      key="te-questioning"
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      style={{
-                        backgroundColor: 'white', borderRadius: '16px',
-                        border: '1px solid rgba(124,58,237,0.15)', overflow: 'hidden',
-                      }}
-                    >
-                      {/* Progress header */}
-                      <div style={{
-                        padding: '0.875rem 1.25rem',
-                        background: 'linear-gradient(135deg, rgba(124,58,237,0.05) 0%, rgba(139,126,200,0.08) 100%)',
-                        borderBottom: '1px solid rgba(124,58,237,0.1)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <FlaskConical size={14} color="#7C3AED" />
-                          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#7C3AED' }}>
-                            {te.productName}
-                          </span>
-                        </div>
-                        <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
-                          Q{te.questionIdx + 1} of {te.totalQuestions}
-                        </span>
-                      </div>
-                      {/* Progress bar */}
-                      <div style={{ height: '2px', backgroundColor: '#F3F4F6' }}>
-                        <div style={{
-                          height: '100%', backgroundColor: '#7C3AED',
-                          width: `${((te.questionIdx) / te.totalQuestions) * 100}%`,
-                          transition: 'width 0.3s ease',
-                        }} />
-                      </div>
-                      {/* Question & answer */}
-                      <div style={{ padding: '1.25rem' }}>
-                        <p style={{ fontSize: '0.9375rem', fontWeight: 500, color: '#1F2937', lineHeight: 1.5, margin: '0 0 0.875rem' }}>
-                          {te.currentQuestion}
-                        </p>
-                        <textarea
-                          value={teCurrentAnswer}
-                          onChange={e => setTeCurrentAnswer(e.target.value)}
-                          placeholder="Type your answer here..."
-                          autoFocus
-                          style={{
-                            width: '100%', minHeight: '90px', border: '1px solid #E5E7EB',
-                            borderRadius: '10px', padding: '0.75rem', fontSize: '0.875rem',
-                            lineHeight: 1.6, color: '#1F2937', resize: 'none',
-                            fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
-                          }}
-                        />
-                        {te.error && (
-                          <p style={{ fontSize: '0.8125rem', color: '#DC2626', margin: '0.5rem 0 0' }}>
-                            {te.error}
-                          </p>
-                        )}
-                        <div style={{ display: 'flex', gap: '0.625rem', marginTop: '0.875rem', justifyContent: 'flex-end' }}>
-                          {!te.isLastQuestion && (
-                            <button
-                              onClick={handleTeNext}
-                              disabled={!teCurrentAnswer.trim()}
-                              style={{
-                                padding: '0.5rem 1.125rem', borderRadius: '10px', border: 'none',
-                                backgroundColor: teCurrentAnswer.trim() ? '#7C3AED' : '#E5E7EB',
-                                color: teCurrentAnswer.trim() ? 'white' : '#9CA3AF',
-                                fontSize: '0.875rem', fontWeight: 600,
-                                cursor: teCurrentAnswer.trim() ? 'pointer' : 'default',
-                                fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '0.375rem',
-                              }}
-                            >
-                              Next <ChevronRight size={14} />
-                            </button>
-                          )}
-                          <button
-                            onClick={handleTeFinish}
-                            disabled={te.answers.length === 0 && !teCurrentAnswer.trim()}
-                            style={{
-                              padding: '0.5rem 1.125rem', borderRadius: '10px', border: 'none',
-                              backgroundColor: (te.answers.length > 0 || teCurrentAnswer.trim())
-                                ? 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)'
-                                : '#E5E7EB',
-                              background: (te.answers.length > 0 || teCurrentAnswer.trim())
-                                ? 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)'
-                                : '#E5E7EB',
-                              color: (te.answers.length > 0 || teCurrentAnswer.trim()) ? 'white' : '#9CA3AF',
-                              fontSize: '0.875rem', fontWeight: 600,
-                              cursor: (te.answers.length > 0 || teCurrentAnswer.trim()) ? 'pointer' : 'default',
-                              fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '0.375rem',
-                            }}
-                          >
-                            <Sparkles size={14} /> Analyze
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* Analyzing */}
-                  {teOpen && te.tePhase === 'analyzing' && (
-                    <motion.div
-                      key="te-analyzing"
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      style={{
-                        backgroundColor: 'white', borderRadius: '16px',
-                        border: '1px solid rgba(124,58,237,0.15)', padding: '2rem 1.25rem',
-                        textAlign: 'center',
-                      }}
-                    >
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }}
-                        style={{
-                          width: '48px', height: '48px', borderRadius: '14px',
-                          background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          margin: '0 auto 1rem',
-                        }}
-                      >
-                        <FlaskConical size={22} color="white" />
-                      </motion.div>
-                      <p style={{ fontWeight: 600, color: '#1F2937', margin: '0 0 0.25rem' }}>
-                        Analyzing your product take...
-                      </p>
-                      <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
-                        Evaluating depth, specificity, and product intuition
-                      </p>
-                    </motion.div>
-                  )}
-
-                  {/* Done */}
-                  {teOpen && te.tePhase === 'done' && te.result && (
-                    <motion.div
-                      key="te-done"
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      style={{
-                        backgroundColor: 'white', borderRadius: '16px',
-                        border: '1px solid rgba(124,58,237,0.2)', overflow: 'hidden',
-                      }}
-                    >
-                      {/* Score header */}
-                      <div style={{
-                        padding: '1.25rem',
-                        background: 'linear-gradient(135deg, rgba(124,58,237,0.06) 0%, rgba(139,126,200,0.1) 100%)',
-                        borderBottom: '1px solid rgba(124,58,237,0.1)',
-                        display: 'flex', alignItems: 'center', gap: '1rem',
-                      }}>
-                        <div style={{
-                          width: '52px', height: '52px', borderRadius: '14px', flexShrink: 0,
-                          background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <span style={{ fontSize: '1.375rem', fontWeight: 800, color: 'white' }}>
-                            {te.result.score}
-                          </span>
-                        </div>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.25rem' }}>
-                            {Array.from({ length: 5 }, (_, i) => (
-                              <Star
-                                key={i}
-                                size={14}
-                                fill={i < te.result!.score ? '#7C3AED' : 'none'}
-                                color={i < te.result!.score ? '#7C3AED' : '#E5E7EB'}
-                              />
-                            ))}
-                          </div>
-                          <p style={{ fontSize: '0.8125rem', color: '#6B7280', margin: 0 }}>
-                            {te.result.scoreComment}
-                          </p>
-                        </div>
-                      </div>
-                      {/* Summary */}
-                      <div style={{ padding: '1.25rem' }}>
-                        <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#7C3AED', margin: '0 0 0.625rem' }}>
-                          {te.productName} — Analysis
-                        </p>
-                        <p style={{
-                          fontSize: '0.875rem', color: '#374151', lineHeight: 1.65,
-                          margin: '0 0 1.125rem', whiteSpace: 'pre-wrap',
-                        }}>
-                          {te.result.summary}
-                        </p>
-                        <div style={{ display: 'flex', gap: '0.625rem', paddingTop: '0.875rem', borderTop: '1px solid #F3F4F6' }}>
-                          <button
-                            onClick={handleTeSave}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: '0.375rem',
-                              padding: '0.625rem 1.125rem', borderRadius: '10px', border: 'none',
-                              background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)',
-                              color: 'white', fontSize: '0.875rem', fontWeight: 600,
-                              cursor: 'pointer', fontFamily: 'inherit',
-                            }}
-                          >
-                            <CheckCircle2 size={15} /> Save
-                          </button>
-                          <button
-                            onClick={() => { te.reset(); setTeProductInput(''); setTeCurrentAnswer(''); }}
-                            style={{
-                              padding: '0.625rem 1.125rem', borderRadius: '10px',
-                              border: '1px solid #E5E7EB', backgroundColor: 'white',
-                              color: '#6B7280', fontSize: '0.875rem', fontWeight: 500,
-                              cursor: 'pointer', fontFamily: 'inherit',
-                            }}
-                          >
-                            Try Another
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
 
               {/* ── LINKEDIN POST GENERATOR ── */}
