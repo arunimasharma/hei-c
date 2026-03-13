@@ -51,6 +51,9 @@ type Action =
   | { type: 'SET_ACTIONS'; payload: MicroAction[] }
   | { type: 'COMPLETE_ACTION'; payload: string }
   | { type: 'SKIP_ACTION'; payload: string }
+  | { type: 'APPROVE_ACTION'; payload: string }
+  | { type: 'START_ACTION'; payload: string }
+  | { type: 'SNOOZE_ACTION'; payload: string }
   | { type: 'UPDATE_SETTINGS'; payload: Partial<AppSettings> }
   | { type: 'ADD_REFLECTION'; payload: JournalReflection }
   | { type: 'UPDATE_REFLECTION'; payload: { id: string; updates: Partial<JournalReflection> } }
@@ -130,6 +133,27 @@ function appReducer(state: AppState, action: Action): AppState {
           a.id === action.payload ? { ...a, skipped: true } : a,
         ),
       };
+    case 'APPROVE_ACTION':
+      return {
+        ...state,
+        actions: state.actions.map(a =>
+          a.id === action.payload ? { ...a, approved: true } : a,
+        ),
+      };
+    case 'START_ACTION':
+      return {
+        ...state,
+        actions: state.actions.map(a =>
+          a.id === action.payload ? { ...a, approved: true, inProgress: true } : a,
+        ),
+      };
+    case 'SNOOZE_ACTION':
+      return {
+        ...state,
+        actions: state.actions.map(a =>
+          a.id === action.payload ? { ...a, snoozed: true } : a,
+        ),
+      };
     case 'ADD_REFLECTION':
       return { ...state, reflections: [action.payload, ...state.reflections] };
     case 'UPDATE_REFLECTION':
@@ -181,6 +205,9 @@ interface AppContextType {
   completeAction: (id: string) => void;
   skipAction: (id: string) => void;
   dismissAction: (id: string) => void;
+  approveAction: (id: string) => void;
+  startAction: (id: string) => void;
+  snoozeAction: (id: string) => void;
   refreshActions: () => void;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
   updateSettings: (updates: Partial<AppSettings>) => void;
@@ -273,7 +300,10 @@ async function persistMutation(state: AppState, action: Action): Promise<void> {
         await dbReplaceAll(db.actions, state.actions);
         break;
       case 'COMPLETE_ACTION':
-      case 'SKIP_ACTION': {
+      case 'SKIP_ACTION':
+      case 'APPROVE_ACTION':
+      case 'START_ACTION':
+      case 'SNOOZE_ACTION': {
         const a = state.actions.find(x => x.id === action.payload);
         if (a) await dbPut(db.actions, a.id, a);
         break;
@@ -412,7 +442,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SKIP_ACTION', payload: id });
   };
 
-  const dismissAction = (id: string) => dispatch({ type: 'SKIP_ACTION', payload: id });
+  const dismissAction  = (id: string) => dispatch({ type: 'SKIP_ACTION',   payload: id });
+  const approveAction  = (id: string) => dispatch({ type: 'APPROVE_ACTION', payload: id });
+  const startAction    = (id: string) => dispatch({ type: 'START_ACTION',   payload: id });
+  const snoozeAction   = (id: string) => dispatch({ type: 'SNOOZE_ACTION',  payload: id });
 
   const refreshActions = useCallback(() => {
     if (!checkAndUseAi()) return;
@@ -458,7 +491,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       state, dispatch,
       addEmotion, updateEmotion, deleteEmotion,
       addEvent, updateEvent, deleteEvent,
-      completeAction, skipAction, dismissAction, refreshActions,
+      completeAction, skipAction, dismissAction, approveAction, startAction, snoozeAction, refreshActions,
       updateUserProfile, updateSettings,
       addReflection, updateReflection,
       addGoal, updateGoal, deleteGoal,

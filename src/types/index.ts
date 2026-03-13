@@ -39,6 +39,9 @@ export interface MicroAction {
   completed: boolean;
   completedAt?: string;
   skipped?: boolean;
+  approved?: boolean;
+  inProgress?: boolean;
+  snoozed?: boolean;
   suggestedFor?: EmotionType[];
   reasoning?: string;
   generatedAt?: string;
@@ -123,6 +126,23 @@ export interface TasteExerciseAnswer {
   answer: string;
 }
 
+// ── Product Taste Evaluator V1 ────────────────────────────────────────────────
+
+export type TasteVerdict = 'Very Weak' | 'Emerging' | 'Functional' | 'Strong' | 'Exceptional';
+
+/** Rich evaluation returned by /api/evaluate-taste (V1 evaluator). */
+export interface TasteEvaluatorResult {
+  overall_score: number;
+  verdict: TasteVerdict;
+  per_question_scores: { q1: number; q2: number; q3: number; q4: number; q5: number; q6: number };
+  detailed_reasoning: string;
+  strengths: string[];
+  weaknesses: string[];
+  signals_of_strong_product_taste: string[];
+  missing_signals: string[];
+  coaching_to_improve: string[];
+}
+
 export interface TasteExercise {
   id: string;
   userId: string;
@@ -133,4 +153,6 @@ export interface TasteExercise {
   scoreComment: string;
   timestamp: string;
   status: 'completed';
+  /** Full V1 evaluator result — present when evaluated via /api/evaluate-taste. */
+  evaluation?: TasteEvaluatorResult;
 }

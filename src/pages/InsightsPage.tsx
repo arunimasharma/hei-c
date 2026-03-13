@@ -344,12 +344,66 @@ export default function InsightsPage() {
                           <p style={{ fontSize: '0.8125rem', color: '#6B7280', margin: '0 0 0.75rem' }}>
                             {te.scoreComment}
                           </p>
+
+                          {/* Per-question scores — only present for V1 evaluator results */}
+                          {te.evaluation && (
+                            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                              {(['q1','q2','q3','q4','q5','q6'] as const).map(q => {
+                                const s = te.evaluation!.per_question_scores[q];
+                                const bg    = s >= 4 ? '#F0FDF4' : s >= 2 ? '#FFFBEB' : '#FEF2F2';
+                                const color = s >= 4 ? '#16A34A' : s >= 2 ? '#D97706' : '#DC2626';
+                                return (
+                                  <span key={q} style={{ fontSize: '0.625rem', fontWeight: 700, padding: '0.1rem 0.35rem', borderRadius: '6px', background: bg, color }}>
+                                    {q.toUpperCase()} {s}/5
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+
                           <p style={{
                             fontSize: '0.875rem', color: '#374151', lineHeight: 1.6,
                             margin: 0, whiteSpace: 'pre-wrap',
                           }}>
                             {te.summary}
                           </p>
+
+                          {/* Strengths, weaknesses, coaching — V1 evaluator only */}
+                          {te.evaluation && (te.evaluation.strengths.length > 0 || te.evaluation.weaknesses.length > 0 || te.evaluation.coaching_to_improve.length > 0) && (
+                            <div style={{ marginTop: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                              {te.evaluation.strengths.length > 0 && (
+                                <div>
+                                  <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#16A34A', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.3rem' }}>Strengths</p>
+                                  <ul style={{ margin: 0, paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                    {te.evaluation.strengths.map((s, i) => (
+                                      <li key={i} style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.5 }}>{s}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {te.evaluation.weaknesses.length > 0 && (
+                                <div>
+                                  <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.3rem' }}>Weaknesses</p>
+                                  <ul style={{ margin: 0, paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                    {te.evaluation.weaknesses.map((w, i) => (
+                                      <li key={i} style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.5 }}>{w}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {te.evaluation.coaching_to_improve.length > 0 && (
+                                <div>
+                                  <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.3rem' }}>Coaching to improve</p>
+                                  <ul style={{ margin: 0, paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                    {te.evaluation.coaching_to_improve.map((c, i) => (
+                                      <li key={i} style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.5 }}>{c}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {te.answers.length > 0 && (
                             <details style={{ marginTop: '0.875rem' }}>
                               <summary style={{ fontSize: '0.8125rem', color: '#7C3AED', cursor: 'pointer', fontWeight: 500 }}>

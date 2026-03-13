@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles, Send, ChevronDown, ChevronUp, AlertTriangle,
   CheckCircle2, Edit3, ArrowRight, BookOpen,
-  Zap, Clock, SkipForward, RefreshCw, TrendingUp,
+  Zap, Clock, RefreshCw, TrendingUp,
   FlaskConical, Star, ChevronRight, Copy, Check,
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
@@ -12,8 +12,9 @@ import Button from '../components/common/Button';
 import { useApp } from '../context/AppContext';
 import { useJournalAnalysis } from '../hooks/useJournalAnalysis';
 import { callClaudeMessages, parseActionResponse } from '../services/claudeApi';
+import { callEvaluateTaste, EvaluatorNotConfiguredError } from '../services/productTasteEvaluatorApi';
 import { EMOTIONS, getEmotionColor } from '../utils/emotionHelpers';
-import type { EmotionType, EventType, JournalReflection, TasteExercise, TasteExerciseAnswer } from '../types';
+import type { EmotionType, EventType, JournalReflection, TasteExercise, TasteExerciseAnswer, TasteEvaluatorResult } from '../types';
 import {
   TASTE_QUESTIONS,
   TASTE_ANALYSIS_SYSTEM_PROMPT,
@@ -99,7 +100,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 type Phase = 'writing' | 'analyzing' | 'review' | 'success';
 
 export default function HomePage() {
-  const { state, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, dismissAction, refreshActions, addTasteExercise, llmState, checkAndUseAi } = useApp();
+  const { state, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, approveAction, startAction, snoozeAction, refreshActions, addTasteExercise, llmState, checkAndUseAi } = useApp();
   const { analysisState, analyzeJournal, resetAnalysis } = useJournalAnalysis();
 
   const [phase, setPhase] = useState<Phase>('writing');
@@ -107,8 +108,6 @@ export default function HomePage() {
   const [showManual, setShowManual] = useState(false);
   const [questionIdx, setQuestionIdx] = useState(0);
   const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(new Set());
-  const [skipConfirmId, setSkipConfirmId] = useState<string | null>(null);
-
   // Growth pillar state (Product Taste + EI + AI/Tech)
   const [productTarget, setProductTarget] = useState('');
   const [coworkerTargetDraft, setCoworkerTargetDraft] = useState('');
@@ -140,6 +139,8 @@ export default function HomePage() {
   const [productChatAnswers, setProductChatAnswers] = useState<TasteExerciseAnswer[]>([]);
   const [productChatQuestionIdx, setProductChatQuestionIdx] = useState(0);
   const [productChatResult, setProductChatResult] = useState<TasteAnalysisResult | null>(null);
+  // V1 evaluator — rich result from /api/evaluate-taste; null if evaluator not configured (fallback to legacy)
+  const [productEvalResult, setProductEvalResult] = useState<TasteEvaluatorResult | null>(null);
 
   // Routing + chat state
   const [routingPhase, setRoutingPhase] = useState<'routing' | 'routed'>('routing');
@@ -398,6 +399,7 @@ export default function HomePage() {
     setProductChatAnswers([]);
     setProductChatQuestionIdx(0);
     setProductChatResult(null);
+    setProductEvalResult(null);
     setProductRecs([]);
   };
 
@@ -449,40 +451,76 @@ export default function HomePage() {
       role: 'assistant',
       content: `Analyzing your take on ${productChatName}… give me a moment.`,
     }]);
+
+    // Build q1-q6 object from the ordered answers array
+    const answersObj = {
+      q1: answers[0]?.answer ?? '',
+      q2: answers[1]?.answer ?? '',
+      q3: answers[2]?.answer ?? '',
+      q4: answers[3]?.answer ?? '',
+      q5: answers[4]?.answer ?? '',
+      q6: answers[5]?.answer ?? '',
+    };
+
     try {
-      const userMessage = buildTasteAnalysisMessage(productChatName, answers);
-      const response = await callClaudeMessages(
-        TASTE_ANALYSIS_SYSTEM_PROMPT,
-        [{ role: 'user', content: userMessage }],
-        600,
-      );
-      const result = parseTasteAnalysisResponse(parseActionResponse(response));
-      setProductChatResult(result);
+      // ── V1 evaluator path ──────────────────────────────────────────────────
+      const evalResult = await callEvaluateTaste({ productName: productChatName, answers: answersObj });
+      setProductEvalResult(evalResult);
       setProductChatAnswers(answers);
       setProductChatPhase('done');
       setChatMessages(prev => [...prev, {
         role: 'assistant',
-        content: `Here's your Product Taste analysis for **${productChatName}** — score: ${result.score}/5.`,
+        content: `Here's your Product Taste evaluation for **${productChatName}** — score: ${evalResult.overall_score}/5 (${evalResult.verdict}).`,
       }]);
-    } catch {
-      setProductChatPhase('questioning');
-      setChatMessages(prev => [...prev, {
-        role: 'assistant',
-        content: 'Analysis failed — please try again or add more detail to your answers.',
-      }]);
+    } catch (err) {
+      if (err instanceof EvaluatorNotConfiguredError) {
+        // ── Fallback: evaluator key not set — use legacy basic analysis ──────
+        try {
+          const userMessage = buildTasteAnalysisMessage(productChatName, answers);
+          const response = await callClaudeMessages(
+            TASTE_ANALYSIS_SYSTEM_PROMPT,
+            [{ role: 'user', content: userMessage }],
+            600,
+          );
+          const legacyResult = parseTasteAnalysisResponse(parseActionResponse(response));
+          setProductChatResult(legacyResult);
+          setProductChatAnswers(answers);
+          setProductChatPhase('done');
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `Here's your Product Taste analysis for **${productChatName}** — score: ${legacyResult.score}/5.`,
+          }]);
+        } catch {
+          setProductChatPhase('questioning');
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: 'Analysis failed — please try again or add more detail to your answers.',
+          }]);
+        }
+      } else {
+        // ── Evaluator returned an actual error ─────────────────────────────
+        setProductChatPhase('questioning');
+        const msg = err instanceof Error ? err.message : 'Analysis failed — please try again.';
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: msg,
+        }]);
+      }
     }
   };
 
   const handleProductChatSave = () => {
-    if (!productChatResult) return;
+    if (!productEvalResult && !productChatResult) return;
     const exercise: TasteExercise = {
       id: `te_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       userId: state.user?.id || 'anonymous',
       productName: productChatName,
       answers: productChatAnswers,
-      summary: productChatResult.summary,
-      score: productChatResult.score,
-      scoreComment: productChatResult.scoreComment,
+      // Populate legacy fields from whichever result is available
+      summary:      productEvalResult?.detailed_reasoning ?? productChatResult?.summary      ?? '',
+      score:        productEvalResult?.overall_score      ?? productChatResult?.score        ?? 0,
+      scoreComment: productEvalResult?.verdict            ?? productChatResult?.scoreComment ?? '',
+      evaluation:   productEvalResult ?? undefined,
       timestamp: new Date().toISOString(),
       status: 'completed',
     };
@@ -638,7 +676,19 @@ export default function HomePage() {
     const tasteContext = state.tasteExercises
       .filter(te => te.status === 'completed')
       .slice(-3)
-      .map(te => `Product: ${te.productName}\nInsights: ${te.answers.map((a, i) => `Q${i + 1}: ${a}`).join(' | ')}\nSummary: ${te.summary || ''}\nScore: ${te.score}/10 — ${te.scoreComment || ''}`)
+      .map(te => {
+        const lines = [
+          `Product: ${te.productName}`,
+          `Score: ${te.score}/5 — ${te.scoreComment || ''}`,
+          te.summary ? `Analysis: ${te.summary}` : '',
+        ];
+        if (te.evaluation) {
+          if (te.evaluation.strengths.length)           lines.push(`Strengths: ${te.evaluation.strengths.join('; ')}`);
+          if (te.evaluation.weaknesses.length)          lines.push(`Weaknesses: ${te.evaluation.weaknesses.join('; ')}`);
+          if (te.evaluation.coaching_to_improve.length) lines.push(`Coaching: ${te.evaluation.coaching_to_improve.join('; ')}`);
+        }
+        return lines.filter(Boolean).join('\n');
+      })
       .join('\n\n');
 
     const BASE_RULES = `Rules:
@@ -1055,7 +1105,7 @@ ${instructionByType[linkedInPostType]}`;
                             </button>
                           )}
                           {/* Product: Save result */}
-                          {selectedPillar === 'product' && productChatPhase === 'done' && productChatResult && (
+                          {selectedPillar === 'product' && productChatPhase === 'done' && (productEvalResult || productChatResult) && (
                             <button
                               onClick={handleProductChatSave}
                               style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start' }}
@@ -1067,7 +1117,90 @@ ${instructionByType[linkedInPostType]}`;
                       )}
 
                       {/* Product result card — shown inline after analysis */}
-                      {selectedPillar === 'product' && productChatPhase === 'done' && productChatResult && (
+                      {selectedPillar === 'product' && productChatPhase === 'done' && productEvalResult && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          style={{ borderRadius: '14px', border: '1px solid rgba(124,58,237,0.2)', overflow: 'hidden' }}
+                        >
+                          {/* Header: score + verdict */}
+                          <div style={{ padding: '1rem 1.125rem', background: 'linear-gradient(135deg, rgba(124,58,237,0.06) 0%, rgba(139,126,200,0.1) 100%)', borderBottom: '1px solid rgba(124,58,237,0.1)', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+                            <div style={{ width: '52px', height: '52px', borderRadius: '12px', flexShrink: 0, background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ fontSize: '1.375rem', fontWeight: 800, color: 'white' }}>{productEvalResult.overall_score}</span>
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                                {Array.from({ length: 5 }, (_, i) => (
+                                  <Star key={i} size={13} fill={i < productEvalResult.overall_score ? '#7C3AED' : 'none'} color={i < productEvalResult.overall_score ? '#7C3AED' : '#E5E7EB'} />
+                                ))}
+                                <span style={{ fontSize: '0.6875rem', fontWeight: 700, padding: '0.1rem 0.5rem', borderRadius: '999px', background: 'rgba(124,58,237,0.1)', color: '#7C3AED', marginLeft: '0.125rem' }}>
+                                  {productEvalResult.verdict}
+                                </span>
+                                <span style={{ fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 500 }}>{productChatName}</span>
+                              </div>
+                              {/* Per-question scores */}
+                              <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                                {(['q1','q2','q3','q4','q5','q6'] as const).map(q => {
+                                  const s = productEvalResult.per_question_scores[q];
+                                  const bg = s >= 4 ? '#F0FDF4' : s >= 2 ? '#FFFBEB' : '#FEF2F2';
+                                  const color = s >= 4 ? '#16A34A' : s >= 2 ? '#D97706' : '#DC2626';
+                                  return (
+                                    <span key={q} style={{ fontSize: '0.625rem', fontWeight: 700, padding: '0.1rem 0.35rem', borderRadius: '6px', background: bg, color }}>
+                                      {q.toUpperCase()} {s}/5
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Detailed reasoning */}
+                          <div style={{ padding: '0.875rem 1.125rem', borderBottom: '1px solid rgba(124,58,237,0.08)' }}>
+                            <p style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.65, margin: 0 }}>{productEvalResult.detailed_reasoning}</p>
+                          </div>
+
+                          {/* Strengths + Weaknesses */}
+                          {(productEvalResult.strengths.length > 0 || productEvalResult.weaknesses.length > 0) && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid rgba(124,58,237,0.08)' }}>
+                              {productEvalResult.strengths.length > 0 && (
+                                <div style={{ padding: '0.75rem 1.125rem', borderRight: '1px solid rgba(124,58,237,0.08)' }}>
+                                  <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#16A34A', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.4rem' }}>Strengths</p>
+                                  <ul style={{ margin: 0, paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    {productEvalResult.strengths.map((s, i) => (
+                                      <li key={i} style={{ fontSize: '0.75rem', color: '#374151', lineHeight: 1.5 }}>{s}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {productEvalResult.weaknesses.length > 0 && (
+                                <div style={{ padding: '0.75rem 1.125rem' }}>
+                                  <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.4rem' }}>Weaknesses</p>
+                                  <ul style={{ margin: 0, paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    {productEvalResult.weaknesses.map((w, i) => (
+                                      <li key={i} style={{ fontSize: '0.75rem', color: '#374151', lineHeight: 1.5 }}>{w}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Coaching to improve */}
+                          {productEvalResult.coaching_to_improve.length > 0 && (
+                            <div style={{ padding: '0.75rem 1.125rem' }}>
+                              <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.4rem' }}>Coaching to improve</p>
+                              <ul style={{ margin: 0, paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                {productEvalResult.coaching_to_improve.map((c, i) => (
+                                  <li key={i} style={{ fontSize: '0.75rem', color: '#374151', lineHeight: 1.5 }}>{c}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+
+                      {/* Legacy fallback result card — shown when evaluator key is not configured */}
+                      {selectedPillar === 'product' && productChatPhase === 'done' && !productEvalResult && productChatResult && (
                         <motion.div
                           initial={{ opacity: 0, y: 8 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -1486,73 +1619,55 @@ ${instructionByType[linkedInPostType]}`;
                     </div>
                   )}
 
-                  {!llmState.isLoading && state.actions.filter(a => !a.completed && !a.skipped).length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {state.actions.filter(a => !a.completed && !a.skipped).slice(0, 3).map(action => {
+                  {!llmState.isLoading && state.actions.filter(a => !a.completed && !a.skipped && !a.snoozed).length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                      {state.actions.filter(a => !a.completed && !a.skipped && !a.snoozed).slice(0, 3).map(action => {
                         const catColor = CATEGORY_COLORS[action.category] || '#6B7280';
                         const isExpanded = expandedReasoning.has(action.id);
+                        const isInProgress = !!action.inProgress;
+                        const isApproved = !!action.approved;
                         return (
                           <motion.div
                             key={action.id}
                             initial={{ opacity: 0, y: 6 }}
                             animate={{ opacity: 1, y: 0 }}
-                            style={{ backgroundColor: '#FAFAFA', borderRadius: '12px', border: '1px solid #F3F4F6', overflow: 'hidden' }}
+                            style={{ backgroundColor: 'white', borderRadius: '14px', border: `1px solid ${isInProgress ? catColor + '40' : '#F3F4F6'}`, overflow: 'hidden', boxShadow: isInProgress ? `0 2px 8px ${catColor}18` : 'none' }}
                           >
-                            <div style={{ padding: '0.75rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                              <div style={{ width: '32px', height: '32px', borderRadius: '9px', flexShrink: 0, backgroundColor: `${catColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Zap size={14} style={{ color: catColor }} />
+                            {/* Card header */}
+                            <div style={{ padding: '0.875rem 1rem 0.625rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                              <div style={{ width: '34px', height: '34px', borderRadius: '10px', flexShrink: 0, backgroundColor: `${catColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Zap size={15} style={{ color: catColor }} />
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: '0 0 0.3rem' }}>{action.title}</p>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.3rem', flexWrap: 'wrap' }}>
+                                  <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: 0, lineHeight: 1.35 }}>{action.title}</p>
+                                  {isInProgress && (
+                                    <span style={{ fontSize: '0.625rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '999px', backgroundColor: catColor, color: 'white', letterSpacing: '0.03em', flexShrink: 0 }}>IN PROGRESS</span>
+                                  )}
+                                  {isApproved && !isInProgress && (
+                                    <span style={{ fontSize: '0.625rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '999px', backgroundColor: `${catColor}20`, color: catColor, letterSpacing: '0.03em', flexShrink: 0 }}>IN PLAN</span>
+                                  )}
+                                </div>
                                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                                   <span style={{ fontSize: '0.6875rem', fontWeight: 500, padding: '0.125rem 0.5rem', borderRadius: '999px', backgroundColor: `${catColor}15`, color: catColor }}>{action.category}</span>
                                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.6875rem', color: '#9CA3AF' }}>
-                                    <Clock size={11} /> {action.estimatedMinutes} min
+                                    <Clock size={11} /> {action.estimatedMinutes >= 60 ? `${Math.round(action.estimatedMinutes / 60)}h` : `${action.estimatedMinutes}m`}
                                   </span>
                                   {(action.description || action.reasoning) && (
-                                    <button
-                                      onClick={() => toggleReasoning(action.id)}
-                                      style={{ display: 'flex', alignItems: 'center', gap: '0.15rem', fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}
-                                    >
+                                    <button onClick={() => toggleReasoning(action.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.15rem', fontSize: '0.6875rem', color: '#9CA3AF', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
                                       {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />} Details
                                     </button>
                                   )}
                                 </div>
                               </div>
-                              <div style={{ display: 'flex', gap: '0.25rem', flexShrink: 0 }}>
-                                <button onClick={() => completeAction(action.id)} style={{ padding: '0.4rem', borderRadius: '8px', border: 'none', backgroundColor: '#F0FDF4', color: '#16A34A', cursor: 'pointer', display: 'flex' }} title="Mark done">
-                                  <CheckCircle2 size={15} />
-                                </button>
-                                <button onClick={() => setSkipConfirmId(action.id)} title="Skip" style={{ padding: '0.4rem', borderRadius: '8px', border: 'none', backgroundColor: skipConfirmId === action.id ? '#FEF3C7' : '#F9FAFB', color: skipConfirmId === action.id ? '#D97706' : '#9CA3AF', cursor: 'pointer', display: 'flex' }}>
-                                  <SkipForward size={15} />
-                                </button>
-                              </div>
                             </div>
 
-                            {/* Skip confirmation */}
-                            <AnimatePresence>
-                              {skipConfirmId === action.id && (
-                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} style={{ overflow: 'hidden' }}>
-                                  <div style={{ padding: '0.625rem 1.125rem 0.75rem', borderTop: '1px solid #FDE68A', backgroundColor: '#FFFBEB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                                    <p style={{ fontSize: '0.8125rem', color: '#92400E', margin: 0 }}>Skip this action?</p>
-                                    <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                                      <button onClick={() => { dismissAction(action.id); setSkipConfirmId(null); }} style={{ fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem', borderRadius: '6px', border: '1px solid #FCD34D', backgroundColor: 'white', color: '#92400E', cursor: 'pointer', fontFamily: 'inherit' }}>Skip for now</button>
-                                      <button onClick={() => { skipAction(action.id); setSkipConfirmId(null); }} style={{ fontSize: '0.75rem', fontWeight: 500, padding: '0.3rem 0.625rem', borderRadius: '6px', border: 'none', backgroundColor: '#F59E0B', color: 'white', cursor: 'pointer', fontFamily: 'inherit' }}>Skip forever</button>
-                                      <button onClick={() => setSkipConfirmId(null)} style={{ fontSize: '0.75rem', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: '0.3rem 0.25rem', fontFamily: 'inherit' }}>Cancel</button>
-                                    </div>
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-
-                            {/* Details panel — description + reasoning */}
+                            {/* Details panel */}
                             <AnimatePresence>
                               {isExpanded && (action.description || action.reasoning) && (
                                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} style={{ overflow: 'hidden' }}>
                                   <div style={{ padding: '0.625rem 1rem 0.75rem', borderTop: `1px solid ${catColor}20`, backgroundColor: `${catColor}06`, display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                                    {action.description && (
-                                      <p style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.55, margin: 0 }}>{action.description}</p>
-                                    )}
+                                    {action.description && <p style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.6, margin: 0 }}>{action.description}</p>}
                                     {action.reasoning && (
                                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
                                         <TrendingUp size={11} style={{ color: catColor, flexShrink: 0, marginTop: '0.2rem' }} />
@@ -1563,6 +1678,31 @@ ${instructionByType[linkedInPostType]}`;
                                 </motion.div>
                               )}
                             </AnimatePresence>
+
+                            {/* Action bar — 5 operations */}
+                            <div style={{ padding: '0 1rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+                              {/* Primary CTAs — depend on state */}
+                              {!isInProgress && !isApproved && (
+                                <button onClick={() => approveAction(action.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.375rem 0.75rem', borderRadius: '8px', border: 'none', backgroundColor: `${catColor}18`, color: catColor, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                  <BookOpen size={12} /> Add to plan
+                                </button>
+                              )}
+                              <button onClick={() => startAction(action.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.375rem 0.75rem', borderRadius: '8px', border: 'none', backgroundColor: isInProgress ? catColor : '#F0FDF4', color: isInProgress ? 'white' : '#16A34A', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                <Zap size={12} /> {isInProgress ? 'Working on it' : "I'm on it"}
+                              </button>
+                              <button onClick={() => completeAction(action.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.375rem 0.75rem', borderRadius: '8px', border: '1.5px solid #D1FAE5', backgroundColor: 'white', color: '#16A34A', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                <CheckCircle2 size={12} /> Done!
+                              </button>
+                              {/* Separator */}
+                              <span style={{ width: '1px', height: '16px', backgroundColor: '#E5E7EB', margin: '0 0.125rem', flexShrink: 0 }} />
+                              {/* Tertiary */}
+                              <button onClick={() => snoozeAction(action.id)} style={{ padding: '0.375rem 0.5rem', borderRadius: '8px', border: 'none', backgroundColor: 'transparent', color: '#9CA3AF', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <Clock size={11} /> Later
+                              </button>
+                              <button onClick={() => skipAction(action.id)} style={{ padding: '0.375rem 0.5rem', borderRadius: '8px', border: 'none', backgroundColor: 'transparent', color: '#EF4444', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', opacity: 0.7 }}>
+                                Not this
+                              </button>
+                            </div>
                           </motion.div>
                         );
                       })}
