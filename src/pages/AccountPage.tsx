@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
-import { Edit2, Save, RotateCw, Bell, Moon, Trash2 } from 'lucide-react';
+import { Edit2, Save, RotateCw, Bell, Moon, Trash2, LogIn, LogOut } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
@@ -8,9 +9,12 @@ import Input from '../components/common/Input';
 import TextArea from '../components/common/TextArea';
 import EmotionGame from '../components/onboarding/EmotionGame';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function AccountPage() {
-  const { state, updateUserProfile, updateSettings, clearAllData } = useApp();
+  const { state, updateUserProfile, updateSettings, clearAllData, logout } = useApp();
+  const { user: authUser } = useAuth();
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [showEmotionGame, setShowEmotionGame] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('settings');
@@ -415,6 +419,36 @@ export default function AccountPage() {
             transition={{ duration: 0.2 }}
             style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
           >
+            {/* Account Sync */}
+            <Card>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{
+                  width: '40px', height: '40px', borderRadius: '10px',
+                  backgroundColor: '#E0E7FF', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {authUser ? <LogOut size={20} color="#4A5FC1" /> : <LogIn size={20} color="#4A5FC1" />}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
+                    {authUser ? 'Signed in' : 'Sync across devices'}
+                  </h3>
+                  <p style={{ fontSize: '0.75rem', color: '#6B7280', margin: '0.25rem 0 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {authUser ? authUser.email : 'Sign in to keep your data across devices'}
+                  </p>
+                </div>
+                {authUser ? (
+                  <Button variant="outline" size="sm" onClick={() => logout()}>
+                    Sign Out
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => navigate('/auth/signin')}>
+                    Sign In
+                  </Button>
+                )}
+              </div>
+            </Card>
+
             {/* Notification Settings */}
             <Card>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>

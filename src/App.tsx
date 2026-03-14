@@ -1,11 +1,13 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { AppProvider } from './context/AppContext';
+import { AuthProvider } from './context/AuthContext';
 import OnboardingPage from './pages/OnboardingPage';
 import HomePage from './pages/HomePage';
 import InsightsPage from './pages/InsightsPage';
 import GrowthPage from './pages/GrowthPage';
 import AccountPage from './pages/AccountPage';
+import ProductTastePage from './pages/ProductTastePage';
 import { Analytics } from '@vercel/analytics/react';
 
 // Lazy-load admin pages so next-auth/react is code-split into a separate chunk
@@ -17,11 +19,13 @@ const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'));
 export default function App() {
   return (
     <BrowserRouter>
+      <AuthProvider>
       <AppProvider>
         <Routes>
           {/* ── Regular app routes — no auth involved ── */}
           <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/" element={<HomePage />} />
+          <Route path="/product" element={<ProductTastePage />} />
           <Route path="/insights" element={<InsightsPage />} />
           <Route path="/growth" element={<GrowthPage />} />
           <Route path="/account" element={<AccountPage />} />
@@ -42,6 +46,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppProvider>
+      </AuthProvider>
       <Analytics />
     </BrowserRouter>
 

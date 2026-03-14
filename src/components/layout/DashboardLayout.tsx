@@ -14,11 +14,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // Three pillar tabs for bottom nav
   const bottomNav = [
     { path: '/?pillar=eq', pillar: 'eq', icon: Brain, label: 'EQ', activeColor: '#4A5FC1' },
-    { path: '/?pillar=product', pillar: 'product', icon: FlaskConical, label: 'Product', activeColor: '#7C3AED' },
+    { path: '/product', pillar: 'product', icon: FlaskConical, label: 'Product', activeColor: '#7C3AED' },
     { path: '/?pillar=ai', pillar: 'ai', icon: Zap, label: 'AI & Tech', activeColor: '#059669' },
   ];
 
   const isTabActive = (pillar: string) => {
+    if (pillar === 'product') return location.pathname === '/product';
     if (location.pathname !== '/') return false;
     const params = new URLSearchParams(location.search);
     return params.get('pillar') === pillar;

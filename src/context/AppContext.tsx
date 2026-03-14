@@ -16,15 +16,18 @@ import {
   KV_USER, KV_SETTINGS, KV_AI_STATE,
 } from '../services/db';
 import { evictKeyFromMemory } from '../services/encryptionService';
+import { useAuth } from './AuthContext';
+import { loadFromSupabase } from '../services/supabaseSync';
+import { useSupabaseSync } from '../hooks/useSupabaseSync';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-interface AiState {
+export interface AiState {
   aiUsageCount: number;
   aiUnlocked: boolean;
 }
 
-interface AppState {
+export interface AppState {
   user: UserProfile | null;
   emotions: EmotionEntry[];
   events: CareerEvent[];
@@ -39,7 +42,7 @@ interface AppState {
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
-type Action =
+export type Action =
   | { type: 'SET_USER'; payload: UserProfile }
   | { type: 'UPDATE_USER'; payload: Partial<UserProfile> }
   | { type: 'ADD_EMOTION'; payload: EmotionEntry }
@@ -351,6 +354,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { llmState, generateActions } = useClaudeActions();
   const [aiGated, setAiGated] = useState(false);
   const [dbReady, setDbReady] = useState(false);
+  const { user: authUser } = useAuth();
 
   // Track the most recent action so the persist effect knows what changed.
   const lastActionRef = useRef<Action | null>(null);
@@ -362,12 +366,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     rawDispatch(action);
   }, []);
 
-  // After every render caused by dispatch, persist the mutation.
+  // After every render caused by dispatch, persist the mutation to Dexie.
   useEffect(() => {
     const action = lastActionRef.current;
     if (!action || !dbReady || action.type === 'LOAD_STATE') return;
     void persistMutation(stateRef.current, action);
   });
+
+  // After every render caused by dispatch, sync the mutation to Supabase.
+  useSupabaseSync(state, lastActionRef.current, authUser?.id ?? null);
 
   // ── AI gate ───────────────────────────────────────────────────────────────
 
@@ -392,26 +399,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     const bootstrap = async () => {
       await migrateFromLocalStorage();
-      const saved = await loadFromDexie();
+      const [localData, remoteData] = await Promise.all([
+        loadFromDexie(),
+        authUser ? loadFromSupabase(authUser.id).catch(() => null) : Promise.resolve(null),
+      ]);
       if (cancelled) return;
 
-      if (!saved.user) {
-        saved.user = {
-          id: `user_${Date.now()}`,
+      const merged = { ...localData };
+
+      if (remoteData) {
+        // Remote wins for synced types — authoritative cross-device state.
+        if (remoteData.profile) merged.user = remoteData.profile;
+        if (remoteData.tasteExercises.length > 0) merged.tasteExercises = remoteData.tasteExercises;
+        if (remoteData.microActions.length > 0) merged.actions = remoteData.microActions;
+      }
+
+      if (!merged.user) {
+        merged.user = {
+          id: authUser?.id ?? `user_${Date.now()}`,
           name: 'Friend',
           role: '',
           onboardingComplete: false,
           createdAt: new Date().toISOString(),
           checkInFrequency: 'as-needed',
         };
-        await dbPut(db.keyvalue, KV_USER, saved.user);
+        await dbPut(db.keyvalue, KV_USER, merged.user);
+      } else if (authUser && merged.user.id !== authUser.id) {
+        // Update local profile ID to match the Supabase UUID.
+        merged.user = { ...merged.user, id: authUser.id };
+        await dbPut(db.keyvalue, KV_USER, merged.user);
       }
-      rawDispatch({ type: 'LOAD_STATE', payload: saved });
+
+      rawDispatch({ type: 'LOAD_STATE', payload: merged });
       setDbReady(true);
     };
     void bootstrap();
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Action creators ───────────────────────────────────────────────────────
 
@@ -480,6 +504,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [dispatch]);
 
   const logout = useCallback(async () => {
+    const { supabase } = await import('../lib/supabaseClient');
+    await supabase?.auth.signOut().catch(() => {});
     dispatch({ type: 'CLEAR_ALL' });
     clearMemory();
     evictKeyFromMemory();

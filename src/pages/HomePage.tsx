@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useSearchParams, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles, Send, ChevronDown, ChevronUp, AlertTriangle,
@@ -150,6 +150,7 @@ export default function HomePage() {
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -175,7 +176,11 @@ export default function HomePage() {
   // URL param: pre-select pillar on mount
   useEffect(() => {
     const pillar = searchParams.get('pillar');
-    if (pillar && ['product', 'eq', 'ai'].includes(pillar)) {
+    if (pillar === 'product') {
+      navigate('/product', { replace: true });
+      return;
+    }
+    if (pillar && ['eq', 'ai'].includes(pillar)) {
       const chip = ROUTING_CHIPS.find(c => c.id === pillar);
       if (chip) {
         let reply = chip.reply;
