@@ -683,9 +683,11 @@ export default function HomePage() {
           te.summary ? `Analysis: ${te.summary}` : '',
         ];
         if (te.evaluation) {
-          if (te.evaluation.strengths.length)           lines.push(`Strengths: ${te.evaluation.strengths.join('; ')}`);
-          if (te.evaluation.weaknesses.length)          lines.push(`Weaknesses: ${te.evaluation.weaknesses.join('; ')}`);
-          if (te.evaluation.coaching_to_improve.length) lines.push(`Coaching: ${te.evaluation.coaching_to_improve.join('; ')}`);
+          if (te.evaluation.strengths.length)                       lines.push(`Strengths: ${te.evaluation.strengths.join('; ')}`);
+          if (te.evaluation.weaknesses.length)                      lines.push(`Weaknesses: ${te.evaluation.weaknesses.join('; ')}`);
+          if (te.evaluation.signals_of_strong_product_taste.length) lines.push(`Strong signals: ${te.evaluation.signals_of_strong_product_taste.join('; ')}`);
+          if (te.evaluation.missing_signals.length)                 lines.push(`Missing signals: ${te.evaluation.missing_signals.join('; ')}`);
+          if (te.evaluation.coaching_to_improve.length)             lines.push(`Coaching: ${te.evaluation.coaching_to_improve.join('; ')}`);
         }
         return lines.filter(Boolean).join('\n');
       })

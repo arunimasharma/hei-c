@@ -368,41 +368,32 @@ export default function InsightsPage() {
                             {te.summary}
                           </p>
 
-                          {/* Strengths, weaknesses, coaching — V1 evaluator only */}
-                          {te.evaluation && (te.evaluation.strengths.length > 0 || te.evaluation.weaknesses.length > 0 || te.evaluation.coaching_to_improve.length > 0) && (
-                            <div style={{ marginTop: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-                              {te.evaluation.strengths.length > 0 && (
-                                <div>
-                                  <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#16A34A', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.3rem' }}>Strengths</p>
-                                  <ul style={{ margin: 0, paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                    {te.evaluation.strengths.map((s, i) => (
-                                      <li key={i} style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.5 }}>{s}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                              {te.evaluation.weaknesses.length > 0 && (
-                                <div>
-                                  <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.3rem' }}>Weaknesses</p>
-                                  <ul style={{ margin: 0, paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                    {te.evaluation.weaknesses.map((w, i) => (
-                                      <li key={i} style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.5 }}>{w}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                              {te.evaluation.coaching_to_improve.length > 0 && (
-                                <div>
-                                  <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.3rem' }}>Coaching to improve</p>
-                                  <ul style={{ margin: 0, paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                    {te.evaluation.coaching_to_improve.map((c, i) => (
-                                      <li key={i} style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.5 }}>{c}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          {/* Full V1 evaluator sections — all 5 list fields */}
+                          {te.evaluation && (() => {
+                            const ev = te.evaluation!;
+                            const sections: Array<{ label: string; color: string; items: string[] }> = [
+                              { label: 'Strengths',                     color: '#16A34A', items: ev.strengths },
+                              { label: 'Weaknesses',                    color: '#DC2626', items: ev.weaknesses },
+                              { label: 'Signals of strong product taste', color: '#0891B2', items: ev.signals_of_strong_product_taste },
+                              { label: 'Missing signals',               color: '#D97706', items: ev.missing_signals },
+                              { label: 'Coaching to improve',           color: '#7C3AED', items: ev.coaching_to_improve },
+                            ].filter(s => s.items.length > 0);
+                            if (sections.length === 0) return null;
+                            return (
+                              <div style={{ marginTop: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                                {sections.map(({ label, color, items }) => (
+                                  <div key={label}>
+                                    <p style={{ fontSize: '0.6875rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.3rem' }}>{label}</p>
+                                    <ul style={{ margin: 0, paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                      {items.map((item, i) => (
+                                        <li key={i} style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.5 }}>{item}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
 
                           {te.answers.length > 0 && (
                             <details style={{ marginTop: '0.875rem' }}>

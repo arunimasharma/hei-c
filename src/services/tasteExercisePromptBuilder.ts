@@ -6,7 +6,7 @@ export const TASTE_QUESTIONS = [
   "What would you do differently from the current state? What's your argument for why that difference — even if it doesn't serve all customers broadly — creates stronger value for a specific segment in both the short and long term?",
   "Why do you think the organization or leaders behind this product made the decisions that created the gap between your product vision and its current state?",
   "What market patterns or potential consumer data patterns do you think shaped these decisions from the current product team?",
-  "Looking at those patterns through the lens of product decision-making: do you notice any over-fitting, under-fitting, overlooked signals, or biased justification gaps — from what you can tell from public information and your own intuition?",
+  "Imagine you are pitching your proposed product improvement to a product leader or investor who has 60 seconds to decide whether the idea is worth pursuing.\n\nHow would you frame a concise elevator pitch that clearly explains:\n• the core problem you are solving\n• the specific customer segment that benefits most\n• why your approach is meaningfully better than the current product direction\n• and why this idea matters now?",
 ];
 
 export const TASTE_ANALYSIS_SYSTEM_PROMPT = `You are a product strategy analyst and product taste calibration coach. A user has completed a Product Taste Exercise analyzing a product or service.

@@ -46,7 +46,13 @@ Q4: Why do you think the organization or leaders behind this product made the de
 
 Q5: What market patterns or potential consumer data patterns do you think shaped these decisions from the current product team?
 
-Q6: Looking at those patterns through the lens of product decision-making: do you notice any over-fitting, under-fitting, overlooked signals, or biased justification gaps — from what you can tell from public information and your own intuition?
+Q6: Imagine you are pitching your proposed product improvement to a product leader or investor who has 60 seconds to decide whether the idea is worth pursuing.
+
+How would you frame a concise elevator pitch that clearly explains:
+• the core problem you are solving
+• the specific customer segment that benefits most
+• why your approach is meaningfully better than the current product direction
+• and why this idea matters now?
 </questions>
 
 <what_to_reward>
@@ -115,8 +121,20 @@ For Q5, assess:
 - whether patterns are connected to actual product decisions
 
 For Q6, assess:
-- ability to diagnose overfitting, underfitting, missed signals, or bias
-- quality of reasoning under uncertainty
+- clarity of the product vision
+- ability to communicate the idea concisely
+- whether the user identifies a clear customer segment
+- strength of the problem framing
+- persuasiveness of the value proposition
+- whether the pitch demonstrates tradeoff awareness
+- whether the argument explains why this idea matters now
+
+Penalize for Q6:
+- vague pitch language
+- generic product claims
+- no clear segment identified
+- no differentiation from the current product direction
+- no clear problem statement
 </per_question_rubric>
 
 <reasoning_rules>
@@ -266,7 +284,7 @@ export function buildEvaluatorMessage(
     'Q5: What market patterns or potential consumer data patterns do you think shaped these decisions from the current product team?',
     `Answer: ${answers.q5 || '[Not answered]'}`,
     '',
-    'Q6: Looking at those patterns through the lens of product decision-making: do you notice any over-fitting, under-fitting, overlooked signals, or biased justification gaps — from what you can tell from public information and your own intuition?',
+    'Q6: Imagine you are pitching your proposed product improvement to a product leader or investor who has 60 seconds to decide whether the idea is worth pursuing. How would you frame a concise elevator pitch that clearly explains: the core problem you are solving, the specific customer segment that benefits most, why your approach is meaningfully better than the current product direction, and why this idea matters now?',
     `Answer: ${answers.q6 || '[Not answered]'}`,
   );
   return lines.join('\n');

@@ -141,20 +141,20 @@ function evaluateTasteDevPlugin(evaluatorKey: string): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const apiKey          = env.ANTHROPIC_API_KEY
-  const evaluatorKey    = env.ANTHROPIC_EVALUATOR_API_KEY
+  const apiKey = env.ANTHROPIC_API_KEY
+  // Prefer dedicated evaluator key; fall back to shared key so a single-key
+  // local setup still runs the rich evaluator dev middleware.
+  const evaluatorKey = env.ANTHROPIC_EVALUATOR_API_KEY || env.ANTHROPIC_API_KEY
 
-  if (!evaluatorKey) {
-    // No evaluator key — dev middleware not mounted; the client receives a
-    // network error which triggers the fallback to legacy /api/claude analysis.
-    console.warn('[HEQ] ANTHROPIC_EVALUATOR_API_KEY not set — evaluator dev middleware disabled, falling back to legacy analysis.')
+  if (!env.ANTHROPIC_EVALUATOR_API_KEY && evaluatorKey) {
+    console.warn('[HEQ] ANTHROPIC_EVALUATOR_API_KEY not set — using ANTHROPIC_API_KEY for evaluator dev middleware.')
   }
 
   return {
     plugins: [
       react(),
       tailwindcss(),
-      // Evaluator dev middleware — only mounted when key is available
+      // Evaluator dev middleware — mounted whenever any key is available
       evaluatorKey ? evaluateTasteDevPlugin(evaluatorKey) : null,
     ],
     server: {

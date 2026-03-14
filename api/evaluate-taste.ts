@@ -43,12 +43,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // ── Evaluator key — isolated from ANTHROPIC_API_KEY used elsewhere ──────────
-  const evaluatorKey = process.env.ANTHROPIC_EVALUATOR_API_KEY;
+  // ── Evaluator key ────────────────────────────────────────────────────────────
+  // Prefer the dedicated evaluator key for cost isolation.
+  // Fall back to the shared key so a single-key deployment still shows the
+  // rich evaluation UI. Add ANTHROPIC_EVALUATOR_API_KEY in Vercel to isolate
+  // evaluator traffic independently.
+  const evaluatorKey =
+    process.env.ANTHROPIC_EVALUATOR_API_KEY ||
+    process.env.ANTHROPIC_API_KEY;
   if (!evaluatorKey) {
-    console.error('[HEQ] evaluate-taste: ANTHROPIC_EVALUATOR_API_KEY is not set');
+    console.error('[HEQ] evaluate-taste: no API key available (set ANTHROPIC_EVALUATOR_API_KEY or ANTHROPIC_API_KEY)');
     res.status(503).json({ error: 'Evaluator feature not configured.' });
     return;
+  }
+  if (!process.env.ANTHROPIC_EVALUATOR_API_KEY) {
+    console.warn('[HEQ] evaluate-taste: ANTHROPIC_EVALUATOR_API_KEY not set — using shared ANTHROPIC_API_KEY');
   }
 
   // ── Input validation ────────────────────────────────────────────────────────
