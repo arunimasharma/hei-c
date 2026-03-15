@@ -50,9 +50,12 @@ Who it's for
 
 Potential Improvements Roadmap
 
- > Community growth features with APM Club
- > EQ pattern dashboard and longitudinal insights
- > More Product Taste exercise formats
+ > Community growth features with APM Club;
+
+ > EQ pattern dashboard and longitudinal insights;
+
+ > More Product Taste exercise formats;
+
  > Mobile experience improvements
 
 
