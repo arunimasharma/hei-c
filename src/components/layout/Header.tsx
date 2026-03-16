@@ -18,9 +18,9 @@ export default function Header() {
 
   // Top-level navigation tabs
   const pillarTabs = [
-    { path: '/', label: '🧠 Coach', pillar: 'coach', activeColor: '#4A5FC1', activeBg: 'rgba(74,95,193,0.08)' },
-    { path: '/product', label: '🧪 Product', pillar: 'product', activeColor: '#7C3AED', activeBg: 'rgba(124,58,237,0.08)' },
-    { path: '/transparency', label: '🛡️ Transparency', pillar: 'transparency', activeColor: '#0891B2', activeBg: 'rgba(8,145,178,0.08)' },
+    { path: '/', label: '🧠 Product Coach', pillar: 'coach', activeColor: '#4A5FC1', activeBg: 'rgba(74,95,193,0.08)' },
+    { path: '/product', label: '🧪 Product Thinking', pillar: 'product', activeColor: '#7C3AED', activeBg: 'rgba(124,58,237,0.08)' },
+    { path: '/transparency', label: '🛡️ Self Evals', pillar: 'transparency', activeColor: '#0891B2', activeBg: 'rgba(8,145,178,0.08)' },
   ];
 
   // A tab is "active" based on current pathname

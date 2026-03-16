@@ -13,9 +13,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   // Top-level tabs for bottom nav
   const bottomNav = [
-    { path: '/', pillar: 'coach', icon: Brain, label: 'Coach', activeColor: '#4A5FC1' },
-    { path: '/product', pillar: 'product', icon: FlaskConical, label: 'Product', activeColor: '#7C3AED' },
-    { path: '/transparency', pillar: 'transparency', icon: ShieldCheck, label: 'Transparency', activeColor: '#0891B2' },
+    { path: '/', pillar: 'coach', icon: Brain, label: 'Product Coach', activeColor: '#4A5FC1' },
+    { path: '/product', pillar: 'product', icon: FlaskConical, label: 'Product Thinking', activeColor: '#7C3AED' },
+    { path: '/transparency', pillar: 'transparency', icon: ShieldCheck, label: 'Self Evals', activeColor: '#0891B2' },
   ];
 
   const isTabActive = (pillar: string) => {

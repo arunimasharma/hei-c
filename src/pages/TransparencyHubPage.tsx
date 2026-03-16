@@ -287,7 +287,7 @@ export default function TransparencyHubPage() {
                 <ShieldCheck size={18} color="white" />
               </div>
               <h1 style={{ fontSize: '1.625rem', fontWeight: 700, color: '#1F2937', margin: 0, letterSpacing: '-0.02em' }}>
-                Transparency Hub
+                Self Evals
               </h1>
             </div>
             <p style={{ color: '#6B7280', margin: 0, fontSize: '0.9375rem' }}>
