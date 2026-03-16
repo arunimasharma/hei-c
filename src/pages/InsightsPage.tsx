@@ -493,7 +493,66 @@ export default function InsightsPage() {
                 </>
               )}
 
-              {totalCount === 0 && (
+                      {/* Decisions */}
+              {state.decisions && state.decisions.length > 0 && (
+                <>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#B45309', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>
+                    Decisions ({state.decisions.length})
+                  </p>
+                  {state.decisions.map(d => (
+                    <div key={d.id} style={{
+                      backgroundColor: d.status === 'open' ? '#FFFBEB' : '#F9FAFB',
+                      borderRadius: '16px',
+                      border: `1px solid ${d.status === 'open' ? '#FDE68A' : '#E5E7EB'}`,
+                      padding: '1.25rem',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
+                        <div style={{
+                          width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0,
+                          background: d.status === 'open' ? 'linear-gradient(135deg, #B45309 0%, #D97706 100%)' : '#D1D5DB',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '1.25rem',
+                        }}>
+                          ⚖️
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.375rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '0.75rem', fontWeight: 700,
+                              color: d.status === 'open' ? '#B45309' : '#6B7280',
+                              backgroundColor: d.status === 'open' ? '#FEF3C7' : '#F3F4F6',
+                              padding: '0.125rem 0.5rem', borderRadius: '999px',
+                            }}>
+                              {d.status === 'open' ? 'Open' : 'Decided'}
+                            </span>
+                            {d.deadline && (
+                              <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Due: {d.deadline}</span>
+                            )}
+                            <span style={{ fontSize: '0.75rem', color: '#9CA3AF', marginLeft: 'auto' }}>
+                              {new Date(d.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#1F2937', margin: '0 0 0.75rem', lineHeight: 1.4 }}>{d.question}</p>
+                          {d.aiStructuredBrief && (
+                            <pre style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.65, margin: '0 0 0.75rem', whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
+                              {d.aiStructuredBrief}
+                            </pre>
+                          )}
+                          {d.chosenOption && (
+                            <div style={{ padding: '0.625rem 0.875rem', backgroundColor: '#F0FDF4', borderRadius: '10px', border: '1px solid #BBF7D0' }}>
+                              <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#16A34A', margin: '0 0 0.25rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Chosen</p>
+                              <p style={{ fontSize: '0.875rem', color: '#1F2937', margin: 0 }}>{d.chosenOption}{d.chosenReason ? ` — ${d.chosenReason}` : ''}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {totalCount === 0 && (!state.decisions || state.decisions.length === 0) && (
                 <Card>
                   <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
                     <BookOpen size={36} style={{ color: '#D1D5DB', margin: '0 auto 0.75rem', display: 'block' }} />

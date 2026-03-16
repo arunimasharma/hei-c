@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-import type { UserProfile, TasteExercise, MicroAction } from '../types';
+import type { UserProfile, TasteExercise, MicroAction, DecisionLog } from '../types';
 
 // ── Column mapping helpers ────────────────────────────────────────────────────
 
@@ -137,6 +137,28 @@ export async function bulkUpsertMicroActions(actions: MicroAction[], userId: str
   const { error } = await supabase
     .from('micro_actions')
     .upsert(actions.map(a => actionToRow(a, userId)), { onConflict: 'id' });
+  if (error) throw error;
+}
+
+// ── Decision upsert ──────────────────────────────────────────────────────────
+
+export async function upsertDecision(decision: DecisionLog, userId: string): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) return;
+  const { error } = await supabase
+    .from('decisions')
+    .upsert({
+      id: decision.id,
+      user_id: userId,
+      question: decision.question,
+      deadline: decision.deadline ?? null,
+      options: decision.options,
+      ai_structured_brief: decision.aiStructuredBrief,
+      chosen_option: decision.chosenOption ?? null,
+      chosen_reason: decision.chosenReason ?? null,
+      status: decision.status,
+      created_at: decision.createdAt,
+      decided_at: decision.decidedAt ?? null,
+    }, { onConflict: 'id' });
   if (error) throw error;
 }
 

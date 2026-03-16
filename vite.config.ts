@@ -157,6 +157,15 @@ export default defineConfig(({ mode }) => {
       // Evaluator dev middleware — mounted whenever any key is available
       evaluatorKey ? evaluateTasteDevPlugin(evaluatorKey) : null,
     ],
+    resolve: {
+      // Force a single React instance — prevents "Invalid hook call" when
+      // packages like @supabase/supabase-js cause Vite to bundle a second copy.
+      dedupe: ['react', 'react-dom', 'react/jsx-runtime'],
+    },
+    optimizeDeps: {
+      // Pre-bundle all React-using packages together so esbuild shares one React copy.
+      include: ['react', 'react-dom', 'react/jsx-runtime', '@supabase/supabase-js', 'recharts'],
+    },
     server: {
       proxy: {
         '/api/claude': {

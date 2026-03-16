@@ -50,6 +50,8 @@ class HEQDatabase extends Dexie {
   actions!: Table<EncryptedRow, string>;
   goals!: Table<EncryptedRow, string>;
   exercises!: Table<EncryptedRow, string>;
+  decisions!: Table<EncryptedRow, string>;
+  workModes!: Table<EncryptedRow, string>;
 
   constructor() {
     super('hello-eq-db-v1');
@@ -61,6 +63,17 @@ class HEQDatabase extends Dexie {
       actions:     'id, updatedAt',
       goals:       'id, updatedAt',
       exercises:   'id, updatedAt',
+    });
+    this.version(2).stores({
+      keyvalue:    'id',
+      emotions:    'id, updatedAt',
+      events:      'id, updatedAt',
+      reflections: 'id, updatedAt',
+      actions:     'id, updatedAt',
+      goals:       'id, updatedAt',
+      exercises:   'id, updatedAt',
+      decisions:   'id, updatedAt',
+      workModes:   'id, updatedAt',
     });
   }
 }

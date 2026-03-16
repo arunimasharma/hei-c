@@ -2,9 +2,11 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { Menu, X, LogOut, Settings, BarChart3, TrendingUp, User } from 'lucide-react';
 import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Header() {
   const { state, logout } = useApp();
+  const { user: authUser } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -14,19 +16,19 @@ export default function Header() {
     navigate('/onboarding');
   };
 
-  // Three main pillar tabs — all link to home with pillar pre-selected
+  // Top-level navigation tabs
   const pillarTabs = [
-    { path: '/?pillar=eq', label: '🧠 EQ', pillar: 'eq', activeColor: '#4A5FC1', activeBg: 'rgba(74,95,193,0.08)' },
-    { path: '/?pillar=product', label: '🧪 Product', pillar: 'product', activeColor: '#7C3AED', activeBg: 'rgba(124,58,237,0.08)' },
-    { path: '/?pillar=ai', label: '🤖 AI & Tech', pillar: 'ai', activeColor: '#059669', activeBg: 'rgba(5,150,105,0.08)' },
+    { path: '/', label: '🧠 Coach', pillar: 'coach', activeColor: '#4A5FC1', activeBg: 'rgba(74,95,193,0.08)' },
+    { path: '/product', label: '🧪 Product', pillar: 'product', activeColor: '#7C3AED', activeBg: 'rgba(124,58,237,0.08)' },
+    { path: '/transparency', label: '🛡️ Transparency', pillar: 'transparency', activeColor: '#0891B2', activeBg: 'rgba(8,145,178,0.08)' },
   ];
 
-  // A tab is "active" when on home with matching ?pillar= param, or just home for EQ (default)
+  // A tab is "active" based on current pathname
   const isTabActive = (pillar: string) => {
-    if (location.pathname !== '/') return false;
-    const params = new URLSearchParams(location.search);
-    const currentPillar = params.get('pillar');
-    return currentPillar === pillar;
+    if (pillar === 'transparency') return location.pathname === '/transparency';
+    if (pillar === 'product') return location.pathname === '/product';
+    if (pillar === 'coach') return location.pathname === '/';
+    return false;
   };
 
   return (
@@ -176,7 +178,6 @@ export default function Header() {
                   >
                     <User size={15} color="#6B7280" /> Account
                   </Link>
-
                   {/* Account actions */}
                   {state.user && (
                     <>
@@ -200,7 +201,7 @@ export default function Header() {
                       >
                         <Settings size={15} color="#6B7280" /> Setup Profile
                       </Link>
-                      {state.user?.onboardingComplete && (
+                      {(state.user?.onboardingComplete || authUser) && (
                         <button
                           onClick={() => { handleLogout(); setMenuOpen(false); }}
                           style={{

@@ -14,7 +14,7 @@ import { useJournalAnalysis } from '../hooks/useJournalAnalysis';
 import { callClaudeMessages, parseActionResponse } from '../services/claudeApi';
 import { callEvaluateTaste, EvaluatorNotConfiguredError } from '../services/productTasteEvaluatorApi';
 import { EMOTIONS, getEmotionColor } from '../utils/emotionHelpers';
-import type { EmotionType, EventType, JournalReflection, TasteExercise, TasteExerciseAnswer, TasteEvaluatorResult } from '../types';
+import type { EmotionType, EventType, JournalReflection, TasteExercise, TasteExerciseAnswer, TasteEvaluatorResult, DecisionLog, WorkModeEntry } from '../types';
 import {
   TASTE_QUESTIONS,
   TASTE_ANALYSIS_SYSTEM_PROMPT,
@@ -47,6 +47,8 @@ Paths:
 - "eq": Emotional IQ journaling — processing work emotions, stress, team dynamics, interpersonal situations
 - "product": Product Taste — analyzing products, thinking about UX or design, sharpening product intuition
 - "ai": AI & Tech Edge — building AI/tech skills, taking concrete action on technical growth
+- "decision": Decision Log — decisions that need to be made, options to evaluate, trade-offs to assess
+- "work": PM Assist — writing or drafting a work artifact, competitive analysis, PRD sections, research synthesis, stakeholder briefs, opportunity sizing
 
 Respond with ONLY valid JSON (no markdown, no code blocks):
 {"reply":"your warm 1-2 sentence empathetic response","path":"eq","transition":"1-sentence natural intro to their experience"}
@@ -57,6 +59,23 @@ const ROUTING_CHIPS = [
   { id: 'eq' as const, emoji: '🧠', label: 'Emotional IQ', color: '#4A5FC1', bg: '#EFF6FF', reply: "Let's explore your work emotions. What's been on your mind at work lately?" },
   { id: 'product' as const, emoji: '🧪', label: 'Product Taste', color: '#7C3AED', bg: '#F5F3FF', reply: "Let's sharpen your product intuition! Which product would you like to analyze today?" },
   { id: 'ai' as const, emoji: '🤖', label: 'AI & Tech Edge', color: '#059669', bg: '#F0FDF4', reply: "Let's build your tech edge. First — what types of products or services are you aiming to master or work on? (e.g. B2B SaaS, consumer apps, developer tools, AI products)" },
+  { id: 'decision' as const, emoji: '⚖️', label: 'Decision Log', color: '#B45309', bg: '#FFFBEB', reply: "Let's work through this decision together. What decision do you need to make, and by when?" },
+  { id: 'work' as const, emoji: '🛠️', label: 'PM Assist', color: '#0891B2', bg: '#F0F9FF', reply: "What would you like to work on? Pick a template below or describe what you need." },
+];
+
+const WORK_ASSIST_TASKS = [
+  { label: 'Competitive snapshot', emoji: '🔭' },
+  { label: 'PRD section', emoji: '📄' },
+  { label: 'Synthesize user feedback', emoji: '💬' },
+  { label: 'Opportunity brief', emoji: '📊' },
+  { label: 'Stakeholder email', emoji: '✉️' },
+];
+
+const WORK_MODE_CHIPS = [
+  { id: 'strategic' as const, label: 'Mostly strategic 🎯' },
+  { id: 'reactive' as const, label: 'Mostly reactive 🔥' },
+  { id: 'balanced' as const, label: 'Balanced ⚖️' },
+  { id: 'survival' as const, label: 'In survival mode 😮‍💨' },
 ];
 
 const EVENT_TYPES: EventType[] = [
@@ -100,7 +119,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 type Phase = 'writing' | 'analyzing' | 'review' | 'success';
 
 export default function HomePage() {
-  const { state, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, approveAction, startAction, snoozeAction, refreshActions, addTasteExercise, llmState, checkAndUseAi } = useApp();
+  const { state, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, approveAction, startAction, snoozeAction, refreshActions, addTasteExercise, addDecision, resolveDecision, addWorkMode, llmState, checkAndUseAi } = useApp();
   const { analysisState, analyzeJournal, resetAnalysis } = useJournalAnalysis();
 
   const [phase, setPhase] = useState<Phase>('writing');
@@ -119,11 +138,27 @@ export default function HomePage() {
   const [eiSummary, setEiSummary] = useState('');
   const [careerTarget, setCareerTarget] = useState('');
   const [aiProjectSummary, setAiProjectSummary] = useState('');
-  const [selectedPillar, setSelectedPillar] = useState<'product' | 'eq' | 'ai' | null>(null);
+  const [selectedPillar, setSelectedPillar] = useState<'product' | 'eq' | 'ai' | 'decision' | 'work' | null>(null);
+
+  // Decision Log state
+  const [decisionPhase, setDecisionPhase] = useState<'asking' | 'options' | 'brief' | 'resolving'>('asking');
+  const [decisionBrief, setDecisionBrief] = useState('');
+  const [activeDecisionId, setActiveDecisionId] = useState('');
+  const [decisionChosenOption, setDecisionChosenOption] = useState('');
+  const [decisionChosenReason, setDecisionChosenReason] = useState('');
+
+  // PM Work Assistant state
+  const [workArtifact, setWorkArtifact] = useState('');
+  const [workArtifactLoading, setWorkArtifactLoading] = useState(false);
+  const [workArtifactCopied, setWorkArtifactCopied] = useState(false);
+  const [workRefineMode, setWorkRefineMode] = useState(false);
+
+  // Work Mode Check-in state
+  const [workModeSubmitted, setWorkModeSubmitted] = useState(false);
 
   // LinkedIn post generator state
   const [linkedInModalOpen, setLinkedInModalOpen] = useState(false);
-  const [linkedInPostType, setLinkedInPostType] = useState<'emotional' | 'product' | 'mixed'>('mixed');
+  const [linkedInPostType, setLinkedInPostType] = useState<'emotional' | 'product' | 'mixed' | 'perf-review' | 'salary-brief' | 'bio'>('mixed');
   const [linkedInPrompt, setLinkedInPrompt] = useState('');
   const [linkedInPost, setLinkedInPost] = useState('');
   const [linkedInLoading, setLinkedInLoading] = useState(false);
@@ -173,14 +208,14 @@ export default function HomePage() {
     return () => clearInterval(timer);
   }, [journalText]);
 
-  // URL param: pre-select pillar on mount
+  // URL param: select pillar whenever the search params change
   useEffect(() => {
     const pillar = searchParams.get('pillar');
     if (pillar === 'product') {
       navigate('/product', { replace: true });
       return;
     }
-    if (pillar && ['eq', 'ai'].includes(pillar)) {
+    if (pillar && ['eq', 'ai', 'decision', 'work'].includes(pillar)) {
       const chip = ROUTING_CHIPS.find(c => c.id === pillar);
       if (chip) {
         let reply = chip.reply;
@@ -197,11 +232,16 @@ export default function HomePage() {
           }
         }
         setChatMessages([ROUTING_INITIAL_MESSAGE, { role: 'user', content: chip.label }, { role: 'assistant', content: reply }]);
-        setSelectedPillar(pillar as 'product' | 'eq' | 'ai');
+        setSelectedPillar(pillar as 'product' | 'eq' | 'ai' | 'decision' | 'work');
         setRoutingPhase('routed');
       }
+    } else if (!pillar) {
+      // No pillar param — reset to routing screen
+      setChatMessages([ROUTING_INITIAL_MESSAGE]);
+      setSelectedPillar(null);
+      setRoutingPhase('routing');
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load growth pillar data from localStorage
   useEffect(() => {
@@ -394,8 +434,25 @@ export default function HomePage() {
     setShowManualPicker(false);
     resetProductChat();
     resetAiChat();
+    resetDecisionChat();
+    resetWorkChat();
     resetAnalysis();
     setPhase('writing');
+  };
+
+  const resetDecisionChat = () => {
+    setDecisionPhase('asking');
+    setDecisionBrief('');
+    setActiveDecisionId('');
+    setDecisionChosenOption('');
+    setDecisionChosenReason('');
+  };
+
+  const resetWorkChat = () => {
+    setWorkArtifact('');
+    setWorkArtifactLoading(false);
+    setWorkArtifactCopied(false);
+    setWorkRefineMode(false);
   };
 
   const resetProductChat = () => {
@@ -412,7 +469,7 @@ export default function HomePage() {
     setAiChatPhase('goals-product');
   };
 
-  const handleRoutingChipClick = (pillar: 'eq' | 'product' | 'ai', reply: string) => {
+  const handleRoutingChipClick = (pillar: 'eq' | 'product' | 'ai' | 'decision' | 'work', reply: string) => {
     const chip = ROUTING_CHIPS.find(c => c.id === pillar);
     const label = chip?.label || pillar;
     let assistantReply = reply;
@@ -573,8 +630,8 @@ export default function HomePage() {
           const newMsgs: ChatMessage[] = [{ role: 'assistant', content: reply }];
           if (transition) newMsgs.push({ role: 'assistant', content: transition });
           setChatMessages(prev => [...prev, ...newMsgs]);
-          if (path && ['eq', 'product', 'ai'].includes(path)) {
-            setSelectedPillar(path as 'product' | 'eq' | 'ai');
+          if (path && ['eq', 'product', 'ai', 'decision', 'work'].includes(path)) {
+            setSelectedPillar(path as 'product' | 'eq' | 'ai' | 'decision' | 'work');
             setRoutingPhase('routed');
           }
         } else {
@@ -612,6 +669,96 @@ export default function HomePage() {
             role: 'assistant',
             content: `Got it — updating your product focus to: ${text}. What AI tools or technical skills should I note for your plan?`,
           }]);
+        }
+      } else if (selectedPillar === 'decision') {
+        if (decisionPhase === 'asking') {
+          setDecisionPhase('options');
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: 'Got it. What are the options you\'re considering? List them out — even rough ideas are fine.',
+          }]);
+        } else if (decisionPhase === 'options') {
+          // Generate structured brief
+          if (!checkAndUseAi()) return;
+          setDecisionPhase('brief');
+          setChatMessages(prev => [...prev, { role: 'assistant', content: 'Structuring your decision brief…' }]);
+          const decisionHistory = updatedMessages.filter(m => m.role === 'user').map(m => m.content);
+          const briefPrompt = `You are a sharp product strategy coach. The user is working through a decision. Based on the conversation, generate a concise structured brief.
+
+Format your response EXACTLY as follows (use these exact headers):
+**Decision:** [one sentence]
+**Deadline:** [from the conversation, or "Not specified"]
+**Options:**
+• [option 1] — [one-line trade-off]
+• [option 2] — [one-line trade-off]
+(add more as needed)
+**Recommended next step:** [NOT which option to pick — instead, what information or conversation would unlock this decision]
+
+Keep it sharp and specific. No filler.`;
+          const briefResponse = await callClaudeMessages(briefPrompt, updatedMessages.map(m => ({ role: m.role, content: m.content })), 400);
+          const brief = parseActionResponse(briefResponse).trim();
+          setDecisionBrief(brief);
+          const decisionId = `dec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          setActiveDecisionId(decisionId);
+          const newDecision: DecisionLog = {
+            id: decisionId,
+            userId: state.user?.id || 'anonymous',
+            question: decisionHistory[0] || text,
+            options: decisionHistory[1] ? decisionHistory[1].split(/[,\n•\-]+/).map(s => s.trim()).filter(Boolean) : [],
+            aiStructuredBrief: brief,
+            status: 'open',
+            createdAt: new Date().toISOString(),
+          };
+          addDecision(newDecision);
+          setChatMessages(prev => [
+            ...prev.slice(0, -1), // remove "Structuring…"
+            { role: 'assistant', content: brief },
+          ]);
+        } else {
+          // User typed after brief — acknowledge
+          setChatMessages(prev => [...prev, { role: 'assistant', content: 'Noted. Use the buttons below to mark this as decided or save it for later.' }]);
+        }
+      } else if (selectedPillar === 'work') {
+        // Generate work artifact
+        if (!checkAndUseAi()) return;
+        setWorkArtifactLoading(true);
+        setWorkRefineMode(workArtifact !== '');
+        try {
+          const focusRaw = localStorage.getItem('heq_control_focus');
+          const f = focusRaw ? JSON.parse(focusRaw) : {};
+          const productTarget = f.product || 'not specified';
+          const careerTarget = f.career || 'not specified';
+          const recentExercises = state.tasteExercises
+            .slice(0, 3)
+            .map(te => `${te.productName} (score: ${te.score}/5, ${te.evaluation?.verdict || te.scoreComment})`)
+            .join('; ') || 'none yet';
+          const workSystemPrompt = `You are a senior product manager assistant. You produce sharp, specific, executive-ready PM artifacts — no filler, no generic frameworks unless they add clarity.
+
+User context:
+- Product focus: ${productTarget}
+- Career target: ${careerTarget}
+- Recent product analyses: ${recentExercises}
+
+For every artifact:
+- Lead with the most important insight or recommendation
+- Use short paragraphs and bullet points for scannability
+- Be opinionated where data or patterns support it
+- Flag what's unknown and what would change the analysis
+- Total length: appropriate to the artifact type (competitive snapshot: 300-400 words; PRD section: 400-600 words; stakeholder email: 150-250 words)
+
+Respond with the artifact only — no preamble like "Here's the..." or "Sure, I'll help with...".`;
+          const artifactResponse = await callClaudeMessages(
+            workSystemPrompt,
+            updatedMessages.map(m => ({ role: m.role, content: m.content })),
+            800,
+          );
+          const artifact = parseActionResponse(artifactResponse).trim();
+          setWorkArtifact(artifact);
+          setChatMessages(prev => [...prev, { role: 'assistant', content: artifact }]);
+        } catch {
+          setChatMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong generating the artifact. Please try again.' }]);
+        } finally {
+          setWorkArtifactLoading(false);
         }
       } else if (selectedPillar === 'product') {
         if (productChatPhase === 'naming') {
@@ -739,21 +886,44 @@ Your posts follow the format of the highest-performing LinkedIn posts:
 5. CTA (1 line): A question that invites genuine conversation.
 
 ${BASE_RULES}`,
+
+      'perf-review': `You are an executive coach helping a product manager write performance review self-assessments. You write achievement bullets that are specific, outcome-focused, and supported by evidence.
+
+Each bullet follows: [Action verb] + [what was done] + [measurable or observable outcome]
+
+Draw only from the provided work data. If data is thin, write 3 strong bullets rather than 5 weak ones. No generic claims.`,
+
+      'salary-brief': `You are a career strategist helping a PM prepare for a compensation conversation. Write a 150-word narrative + 3 proof points that demonstrate growth and justify increased compensation.
+
+Narrative: first person, confident but not arrogant, specific to the data provided.
+Proof points: each one sentence, tied directly to logged activity or scores.`,
+
+      bio: `You are a professional writer crafting a third-person bio for a product manager's LinkedIn profile or conference speaker page.
+
+Write exactly 100 words. Include: current focus area, demonstrated product expertise (from the taste exercise data), and one distinctive quality. No clichés like "passionate about" or "results-driven".`,
     };
 
-    const contextByType = {
+    const combinedContext = [
+      reflectionsContext ? `## My recent work reflections:\n${reflectionsContext}` : '',
+      tasteContext ? `## My recent product taste exercises:\n${tasteContext}` : '',
+    ].filter(Boolean).join('\n\n');
+
+    const contextByType: Record<typeof linkedInPostType, string> = {
       emotional: reflectionsContext ? `## My recent work reflections:\n${reflectionsContext}` : '',
       product: tasteContext ? `## My recent product taste exercises:\n${tasteContext}` : '',
-      mixed: [
-        reflectionsContext ? `## My recent work reflections:\n${reflectionsContext}` : '',
-        tasteContext ? `## My recent product taste exercises:\n${tasteContext}` : '',
-      ].filter(Boolean).join('\n\n'),
+      mixed: combinedContext,
+      'perf-review': combinedContext,
+      'salary-brief': combinedContext,
+      bio: combinedContext,
     };
 
-    const instructionByType = {
+    const instructionByType: Record<typeof linkedInPostType, string> = {
       emotional: 'Write a LinkedIn post that draws entirely from these emotional work reflections. Make it deeply personal, vulnerable, and relatable — like something only I could have written.',
       product: 'Write a LinkedIn post that draws entirely from these product taste observations. Make it sharp, opinionated, and specific — the kind of post that makes product thinkers nod and share.',
       mixed: 'Write a LinkedIn post that weaves together the emotional depth from my reflections and the product sharpness from my taste exercises. Make it feel authentic — like something only I could have written.',
+      'perf-review': 'Write 3–5 performance review self-assessment bullets based on the data above. Each bullet: action verb + what was done + measurable outcome.',
+      'salary-brief': 'Write a 150-word compensation narrative followed by 3 specific proof points, all grounded in the logged data above.',
+      bio: 'Write a 100-word third-person professional bio based on the product focus, career context, and taste exercise data above.',
     };
 
     const userMessage = `${contextByType[linkedInPostType]}
@@ -816,12 +986,19 @@ ${instructionByType[linkedInPostType]}`;
           </p>
           <h1 style={{ fontSize: '2rem', fontWeight: 700, color: '#1F2937', letterSpacing: '-0.025em', lineHeight: 1.2, margin: '0 0 0.875rem' }}>
             {greeting},{' '}
-            {(!state.user?.name || state.user.name === 'Friend')
-              ? <><a href="https://www.linkedin.com/in/arunimasharma/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '3px', textDecorationColor: '#D1D5DB' }}>Arunima</a>'s Friend</>
-              : state.user.name}
+            {(!state.user?.name || state.user.name === 'Friend') ? 'Friend' : state.user.name}
           </h1>
           <p style={{ fontSize: '0.6875rem', color: '#D1D5DB', margin: '0 0 0.75rem', lineHeight: 1.55 }}>
-            Private &amp; on-device.{' '}
+            Built by{' '}
+            <a
+              href="https://www.linkedin.com/in/arunimasharma/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#D1D5DB', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+            >
+              Arunima
+            </a>
+            {' · '}
             <a
               href="https://docs.google.com/forms/d/1_0dV6E4GZ6ZsMYsH31m74liednuy2D6J8U2JJ45L7Oc/edit"
               target="_blank"
@@ -904,9 +1081,11 @@ ${instructionByType[linkedInPostType]}`;
               {(() => {
                 const isRouting = routingPhase === 'routing';
                 const pillarMeta: Record<string, { border: string; shadow: string; accent: string; bg: string; gradient: string; icon: React.ReactNode; label: string }> = {
-                  product: { border: '#EDE9FE', shadow: 'rgba(124,58,237,0.06)', accent: '#7C3AED', bg: '#F5F3FF', gradient: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', icon: <FlaskConical size={14} color="white" />, label: 'Product Taste' },
-                  eq: { border: '#DBEAFE', shadow: 'rgba(74,95,193,0.06)', accent: '#4A5FC1', bg: '#EFF6FF', gradient: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)', icon: <Sparkles size={14} color="white" />, label: 'Emotional IQ' },
-                  ai: { border: '#D1FAE5', shadow: 'rgba(16,185,129,0.06)', accent: '#059669', bg: '#F0FDF4', gradient: 'linear-gradient(135deg, #059669 0%, #10B981 100%)', icon: <Zap size={14} color="white" />, label: 'AI & Tech Edge' },
+                  product:  { border: '#EDE9FE', shadow: 'rgba(124,58,237,0.06)',  accent: '#7C3AED', bg: '#F5F3FF', gradient: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)',  icon: <FlaskConical size={14} color="white" />, label: 'Product Taste' },
+                  eq:       { border: '#DBEAFE', shadow: 'rgba(74,95,193,0.06)',   accent: '#4A5FC1', bg: '#EFF6FF', gradient: 'linear-gradient(135deg, #4A5FC1 0%, #8B7EC8 100%)',  icon: <Sparkles size={14} color="white" />,    label: 'Emotional IQ' },
+                  ai:       { border: '#D1FAE5', shadow: 'rgba(16,185,129,0.06)',  accent: '#059669', bg: '#F0FDF4', gradient: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',  icon: <Zap size={14} color="white" />,         label: 'AI & Tech Edge' },
+                  decision: { border: '#FDE68A', shadow: 'rgba(180,83,9,0.06)',    accent: '#B45309', bg: '#FFFBEB', gradient: 'linear-gradient(135deg, #B45309 0%, #D97706 100%)',  icon: <span style={{ fontSize: '12px' }}>⚖️</span>, label: 'Decision Log' },
+                  work:     { border: '#BAE6FD', shadow: 'rgba(8,145,178,0.06)',   accent: '#0891B2', bg: '#F0F9FF', gradient: 'linear-gradient(135deg, #0891B2 0%, #06B6D4 100%)',  icon: <span style={{ fontSize: '12px' }}>🛠️</span>, label: 'PM Assist' },
                 };
                 const pc = !isRouting && selectedPillar ? pillarMeta[selectedPillar] : null;
                 return (
@@ -947,6 +1126,52 @@ ${instructionByType[linkedInPostType]}`;
                         </div>
                       )}
 
+                      {/* EQ: Work Mode check-in chips — shown when first EQ session of the week */}
+                      {!isRouting && selectedPillar === 'eq' && chatMessages.filter(m => m.role === 'user').length === 0 && !workModeSubmitted && (() => {
+                        const lastReflection = state.reflections.filter(r => r.status === 'approved')[0];
+                        const daysSinceLast = lastReflection
+                          ? (Date.now() - new Date(lastReflection.timestamp).getTime()) / (1000 * 60 * 60 * 24)
+                          : 999;
+                        return daysSinceLast > 6 || state.reflections.filter(r => r.status === 'approved').length === 0;
+                      })() && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#B45309', fontWeight: 600 }}>How's your week been?</span>
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            {WORK_MODE_CHIPS.map(chip => (
+                              <button
+                                key={chip.id}
+                                onClick={() => {
+                                  setWorkModeSubmitted(true);
+                                  const entry: WorkModeEntry = {
+                                    id: `wm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                                    userId: state.user?.id || 'anonymous',
+                                    mode: chip.id,
+                                    timestamp: new Date().toISOString(),
+                                  };
+                                  addWorkMode(entry);
+                                  const modeAck: Record<string, string> = {
+                                    strategic: "Love that — a strategic week is a gift. What's been driving that clarity?",
+                                    reactive: "Reactive weeks are exhausting. What's been pulling you off your priorities?",
+                                    balanced: "Balanced is hard to sustain — what's working that you want to keep?",
+                                    survival: "Survival mode is real. What's the biggest weight you're carrying right now?",
+                                  };
+                                  setChatMessages(prev => [
+                                    ...prev,
+                                    { role: 'user', content: chip.label },
+                                    { role: 'assistant', content: modeAck[chip.id] },
+                                  ]);
+                                }}
+                                style={{ padding: '0.375rem 0.875rem', borderRadius: '999px', border: '1.5px solid #FDE68A', backgroundColor: '#FFFBEB', fontSize: '0.8125rem', color: '#B45309', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500, transition: 'all 0.15s' }}
+                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#FEF3C7'; e.currentTarget.style.borderColor = '#B45309'; }}
+                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#FFFBEB'; e.currentTarget.style.borderColor = '#FDE68A'; }}
+                              >
+                                {chip.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* EQ starter prompts — after routing to EQ, before many user messages */}
                       {!isRouting && selectedPillar === 'eq' && chatMessages.filter(m => m.role === 'user').length <= 1 && (
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '2px' }}>
@@ -959,6 +1184,43 @@ ${instructionByType[linkedInPostType]}`;
                               onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.backgroundColor = 'white'; }}
                             >
                               <span>{prompt.icon}</span> {prompt.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* PM Assist quick-start task chips */}
+                      {!isRouting && selectedPillar === 'work' && chatMessages.filter(m => m.role === 'user').length === 0 && (
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          {WORK_ASSIST_TASKS.map(task => (
+                            <button
+                              key={task.label}
+                              onClick={() => {
+                                setChatInput('');
+                                const msg: ChatMessage = { role: 'user', content: task.label };
+                                const updated = [...chatMessages, msg];
+                                setChatMessages(updated);
+                                setChatLoading(true);
+                                const focusRaw = localStorage.getItem('heq_control_focus');
+                                const f = focusRaw ? JSON.parse(focusRaw) : {};
+                                const productTarget = f.product || 'not specified';
+                                const careerTarget = f.career || 'not specified';
+                                const recentExercises = state.tasteExercises.slice(0, 3).map(te => `${te.productName} (score: ${te.score}/5, ${te.evaluation?.verdict || te.scoreComment})`).join('; ') || 'none yet';
+                                const workSysPrompt = `You are a senior product manager assistant. You produce sharp, specific, executive-ready PM artifacts — no filler.\n\nUser context:\n- Product focus: ${productTarget}\n- Career target: ${careerTarget}\n- Recent product analyses: ${recentExercises}\n\nLead with the most important insight. Use short paragraphs and bullets. Be opinionated. Flag unknowns. Respond with the artifact only.`;
+                                checkAndUseAi() && callClaudeMessages(workSysPrompt, [{ role: 'user', content: task.label }], 800)
+                                  .then(r => {
+                                    const artifact = parseActionResponse(r).trim();
+                                    setWorkArtifact(artifact);
+                                    setChatMessages(prev => [...prev, { role: 'assistant', content: artifact }]);
+                                  })
+                                  .catch(() => setChatMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }]))
+                                  .finally(() => setChatLoading(false));
+                              }}
+                              style={{ padding: '0.5rem 1rem', borderRadius: '999px', border: '1.5px solid #BAE6FD', backgroundColor: '#F0F9FF', fontSize: '0.875rem', color: '#0891B2', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '0.375rem' }}
+                              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#E0F2FE'; e.currentTarget.style.borderColor = '#0891B2'; }}
+                              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#F0F9FF'; e.currentTarget.style.borderColor = '#BAE6FD'; }}
+                            >
+                              {task.emoji} {task.label}
                             </button>
                           ))}
                         </div>
@@ -997,8 +1259,8 @@ ${instructionByType[linkedInPostType]}`;
                         <div ref={chatEndRef} />
                       </div>
 
-                      {/* Input row — routing, EQ journaling, product taste, or AI goals */}
-                      {(isRouting || selectedPillar === 'eq' || (selectedPillar === 'product' && (productChatPhase === 'naming' || productChatPhase === 'questioning')) || (selectedPillar === 'ai' && (aiChatPhase === 'goals-product' || aiChatPhase === 'goals-skills' || aiChatPhase === 'ready' || aiChatPhase === 'done'))) && (
+                      {/* Input row — routing, EQ journaling, product taste, AI goals, decision, work assist */}
+                      {(isRouting || selectedPillar === 'eq' || (selectedPillar === 'product' && (productChatPhase === 'naming' || productChatPhase === 'questioning')) || (selectedPillar === 'ai' && (aiChatPhase === 'goals-product' || aiChatPhase === 'goals-skills' || aiChatPhase === 'ready' || aiChatPhase === 'done')) || selectedPillar === 'decision' || selectedPillar === 'work') && (
                         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
                           <textarea
                             ref={textareaRef}
@@ -1111,6 +1373,85 @@ ${instructionByType[linkedInPostType]}`;
                               <Sparkles size={14} /> Finish & Analyze
                             </button>
                           )}
+                          {/* Decision Log: Mark as Decided / Come Back Later */}
+                          {selectedPillar === 'decision' && decisionPhase === 'brief' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                              {decisionPhase === 'brief' && decisionChosenOption === '' ? (
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <button
+                                    onClick={() => setDecisionPhase('resolving')}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #B45309 0%, #D97706 100%)', color: 'white', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                                  >
+                                    <CheckCircle2 size={14} /> Mark as Decided
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setChatMessages(prev => [...prev, { role: 'assistant', content: "Saved! Come back when you're ready to decide. You'll find this in your Insights → Reflections tab." }]);
+                                      setDecisionPhase('asking');
+                                      setTimeout(() => { setRoutingPhase('routing'); setSelectedPillar(null); setChatMessages([ROUTING_INITIAL_MESSAGE]); }, 2500);
+                                    }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: '1.5px solid #FDE68A', background: '#FFFBEB', color: '#B45309', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                                  >
+                                    <Clock size={14} /> Come Back Later
+                                  </button>
+                                </div>
+                              ) : null}
+                              {decisionPhase === 'resolving' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', backgroundColor: '#FFFBEB', borderRadius: '12px', padding: '1rem', border: '1px solid #FDE68A' }}>
+                                  <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#B45309', margin: 0 }}>Which option did you choose?</p>
+                                  <input
+                                    value={decisionChosenOption}
+                                    onChange={e => setDecisionChosenOption(e.target.value)}
+                                    placeholder="e.g. Option A — hire the contractor"
+                                    style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1.5px solid #FDE68A', fontSize: '0.875rem', fontFamily: 'inherit', color: '#1F2937', outline: 'none', boxSizing: 'border-box' }}
+                                  />
+                                  <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#B45309', margin: 0 }}>Why? (one line)</p>
+                                  <input
+                                    value={decisionChosenReason}
+                                    onChange={e => setDecisionChosenReason(e.target.value)}
+                                    placeholder="e.g. Speed mattered more than cost"
+                                    style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1.5px solid #FDE68A', fontSize: '0.875rem', fontFamily: 'inherit', color: '#1F2937', outline: 'none', boxSizing: 'border-box' }}
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      if (!decisionChosenOption.trim()) return;
+                                      resolveDecision(activeDecisionId, decisionChosenOption.trim(), decisionChosenReason.trim());
+                                      setChatMessages(prev => [...prev, { role: 'assistant', content: `Decision logged. You chose: **${decisionChosenOption}**${decisionChosenReason ? ` — "${decisionChosenReason}"` : ''}. Saved to your profile.` }]);
+                                      resetDecisionChat();
+                                      setTimeout(() => { setRoutingPhase('routing'); setSelectedPillar(null); setChatMessages([ROUTING_INITIAL_MESSAGE]); }, 2500);
+                                    }}
+                                    disabled={!decisionChosenOption.trim()}
+                                    style={{ alignSelf: 'flex-start', padding: '0.5rem 1.25rem', borderRadius: '10px', border: 'none', background: decisionChosenOption.trim() ? 'linear-gradient(135deg, #B45309 0%, #D97706 100%)' : '#E5E7EB', color: decisionChosenOption.trim() ? 'white' : '#9CA3AF', fontSize: '0.8125rem', fontWeight: 600, cursor: decisionChosenOption.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}
+                                  >
+                                    Save Decision
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Work Assist: Copy + Refine buttons */}
+                          {selectedPillar === 'work' && workArtifact && !workArtifactLoading && (
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <button
+                                onClick={async () => {
+                                  await navigator.clipboard.writeText(workArtifact);
+                                  setWorkArtifactCopied(true);
+                                  setTimeout(() => setWorkArtifactCopied(false), 2000);
+                                }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: '1px solid #BAE6FD', background: workArtifactCopied ? '#E0F2FE' : 'white', color: workArtifactCopied ? '#0891B2' : '#6B7280', fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                              >
+                                {workArtifactCopied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy to Clipboard</>}
+                              </button>
+                              <button
+                                onClick={() => { setWorkRefineMode(true); setChatInput('Refine: '); }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: '1.5px solid #BAE6FD', background: '#F0F9FF', color: '#0891B2', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                              >
+                                <Edit3 size={13} /> Refine
+                              </button>
+                            </div>
+                          )}
+
                           {/* Product: Save result */}
                           {selectedPillar === 'product' && productChatPhase === 'done' && (productEvalResult || productChatResult) && (
                             <button
@@ -1759,9 +2100,9 @@ ${instructionByType[linkedInPostType]}`;
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.875rem' }}>💼</span>
+                    <span style={{ fontSize: '0.875rem' }}>✍️</span>
                     <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>
-                      Draft a LinkedIn Post
+                      Career Narrative
                     </span>
                     <span style={{
                       fontSize: '0.6875rem', fontWeight: 600, padding: '0.125rem 0.5rem',
@@ -1888,33 +2229,51 @@ ${instructionByType[linkedInPostType]}`;
                     >
                       <div style={{ marginBottom: '1.25rem' }}>
                         <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#1F2937', margin: '0 0 0.25rem' }}>
-                          What kind of post?
+                          Choose a format
                         </h3>
                         <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>
-                          Pick a focus — we'll pull the right context from your history.
+                          Pick a format — we'll pull the right context from your history.
                         </p>
                       </div>
 
-                      {/* Post type selector */}
+                      {/* Format selector */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem' }}>
                         {([
                           {
                             type: 'emotional' as const,
                             icon: '💭',
                             label: 'Emotionally reflective',
-                            sub: 'Draws from your journal entries',
+                            sub: 'LinkedIn post from your journal entries',
                           },
                           {
                             type: 'product' as const,
                             icon: '🧪',
                             label: 'Product taste',
-                            sub: 'Draws from your taste exercises',
+                            sub: 'LinkedIn post from your taste exercises',
                           },
                           {
                             type: 'mixed' as const,
                             icon: '✨',
                             label: 'Best of both',
                             sub: 'Weaves reflections + product insights',
+                          },
+                          {
+                            type: 'perf-review' as const,
+                            icon: '🏆',
+                            label: 'Performance review',
+                            sub: '3–5 achievement bullets with outcomes',
+                          },
+                          {
+                            type: 'salary-brief' as const,
+                            icon: '💰',
+                            label: 'Salary negotiation brief',
+                            sub: '150-word narrative + 3 proof points',
+                          },
+                          {
+                            type: 'bio' as const,
+                            icon: '👤',
+                            label: 'Professional bio',
+                            sub: '100-word third-person bio',
                           },
                         ] as const).map(opt => {
                           const selected = linkedInPostType === opt.type;
@@ -1985,7 +2344,7 @@ ${instructionByType[linkedInPostType]}`;
                           cursor: 'pointer', fontFamily: 'inherit',
                         }}
                       >
-                        <Sparkles size={14} /> Generate post
+                        <Sparkles size={14} /> Generate
                       </button>
                       <p style={{ fontSize: '0.75rem', color: '#D1D5DB', textAlign: 'center', marginTop: '0.625rem', marginBottom: 0 }}>
                         ⌘ Enter to generate

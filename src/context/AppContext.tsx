@@ -5,6 +5,7 @@ import {
 import type {
   UserProfile, EmotionEntry, CareerEvent,
   MicroAction, AppSettings, JournalReflection, Goal, TasteExercise,
+  DecisionLog, WorkModeEntry,
 } from '../types';
 import type { LLMActionState } from '../types/llm';
 import { generateSuggestedActions } from '../utils/actionGenerator';
@@ -35,6 +36,8 @@ export interface AppState {
   reflections: JournalReflection[];
   goals: Goal[];
   tasteExercises: TasteExercise[];
+  decisions: DecisionLog[];
+  workModes: WorkModeEntry[];
   settings: AppSettings;
   aiUsageCount: number;
   aiUnlocked: boolean;
@@ -64,6 +67,9 @@ export type Action =
   | { type: 'UPDATE_GOAL'; payload: { id: string; updates: Partial<Goal> } }
   | { type: 'DELETE_GOAL'; payload: string }
   | { type: 'ADD_TASTE_EXERCISE'; payload: TasteExercise }
+  | { type: 'ADD_DECISION'; payload: DecisionLog }
+  | { type: 'RESOLVE_DECISION'; payload: { id: string; chosenOption: string; chosenReason: string } }
+  | { type: 'ADD_WORK_MODE'; payload: WorkModeEntry }
   | { type: 'LOAD_STATE'; payload: Partial<AppState> }
   | { type: 'INCREMENT_AI_USAGE' }
   | { type: 'UNLOCK_AI' }
@@ -85,6 +91,8 @@ const initialState: AppState = {
   reflections: [],
   goals: [],
   tasteExercises: [],
+  decisions: [],
+  workModes: [],
   settings: defaultSettings,
   aiUsageCount: 0,
   aiUnlocked: false,
@@ -179,6 +187,19 @@ function appReducer(state: AppState, action: Action): AppState {
       return { ...state, goals: state.goals.filter(g => g.id !== action.payload) };
     case 'ADD_TASTE_EXERCISE':
       return { ...state, tasteExercises: [action.payload, ...state.tasteExercises] };
+    case 'ADD_DECISION':
+      return { ...state, decisions: [action.payload, ...state.decisions] };
+    case 'RESOLVE_DECISION':
+      return {
+        ...state,
+        decisions: state.decisions.map(d =>
+          d.id === action.payload.id
+            ? { ...d, status: 'decided' as const, chosenOption: action.payload.chosenOption, chosenReason: action.payload.chosenReason, decidedAt: new Date().toISOString() }
+            : d,
+        ),
+      };
+    case 'ADD_WORK_MODE':
+      return { ...state, workModes: [action.payload, ...state.workModes] };
     case 'UPDATE_SETTINGS':
       return { ...state, settings: { ...state.settings, ...action.payload } };
     case 'LOAD_STATE':
@@ -220,6 +241,9 @@ interface AppContextType {
   updateGoal: (id: string, updates: Partial<Goal>) => void;
   deleteGoal: (id: string) => void;
   addTasteExercise: (exercise: TasteExercise) => void;
+  addDecision: (decision: DecisionLog) => void;
+  resolveDecision: (id: string, chosenOption: string, chosenReason: string) => void;
+  addWorkMode: (entry: WorkModeEntry) => void;
   clearAllData: () => Promise<void>;
   logout: () => Promise<void>;
   llmState: LLMActionState;
@@ -235,7 +259,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 // ── Dexie persistence helpers ─────────────────────────────────────────────────
 
 async function loadFromDexie(): Promise<Partial<AppState>> {
-  const [user, settings, aiState, emotions, events, actions, reflections, goals, tasteExercises] =
+  const [user, settings, aiState, emotions, events, actions, reflections, goals, tasteExercises, decisions, workModes] =
     await Promise.all([
       dbGet<UserProfile>(db.keyvalue, KV_USER),
       dbGet<AppSettings>(db.keyvalue, KV_SETTINGS),
@@ -246,6 +270,8 @@ async function loadFromDexie(): Promise<Partial<AppState>> {
       dbGetAll<JournalReflection>(db.reflections),
       dbGetAll<Goal>(db.goals),
       dbGetAll<TasteExercise>(db.exercises),
+      dbGetAll<DecisionLog>(db.decisions),
+      dbGetAll<WorkModeEntry>(db.workModes),
     ]);
 
   return {
@@ -259,6 +285,8 @@ async function loadFromDexie(): Promise<Partial<AppState>> {
     reflections,
     goals,
     tasteExercises,
+    decisions,
+    workModes,
   };
 }
 
@@ -333,10 +361,22 @@ async function persistMutation(state: AppState, action: Action): Promise<void> {
       case 'ADD_TASTE_EXERCISE':
         await dbPut(db.exercises, action.payload.id, action.payload);
         break;
+      case 'ADD_DECISION':
+        await dbPut(db.decisions, action.payload.id, action.payload);
+        break;
+      case 'RESOLVE_DECISION': {
+        const d = state.decisions.find(x => x.id === action.payload.id);
+        if (d) await dbPut(db.decisions, d.id, d);
+        break;
+      }
+      case 'ADD_WORK_MODE':
+        await dbPut(db.workModes, action.payload.id, action.payload);
+        break;
       case 'CLEAR_ALL':
         await Promise.all([
           db.keyvalue.clear(), db.emotions.clear(), db.events.clear(),
           db.actions.clear(), db.reflections.clear(), db.goals.clear(), db.exercises.clear(),
+          db.decisions.clear(), db.workModes.clear(),
         ]);
         break;
       default:
@@ -448,6 +488,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addReflection    = (r: JournalReflection)                          => dispatch({ type: 'ADD_REFLECTION', payload: r });
   const updateReflection = (id: string, updates: Partial<JournalReflection>) => dispatch({ type: 'UPDATE_REFLECTION', payload: { id, updates } });
   const addTasteExercise = (e: TasteExercise)                              => dispatch({ type: 'ADD_TASTE_EXERCISE', payload: e });
+  const addDecision      = (d: DecisionLog)                                => dispatch({ type: 'ADD_DECISION', payload: d });
+  const resolveDecision  = (id: string, chosenOption: string, chosenReason: string) => dispatch({ type: 'RESOLVE_DECISION', payload: { id, chosenOption, chosenReason } });
+  const addWorkMode      = (entry: WorkModeEntry)                          => dispatch({ type: 'ADD_WORK_MODE', payload: entry });
   const addGoal          = (g: Goal)                                       => dispatch({ type: 'ADD_GOAL', payload: g });
   const updateGoal       = (id: string, updates: Partial<Goal>)            => dispatch({ type: 'UPDATE_GOAL', payload: { id, updates } });
   const deleteGoal       = (id: string)                                    => dispatch({ type: 'DELETE_GOAL', payload: id });
@@ -522,6 +565,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addReflection, updateReflection,
       addGoal, updateGoal, deleteGoal,
       addTasteExercise,
+      addDecision, resolveDecision, addWorkMode,
       clearAllData, logout,
       llmState, aiGated, checkAndUseAi, unlockAi,
       dbReady,

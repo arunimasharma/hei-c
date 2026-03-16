@@ -156,3 +156,24 @@ export interface TasteExercise {
   /** Full V1 evaluator result — present when evaluated via /api/evaluate-taste. */
   evaluation?: TasteEvaluatorResult;
 }
+
+export interface DecisionLog {
+  id: string;
+  userId: string;
+  question: string;
+  deadline?: string;
+  options: string[];
+  aiStructuredBrief: string;
+  chosenOption?: string;
+  chosenReason?: string;
+  status: 'open' | 'decided';
+  createdAt: string;
+  decidedAt?: string;
+}
+
+export interface WorkModeEntry {
+  id: string;
+  userId: string;
+  mode: 'strategic' | 'reactive' | 'balanced' | 'survival';
+  timestamp: string;
+}
