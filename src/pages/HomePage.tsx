@@ -142,7 +142,6 @@ export default function HomePage() {
 
   // Decision Log state
   const [decisionPhase, setDecisionPhase] = useState<'asking' | 'options' | 'brief' | 'resolving'>('asking');
-  const [decisionBrief, setDecisionBrief] = useState('');
   const [activeDecisionId, setActiveDecisionId] = useState('');
   const [decisionChosenOption, setDecisionChosenOption] = useState('');
   const [decisionChosenReason, setDecisionChosenReason] = useState('');
@@ -151,7 +150,6 @@ export default function HomePage() {
   const [workArtifact, setWorkArtifact] = useState('');
   const [workArtifactLoading, setWorkArtifactLoading] = useState(false);
   const [workArtifactCopied, setWorkArtifactCopied] = useState(false);
-  const [workRefineMode, setWorkRefineMode] = useState(false);
 
   // Work Mode Check-in state
   const [workModeSubmitted, setWorkModeSubmitted] = useState(false);
@@ -442,7 +440,6 @@ export default function HomePage() {
 
   const resetDecisionChat = () => {
     setDecisionPhase('asking');
-    setDecisionBrief('');
     setActiveDecisionId('');
     setDecisionChosenOption('');
     setDecisionChosenReason('');
@@ -452,7 +449,6 @@ export default function HomePage() {
     setWorkArtifact('');
     setWorkArtifactLoading(false);
     setWorkArtifactCopied(false);
-    setWorkRefineMode(false);
   };
 
   const resetProductChat = () => {
@@ -697,7 +693,6 @@ Format your response EXACTLY as follows (use these exact headers):
 Keep it sharp and specific. No filler.`;
           const briefResponse = await callClaudeMessages(briefPrompt, updatedMessages.map(m => ({ role: m.role, content: m.content })), 400);
           const brief = parseActionResponse(briefResponse).trim();
-          setDecisionBrief(brief);
           const decisionId = `dec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
           setActiveDecisionId(decisionId);
           const newDecision: DecisionLog = {
@@ -722,7 +717,6 @@ Keep it sharp and specific. No filler.`;
         // Generate work artifact
         if (!checkAndUseAi()) return;
         setWorkArtifactLoading(true);
-        setWorkRefineMode(workArtifact !== '');
         try {
           const focusRaw = localStorage.getItem('heq_control_focus');
           const f = focusRaw ? JSON.parse(focusRaw) : {};
@@ -1374,7 +1368,7 @@ ${instructionByType[linkedInPostType]}`;
                             </button>
                           )}
                           {/* Decision Log: Mark as Decided / Come Back Later */}
-                          {selectedPillar === 'decision' && decisionPhase === 'brief' && (
+                          {selectedPillar === 'decision' && (decisionPhase === 'brief' || decisionPhase === 'resolving') && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                               {decisionPhase === 'brief' && decisionChosenOption === '' ? (
                                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1444,7 +1438,7 @@ ${instructionByType[linkedInPostType]}`;
                                 {workArtifactCopied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy to Clipboard</>}
                               </button>
                               <button
-                                onClick={() => { setWorkRefineMode(true); setChatInput('Refine: '); }}
+                                onClick={() => { setChatInput('Refine: '); }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 1rem', borderRadius: '10px', border: '1.5px solid #BAE6FD', background: '#F0F9FF', color: '#0891B2', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
                               >
                                 <Edit3 size={13} /> Refine

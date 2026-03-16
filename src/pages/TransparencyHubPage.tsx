@@ -7,12 +7,11 @@ import {
 } from 'recharts';
 import {
   ShieldCheck, TrendingUp, Heart, Eye, EyeOff,
-  CheckCircle2, Circle, Award, Brain, FlaskConical,
+  CheckCircle2, Award, Brain, FlaskConical,
   Lock, Info, Zap,
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/common/Card';
-import Button from '../components/common/Button';
 import { useApp } from '../context/AppContext';
 import { EMOTIONS } from '../utils/emotionHelpers';
 import { formatDate, calculateStreak } from '../utils/dateHelpers';
@@ -419,7 +418,8 @@ export default function TransparencyHubPage() {
                           borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                           padding: '10px 14px', fontSize: '0.8125rem',
                         }}
-                        formatter={(value: number, name: string) => [`${value}/10`, name]}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        formatter={((value: unknown, name: unknown) => [`${value ?? 0}/10`, name]) as any}
                       />
                       {metrics.activeEmotionTypes.map(({ type, color }) => (
                         <Area
@@ -500,7 +500,8 @@ export default function TransparencyHubPage() {
                         <YAxis hide />
                         <Tooltip
                           contentStyle={{ backgroundColor: 'white', border: '1px solid #E5E7EB', borderRadius: '10px', fontSize: '0.8125rem' }}
-                          formatter={(_: number, name: string) => [modeLabels[name] || name, '']}
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          formatter={((_: unknown, name: unknown) => [modeLabels[name as string] || name, '']) as any}
                         />
                         <Legend formatter={(v: string) => <span style={{ fontSize: '0.75rem' }}>{modeLabels[v] || v}</span>} />
                         {(['strategic', 'reactive', 'balanced', 'survival'] as const).map(m => (
