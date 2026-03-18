@@ -83,8 +83,6 @@ export default function InfluencePanel() {
   const taste = useMemo(() => FeedbackStore.getTasteProfile(),  []);
   const all   = useMemo(() => FeedbackStore.getAll(),           []);
 
-  const hasData = all.length > 0;
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}

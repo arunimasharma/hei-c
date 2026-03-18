@@ -105,14 +105,14 @@ export class FrictionDetector {
   }
 
   /** Listen for a specific trigger name OR 'friction_detected' for all events. */
-  on<K extends keyof EventMap>(event: K, cb: Listener<EventMap[K]>): this {
+  on<K extends string & keyof EventMap>(event: K, cb: Listener<EventMap[K]>): this {
     if (!this._listeners.has(event)) this._listeners.set(event, new Set());
     this._listeners.get(event)!.add(cb as Listener<FrictionEvent>);
     return this;
   }
 
   /** Remove a specific listener. */
-  off<K extends keyof EventMap>(event: K, cb: Listener<EventMap[K]>): this {
+  off<K extends string & keyof EventMap>(event: K, cb: Listener<EventMap[K]>): this {
     this._listeners.get(event)?.delete(cb as Listener<FrictionEvent>);
     return this;
   }
