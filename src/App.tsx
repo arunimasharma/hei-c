@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/AuthContext';
+import { useFrictionFeedback } from './hooks/useFrictionFeedback';
+import FrictionFeedbackWidget from './components/common/FrictionFeedbackWidget';
 import OnboardingPage from './pages/OnboardingPage';
 import HomePage from './pages/HomePage';
 import InsightsPage from './pages/InsightsPage';
@@ -10,6 +12,7 @@ import GrowthPage from './pages/GrowthPage';
 import AccountPage from './pages/AccountPage';
 import ProductTastePage from './pages/ProductTastePage';
 import TransparencyHubPage from './pages/TransparencyHubPage';
+import InfluencePage from './pages/InfluencePage';
 import { Analytics } from '@vercel/analytics/react';
 
 // Lazy-load admin pages so next-auth/react is code-split into a separate chunk
@@ -17,6 +20,11 @@ import { Analytics } from '@vercel/analytics/react';
 const UsageDashboardPage = lazy(() => import('./pages/UsageDashboardPage'));
 const SignInPage = lazy(() => import('./pages/SignInPage'));
 const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'));
+
+function FrictionLayer() {
+  const friction = useFrictionFeedback();
+  return <FrictionFeedbackWidget {...friction} />;
+}
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, authReady } = useAuth();
@@ -46,6 +54,8 @@ export default function App() {
           <Route path="/unauthorized" element={<Suspense fallback={null}><UnauthorizedPage /></Suspense>} />
           <Route path="/dashboard" element={<Suspense fallback={null}><UsageDashboardPage /></Suspense>} />
 
+          <Route path="/influence" element={<ProtectedRoute><InfluencePage /></ProtectedRoute>} />
+
           {/* Legacy redirects */}
           <Route path="/timeline" element={<Navigate to="/insights" replace />} />
           <Route path="/actions" element={<Navigate to="/growth" replace />} />
@@ -56,6 +66,7 @@ export default function App() {
           <Route path="/add-event" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <FrictionLayer />
       </AppProvider>
       </AuthProvider>
       <Analytics />

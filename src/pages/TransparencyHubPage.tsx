@@ -264,8 +264,8 @@ export default function TransparencyHubPage() {
 
   const tabBtnStyle = (active: boolean): React.CSSProperties => ({
     display: 'flex', alignItems: 'center', gap: '0.375rem',
-    padding: '0.5rem 0.875rem', borderRadius: '10px', border: 'none',
-    fontSize: '0.8125rem', fontWeight: active ? 600 : 500,
+    padding: '0.5rem 0.875rem', borderRadius: '999px', border: 'none',
+    fontSize: '0.875rem', fontWeight: 600,
     cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit',
     backgroundColor: active ? '#4A5FC1' : 'transparent',
     color: active ? 'white' : '#6B7280',
@@ -357,10 +357,7 @@ export default function TransparencyHubPage() {
         </div>
 
         {/* ── Tab Navigation ───────────────────────────────────────────────── */}
-        <div style={{
-          display: 'flex', gap: '0.25rem', backgroundColor: '#F3F4F6',
-          padding: '0.375rem', borderRadius: '12px', width: 'fit-content',
-        }}>
+        <div style={{ display: 'flex', gap: '0.25rem' }}>
           {tabs.map(t => (
             <button
               key={t.id}

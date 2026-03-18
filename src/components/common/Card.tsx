@@ -12,10 +12,10 @@ interface CardProps {
 export default function Card({ children, className = '', hover = false, onClick, style }: CardProps) {
   const cardStyle: CSSProperties = {
     backgroundColor: 'white',
-    borderRadius: '20px',
-    border: '1px solid #F3F4F6',
+    borderRadius: '16px',
+    border: '1px solid rgba(0,0,0,0.06)',
     padding: '1.5rem',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
     cursor: onClick ? 'pointer' : undefined,
     ...style,
   };

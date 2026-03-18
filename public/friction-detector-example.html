@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FrictionDetector — Example</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f8f9fe;
+      color: #1f2937;
+      line-height: 1.6;
+    }
+
+    /* ── page content ── */
+    .page { max-width: 680px; margin: 0 auto; padding: 3rem 1.5rem 40rem; }
+    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; color: #111827; }
+    p  { color: #6b7280; margin-bottom: 1rem; }
+    .hint {
+      display: inline-block; margin-top: 1.5rem; padding: 0.6rem 1rem;
+      background: #eef0fb; color: #4a5fc1; border-radius: 8px; font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    /* ── event log panel ── */
+    #log-panel {
+      position: fixed; bottom: 1rem; right: 1rem;
+      width: 340px; max-height: 260px;
+      background: #1e293b; color: #e2e8f0;
+      border-radius: 14px; overflow: hidden;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+      font-family: 'Menlo', 'Consolas', monospace;
+      font-size: 0.75rem;
+      z-index: 9999;
+    }
+    #log-header {
+      background: #0f172a; padding: 0.5rem 0.85rem;
+      font-size: 0.7rem; font-weight: 600; color: #94a3b8;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    #log-header span { color: #38bdf8; }
+    #log-body { padding: 0.5rem 0.75rem; overflow-y: auto; max-height: 210px; }
+    .log-entry {
+      padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+      animation: fadeIn 0.25s ease;
+    }
+    .log-entry:last-child { border-bottom: none; }
+    .trigger-name { font-weight: 700; }
+    .trigger-name.time_stall   { color: #fb923c; }
+    .trigger-name.exit_intent  { color: #f472b6; }
+    .trigger-name.scroll_stall { color: #34d399; }
+    .trigger-name.no_action    { color: #a78bfa; }
+    .meta { color: #64748b; margin-top: 0.15rem; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+
+    /* ── feedback widget (Step 2 — prompt) ── */
+    #friction-widget {
+      position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+      background: #fff; border-radius: 20px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.06);
+      border: 1px solid rgba(74,95,193,0.1);
+      padding: 1.125rem 1.25rem 1rem;
+      max-width: 22rem; width: calc(100% - 2rem);
+      z-index: 300;
+      display: none;
+      animation: slideUp 0.28s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    #friction-widget.show { display: block; }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+    #widget-prompt {
+      font-size: 0.9rem; font-weight: 600; color: #1f2937;
+      margin-bottom: 0.75rem;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .chip {
+      padding: 0.4rem 0.85rem; border-radius: 999px;
+      font-size: 0.8rem; font-weight: 500;
+      border: 1.5px solid #e5e7eb; background: #f9fafb; color: #374151;
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    .chip:hover { border-color: #4a5fc1; background: #eef0fb; color: #4a5fc1; }
+    .trust-line {
+      margin-top: 0.65rem; font-size: 0.7rem; color: #9ca3af;
+      display: flex; align-items: center; gap: 0.3rem;
+    }
+
+    /* ── feedback widget (confirmation) ── */
+    #widget-confirm { display: none; }
+    #widget-confirm.show { display: flex; gap: 0.65rem; align-items: flex-start; }
+    .confirm-pct { font-size: 1.1rem; font-weight: 700; color: #4a5fc1; }
+    .confirm-note { font-size: 0.8rem; color: #4b5563; margin-top: 0.15rem; line-height: 1.4; }
+    .confirm-action { font-size: 0.77rem; font-weight: 500; color: #6b7280; margin-top: 0.2rem; }
+    #widget-close {
+      position: absolute; top: 0.75rem; right: 0.75rem;
+      background: none; border: none; cursor: pointer;
+      color: #9ca3af; font-size: 1rem; line-height: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── page content ─────────────────────────────────────────────────────── -->
+  <div class="page">
+    <h1>FrictionDetector SDK</h1>
+    <p>
+      A lightweight, privacy-first JavaScript SDK that detects friction signals
+      and emits structured events so you can prompt users at exactly the right moment.
+    </p>
+    <p>
+      Open the browser console to see raw events, or watch the panel bottom-right.
+      A feedback widget appears bottom-center when any trigger fires.
+    </p>
+
+    <span class="hint">
+      Try: idle for 8 s · move your mouse off the top · scroll down · do nothing on load
+    </span>
+
+    <!-- lots of scrollable content so scroll_stall can trigger -->
+    <div style="margin-top:3rem">
+      <p style="opacity:0.4">↓ Scroll down to arm the scroll_stall trigger (40% depth)</p>
+      <div style="height:60rem; background: linear-gradient(to bottom, #eef0fb, #f8f9fe); border-radius:16px; margin-top:1rem; display:flex; align-items:center; justify-content:center; color:#6b7280;">
+        Keep scrolling…
+      </div>
+    </div>
+  </div>
+
+  <!-- ── feedback widget ──────────────────────────────────────────────────── -->
+  <div id="friction-widget">
+    <button id="widget-close" aria-label="Dismiss">✕</button>
+
+    <!-- Phase 1: prompt + chips -->
+    <div id="widget-prompt-phase">
+      <div id="widget-prompt">💬 <span id="widget-question">Did something feel off?</span></div>
+      <div class="chips" id="widget-chips">
+        <!-- chips injected by JS -->
+      </div>
+      <div class="trust-line">🔒 No tracking · Anonymous · You control your data</div>
+    </div>
+
+    <!-- Phase 2: instant validation -->
+    <div id="widget-confirm">
+      <div>✅</div>
+      <div>
+        <div class="confirm-pct" id="confirm-pct"></div>
+        <div class="confirm-note" id="confirm-note"></div>
+        <div class="confirm-action" id="confirm-action"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── event log panel ──────────────────────────────────────────────────── -->
+  <div id="log-panel">
+    <div id="log-header">
+      FrictionDetector events <span id="log-count">0</span>
+    </div>
+    <div id="log-body">
+      <div class="log-entry meta">Waiting for triggers…</div>
+    </div>
+  </div>
+
+  <!-- ── SDK ──────────────────────────────────────────────────────────────── -->
+  <script src="./friction-detector.js"></script>
+
+  <!-- ── example usage ────────────────────────────────────────────────────── -->
+  <script>
+    // ── 1. Instantiate ────────────────────────────────────────────────────
+    var detector = new FrictionDetector();
+
+    // ── 2. Configure & start ──────────────────────────────────────────────
+    detector.init({
+      timeStallMs:        8000,   // override: 8 s idle → time_stall
+      scrollDepthPercent: 40,     // arm scroll_stall after 40% depth
+      scrollStallMs:      4000,   // 4 s of scroll-idle → scroll_stall
+      noActionMs:         8000,   // 8 s with zero interaction → no_action
+      // enabledTriggers: ['exit_intent', 'scroll_stall'],  // ← restrict triggers
+    });
+
+    // ── 3. Listen for ALL friction events ─────────────────────────────────
+    detector.on('friction_detected', function (event) {
+      console.log(
+        'I detected "' + event.trigger + '" trigger event for feedback gathering',
+        event
+      );
+      appendLog(event);
+      showWidget(event);
+    });
+
+    // ── 4. (Optional) per-trigger listeners ───────────────────────────────
+    detector.on('exit_intent', function (event) {
+      console.log('exit_intent fired — edge:', event.metadata.exit_edge);
+    });
+
+    // ── 5. (Optional) dynamic toggle ──────────────────────────────────────
+    // detector.disableTrigger('no_action');
+    // detector.enableTrigger('no_action');
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Widget logic (example response to friction events)
+    // ─────────────────────────────────────────────────────────────────────
+
+    var PROMPTS = {
+      exit_intent:  '✈️  Heading out? Did something feel off?',
+      time_stall:   '🤔 Feeling stuck? What got in the way?',
+      scroll_stall: '👀 Something catch your eye — or lose it?',
+      no_action:    '🗺️  Not sure where to start?',
+    };
+
+    var OPTIONS = {
+      exit_intent:  ['Too expensive', 'Not useful yet', 'Confusing', 'Just browsing'],
+      time_stall:   ['Lost my flow', 'Confusing UI', 'Not sure what to do', 'Thinking it over'],
+      scroll_stall: ['Too much info', 'Looking for something', 'Interesting but unclear', 'Just exploring'],
+      no_action:    ['Not sure where to start', 'Just exploring', 'Confusing', 'Too much to take in'],
+    };
+
+    var PROOF = {
+      'Too expensive':           { pct: '71%', note: '"Too expensive"', action: 'Pricing is on our roadmap.' },
+      'Not useful yet':          { pct: '58%', note: '"Not useful yet"', action: "We're making value clearer." },
+      'Confusing':               { pct: '74%', note: '"Confusing"', action: 'Simplicity is our next focus.' },
+      'Just browsing':           { pct: '62%', note: '"Just browsing"', action: 'Come back anytime — no pressure.' },
+      'Lost my flow':            { pct: '65%', note: '"Lost my flow"', action: "We're smoothing the experience." },
+      'Confusing UI':            { pct: '74%', note: '"Confusing UI"', action: 'Simplicity is our next focus.' },
+      'Not sure what to do':     { pct: '69%', note: '"Not sure what to do"', action: 'Clearer guidance is coming.' },
+      'Thinking it over':        { pct: '55%', note: '"Thinking it over"', action: "We'll be here when you're ready." },
+      'Too much info':           { pct: '67%', note: '"Too much info"', action: 'Better info density is coming.' },
+      'Looking for something':   { pct: '61%', note: '"Looking for something"', action: "We'd love to know — you just told us." },
+      'Interesting but unclear': { pct: '72%', note: '"Interesting but unclear"', action: 'Clearer explanations coming soon.' },
+      'Just exploring':          { pct: '59%', note: '"Just exploring"', action: 'Explore freely — no expectations.' },
+      'Not sure where to start': { pct: '77%', note: '"Not sure where to start"', action: 'Better onboarding is on the way.' },
+      'Too much to take in':     { pct: '64%', note: '"Too much to take in"', action: "We're simplifying the experience." },
+    };
+
+    var widget   = document.getElementById('friction-widget');
+    var promptPh = document.getElementById('widget-prompt-phase');
+    var confirmPh = document.getElementById('widget-confirm');
+    var questionEl = document.getElementById('widget-question');
+    var chipsEl    = document.getElementById('widget-chips');
+
+    function showWidget(event) {
+      // Reset to prompt phase
+      promptPh.style.display = '';
+      confirmPh.classList.remove('show');
+
+      questionEl.textContent = PROMPTS[event.trigger] || 'Did something feel off?';
+
+      // Build chips
+      chipsEl.innerHTML = '';
+      var opts = OPTIONS[event.trigger] || ['Confusing', 'Just exploring', 'Other'];
+      opts.forEach(function (label) {
+        var btn = document.createElement('button');
+        btn.className = 'chip';
+        btn.textContent = label;
+        btn.addEventListener('click', function () { submitFeedback(label); });
+        chipsEl.appendChild(btn);
+      });
+
+      widget.classList.add('show');
+    }
+
+    function submitFeedback(option) {
+      var p = PROOF[option] || { pct: '68%', note: '"' + option + '"', action: "We're listening and improving." };
+
+      // Swap to validation phase
+      promptPh.style.display = 'none';
+      document.getElementById('confirm-pct').textContent  = p.pct + ' of users agree';
+      document.getElementById('confirm-note').textContent  = p.note;
+      document.getElementById('confirm-action').textContent = p.action + ' Thanks for telling us 💙';
+      confirmPh.classList.add('show');
+
+      // Auto-dismiss after 4.5 s
+      setTimeout(dismissWidget, 4500);
+    }
+
+    function dismissWidget() {
+      widget.classList.remove('show');
+    }
+
+    document.getElementById('widget-close').addEventListener('click', dismissWidget);
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Log panel
+    // ─────────────────────────────────────────────────────────────────────
+
+    var logBody  = document.getElementById('log-body');
+    var logCount = document.getElementById('log-count');
+    var count = 0;
+
+    function appendLog(event) {
+      // Clear placeholder text
+      if (count === 0) logBody.innerHTML = '';
+      count++;
+      logCount.textContent = count;
+
+      var entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML =
+        '<span class="trigger-name ' + event.trigger + '">' + event.trigger + '</span>' +
+        '<div class="meta">scroll: ' + event.metadata.scroll_pct + '% · ' +
+        new Date(event.timestamp).toLocaleTimeString() + '</div>';
+
+      logBody.prepend(entry);
+    }
+  </script>
+
+</body>
+</html>

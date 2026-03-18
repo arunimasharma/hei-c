@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router';
 import { motion } from 'motion/react';
-import { Calendar, BarChart3, BookOpen, FlaskConical, Star } from 'lucide-react';
+import { BarChart3, BookOpen, FlaskConical, Star, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/common/Card';
-import Button from '../components/common/Button';
 import EmotionCard from '../components/emotions/EmotionCard';
 import { useApp } from '../context/AppContext';
 import { getEmotionIcon, getEmotionColor, getIntensityColor } from '../utils/emotionHelpers';
@@ -13,10 +13,12 @@ import { calculateStreak } from '../utils/dateHelpers';
 export default function InsightsPage() {
   const { state } = useApp();
   const [searchParams] = useSearchParams();
-  const [view, setView] = useState<'dashboard' | 'timeline' | 'reflections'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'reflections' | 'self-evals'>('dashboard');
 
   useEffect(() => {
-    if (searchParams.get('tab') === 'reflections') setView('reflections');
+    const tab = searchParams.get('tab');
+    if (tab === 'reflections') setView('reflections');
+    if (tab === 'self-evals')  setView('self-evals');
   }, [searchParams]);
   const { emotions, events } = state;
 
@@ -44,43 +46,25 @@ export default function InsightsPage() {
 
   return (
     <DashboardLayout>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        {/* Header with view toggle */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>
-              Your Insights
-            </h1>
-            <p style={{ color: '#6B7280', marginTop: '0.25rem', margin: 0 }}>
-              Understand your emotional patterns and growth
-            </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #4A5FC1 0%, #7C3AED 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <BarChart3 size={18} color="white" />
+            </div>
+            <h1 style={{ fontSize: '1.625rem', fontWeight: 700, color: '#1F2937', margin: 0, letterSpacing: '-0.02em' }}>Insights</h1>
           </div>
-
-          <div style={{ display: 'flex', gap: '0.5rem', backgroundColor: '#F3F4F6', padding: '0.5rem', borderRadius: '10px' }}>
-            <Button
-              size="sm"
-              variant={view === 'dashboard' ? 'primary' : 'ghost'}
-              onClick={() => setView('dashboard')}
-              style={{ cursor: 'pointer' }}
-            >
-              <BarChart3 size={16} /> Dashboard
-            </Button>
-            <Button
-              size="sm"
-              variant={view === 'timeline' ? 'primary' : 'ghost'}
-              onClick={() => setView('timeline')}
-              style={{ cursor: 'pointer' }}
-            >
-              <Calendar size={16} /> Timeline
-            </Button>
-            <Button
-              size="sm"
-              variant={view === 'reflections' ? 'primary' : 'ghost'}
-              onClick={() => setView('reflections')}
-              style={{ cursor: 'pointer' }}
-            >
-              <BookOpen size={16} /> Reflections
-            </Button>
+          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+            {([{ id: 'dashboard', label: 'Overview' }, { id: 'self-evals', label: 'Self Evals' }, { id: 'reflections', label: 'Reflections' }] as const).map(t => (
+              <button
+                key={t.id}
+                onClick={() => setView(t.id)}
+                style={{ padding: '0.5rem 0.875rem', borderRadius: '999px', border: 'none', backgroundColor: view === t.id ? '#4A5FC1' : 'transparent', color: view === t.id ? 'white' : '#6B7280', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' }}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -230,52 +214,102 @@ export default function InsightsPage() {
                 </div>
               </Card>
             )}
+
+
+            {/* Recent Check-ins */}
+            {recentEmotions.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Recent Check-ins</p>
+                {recentEmotions.map(entry => (
+                  <EmotionCard key={entry.id} entry={entry} />
+                ))}
+                {emotions.length > 5 && (
+                  <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0, textAlign: 'center' }}>
+                    {emotions.length - 5} more entries in your history
+                  </p>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
 
-        {/* Timeline View */}
-        {view === 'timeline' && (
+        {/* Self Evals View */}
+        {view === 'self-evals' && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
           >
-            {/* Timeline Header */}
-            <Card>
-              <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', marginBottom: '1rem', margin: 0 }}>
-                Your Emotional Journey
-              </h2>
-              <p style={{ color: '#6B7280', fontSize: '0.875rem', margin: 0 }}>
-                Track how your emotions have evolved over time
-              </p>
-            </Card>
-
-            {/* Emotions Timeline */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {recentEmotions.length > 0 ? (
-                recentEmotions.map((entry) => (
-                  <EmotionCard
-                    key={entry.id}
-                    entry={entry}
-                  />
-                ))
-              ) : (
-                <Card>
-                  <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-                    <p style={{ color: '#6B7280', margin: 0 }}>No emotions logged yet. Start by logging your first emotion!</p>
-                  </div>
-                </Card>
-              )}
+            {/* Summary stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
+              <Card>
+                <p style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 600, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Taste Exercises</p>
+                <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#7C3AED', margin: '0.5rem 0 0' }}>{(state.tasteExercises ?? []).length}</p>
+              </Card>
+              <Card>
+                <p style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 600, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Journal Entries</p>
+                <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#4A5FC1', margin: '0.5rem 0 0' }}>{state.reflections.filter(r => r.status === 'approved').length}</p>
+              </Card>
+              <Card>
+                <p style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 600, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Decisions</p>
+                <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#D97706', margin: '0.5rem 0 0' }}>{(state.decisions ?? []).length}</p>
+              </Card>
             </div>
 
-            {emotions.length > 5 && (
-              <Card>
-                <p style={{ color: '#6B7280', fontSize: '0.875rem', margin: 0 }}>
-                  Showing 5 most recent entries. {emotions.length - 5} more entries available.
-                </p>
-              </Card>
+            {/* CTA card — links to full TransparencyHub */}
+            <div style={{
+              padding: '1.5rem',
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, rgba(8,145,178,0.07) 0%, rgba(74,95,193,0.07) 100%)',
+              border: '1px solid rgba(8,145,178,0.18)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'linear-gradient(135deg, #0891B2 0%, #4A5FC1 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <ShieldCheck size={20} color="white" />
+                </div>
+                <div>
+                  <p style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>Full Self-Evaluation Dashboard</p>
+                  <p style={{ fontSize: '0.8rem', color: '#6B7280', margin: '0.125rem 0 0' }}>EQ trends, radar charts, batch milestones, anonymized export</p>
+                </div>
+              </div>
+              <Link
+                to="/transparency"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
+                  padding: '0.6rem 1.125rem', borderRadius: '999px',
+                  backgroundColor: '#0891B2', color: 'white',
+                  fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none',
+                  flexShrink: 0,
+                }}
+              >
+                Open <ArrowRight size={15} />
+              </Link>
+            </div>
+
+            {/* Recent taste exercises preview */}
+            {(state.tasteExercises ?? []).length > 0 && (
+              <div>
+                <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.75rem' }}>Recent Taste Exercises</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                  {(state.tasteExercises ?? []).slice(0, 3).map((te) => (
+                    <div key={te.id} style={{ padding: '0.875rem 1rem', borderRadius: '14px', backgroundColor: 'white', border: '1px solid rgba(124,58,237,0.12)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <FlaskConical size={16} color="white" />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{te.productName}</p>
+                        <p style={{ fontSize: '0.75rem', color: '#9CA3AF', margin: '0.125rem 0 0' }}>Score {te.score}/5 · {new Date(te.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                        <Star size={12} color="#7C3AED" fill="#7C3AED" />
+                        <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#7C3AED' }}>{te.score}/5</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </motion.div>
         )}

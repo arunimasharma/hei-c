@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import Header from './Header';
 import AiGateModal from '../common/AiGateModal';
 import { Link, useLocation } from 'react-router';
-import { Brain, FlaskConical, ShieldCheck } from 'lucide-react';
+import { Brain, FlaskConical, Zap } from 'lucide-react';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -13,14 +13,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   // Top-level tabs for bottom nav
   const bottomNav = [
-    { path: '/', pillar: 'coach', icon: Brain, label: 'Product Coach', activeColor: '#4A5FC1' },
+    { path: '/', pillar: 'coach', icon: Brain, label: 'Coach', activeColor: '#4A5FC1' },
     { path: '/product', pillar: 'product', icon: FlaskConical, label: 'Product Thinking', activeColor: '#7C3AED' },
-    { path: '/transparency', pillar: 'transparency', icon: ShieldCheck, label: 'Self Evals', activeColor: '#0891B2' },
+    { path: '/influence', pillar: 'influence', icon: Zap, label: 'Influence', activeColor: '#D97706' },
   ];
 
   const isTabActive = (pillar: string) => {
     if (pillar === 'product') return location.pathname === '/product';
-    if (pillar === 'transparency') return location.pathname === '/transparency';
+    if (pillar === 'influence') return location.pathname === '/influence' || (location.pathname === '/insights' && location.search.includes('tab=influence'));
     if (pillar === 'coach') return location.pathname === '/';
     return false;
   };

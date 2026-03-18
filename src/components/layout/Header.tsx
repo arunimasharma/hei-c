@@ -18,15 +18,15 @@ export default function Header() {
 
   // Top-level navigation tabs
   const pillarTabs = [
-    { path: '/', label: '🧠 Product Coach', pillar: 'coach', activeColor: '#4A5FC1', activeBg: 'rgba(74,95,193,0.08)' },
+    { path: '/', label: '🧠 Coach', pillar: 'coach', activeColor: '#4A5FC1', activeBg: 'rgba(74,95,193,0.08)' },
     { path: '/product', label: '🧪 Product Thinking', pillar: 'product', activeColor: '#7C3AED', activeBg: 'rgba(124,58,237,0.08)' },
-    { path: '/transparency', label: '🛡️ Self Evals', pillar: 'transparency', activeColor: '#0891B2', activeBg: 'rgba(8,145,178,0.08)' },
+    { path: '/influence', label: '⚡ Influence', pillar: 'influence', activeColor: '#D97706', activeBg: 'rgba(217,119,6,0.08)' },
   ];
 
   // A tab is "active" based on current pathname
   const isTabActive = (pillar: string) => {
-    if (pillar === 'transparency') return location.pathname === '/transparency';
     if (pillar === 'product') return location.pathname === '/product';
+    if (pillar === 'influence') return location.pathname === '/influence';
     if (pillar === 'coach') return location.pathname === '/';
     return false;
   };

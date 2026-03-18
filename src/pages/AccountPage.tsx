@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
-import { Edit2, Save, RotateCw, Bell, Moon, Trash2, LogIn, LogOut } from 'lucide-react';
+import { Edit2, Save, RotateCw, Bell, Moon, Trash2, LogIn, LogOut, User } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
@@ -17,7 +17,7 @@ export default function AccountPage() {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [showEmotionGame, setShowEmotionGame] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('settings');
+  const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const user = state.user;
@@ -78,44 +78,34 @@ export default function AccountPage() {
     <DashboardLayout>
       <div style={{ maxWidth: '700px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>
-              Account
-            </h1>
-            <p style={{ color: '#6B7280', marginTop: '0.25rem', margin: 0 }}>
-              Manage your profile & preferences
-            </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #4A5FC1 0%, #7C3AED 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <User size={18} color="white" />
+            </div>
+            <h1 style={{ fontSize: '1.625rem', fontWeight: 700, color: '#1F2937', margin: 0, letterSpacing: '-0.02em' }}>Account</h1>
           </div>
-
           {activeTab === 'profile' && !isEditing && (
-            <Button
-              variant="primary"
+            <button
               onClick={() => setIsEditing(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 0.875rem', borderRadius: '10px', border: '1.5px solid #4A5FC1', backgroundColor: 'transparent', color: '#4A5FC1', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
             >
-              <Edit2 size={16} /> Edit
-            </Button>
+              <Edit2 size={15} /> Edit Profile
+            </button>
           )}
         </div>
 
         {/* Tab Toggle */}
-        <div style={{ display: 'flex', gap: '0.5rem', backgroundColor: '#F3F4F6', padding: '0.5rem', borderRadius: '10px', width: 'fit-content' }}>
-          <Button
-            size="sm"
-            variant={activeTab === 'profile' ? 'primary' : 'ghost'}
-            onClick={() => setActiveTab('profile')}
-            style={{ cursor: 'pointer' }}
-          >
-            Profile
-          </Button>
-          <Button
-            size="sm"
-            variant={activeTab === 'settings' ? 'primary' : 'ghost'}
-            onClick={() => setActiveTab('settings')}
-            style={{ cursor: 'pointer' }}
-          >
-            Settings
-          </Button>
+        <div style={{ display: 'flex', gap: '0.25rem' }}>
+          {([{ id: 'profile', label: 'Profile' }, { id: 'settings', label: 'Settings' }] as const).map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              style={{ padding: '0.5rem 0.875rem', borderRadius: '999px', border: 'none', backgroundColor: activeTab === t.id ? '#4A5FC1' : 'transparent', color: activeTab === t.id ? 'white' : '#6B7280', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' }}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {/* Profile Content */}
