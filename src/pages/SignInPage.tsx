@@ -50,42 +50,46 @@ export default function SignInPage() {
 
     setLoading(true);
 
-    if (mode === 'signup') {
-      const authError = await signUp(email, password);
-      setLoading(false);
+    try {
+      if (mode === 'signup') {
+        const authError = await signUp(email, password);
+        if (authError) {
+          setError(authError.message);
+          return;
+        }
+        setSignupSuccess(true);
+        switchMode('signin');
+        return;
+      }
+
+      // Sign in flow
+      const authError = await signIn(email, password);
       if (authError) {
         setError(authError.message);
         return;
       }
-      setSignupSuccess(true);
-      switchMode('signin');
-      return;
-    }
 
-    // Sign in flow
-    const authError = await signIn(email, password);
-    if (authError) {
-      setError(authError.message);
-      setLoading(false);
-      return;
-    }
+      // Run one-time Dexie → Supabase migration.
+      try {
+        setMigrating(true);
+        const { supabase } = await import('../lib/supabaseClient');
+        const migrationTimeout = new Promise<void>(resolve => setTimeout(resolve, 5000));
+        const migrationRun = supabase?.auth.getUser().then(({ data }) => {
+          if (data.user) return migrateToSupabase(data.user.id, state);
+        }) ?? Promise.resolve();
+        await Promise.race([migrationRun, migrationTimeout]);
+      } catch {
+        // Migration failure is non-fatal — data will sync on next action.
+      } finally {
+        setMigrating(false);
+      }
 
-    // Run one-time Dexie → Supabase migration.
-    try {
-      setMigrating(true);
-      const { supabase } = await import('../lib/supabaseClient');
-      const migrationTimeout = new Promise<void>(resolve => setTimeout(resolve, 5000));
-      const migrationRun = supabase?.auth.getUser().then(({ data }) => {
-        if (data.user) return migrateToSupabase(data.user.id, state);
-      }) ?? Promise.resolve();
-      await Promise.race([migrationRun, migrationTimeout]);
+      navigate('/', { replace: true });
     } catch {
-      // Migration failure is non-fatal — data will sync on next action.
+      setError('Something went wrong. Please try again.');
     } finally {
-      setMigrating(false);
+      setLoading(false);
     }
-
-    navigate('/', { replace: true });
   };
 
   if (!authReady) return null;
