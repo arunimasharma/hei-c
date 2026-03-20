@@ -3,6 +3,7 @@ import { Menu, X, LogOut, Settings, BarChart3, TrendingUp, User } from 'lucide-r
 import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
+import FlowJourney from '../common/FlowJourney';
 
 export default function Header() {
   const { state, logout } = useApp();
@@ -16,21 +17,6 @@ export default function Header() {
     navigate('/onboarding');
   };
 
-  // Top-level navigation tabs
-  const pillarTabs = [
-    { path: '/', label: '🧠 Coach', pillar: 'coach', activeColor: '#4A5FC1', activeBg: 'rgba(74,95,193,0.08)' },
-    { path: '/product', label: '🧪 Product Thinking', pillar: 'product', activeColor: '#7C3AED', activeBg: 'rgba(124,58,237,0.08)' },
-    { path: '/influence', label: '⚡ Influence', pillar: 'influence', activeColor: '#D97706', activeBg: 'rgba(217,119,6,0.08)' },
-  ];
-
-  // A tab is "active" based on current pathname
-  const isTabActive = (pillar: string) => {
-    if (pillar === 'product') return location.pathname === '/product';
-    if (pillar === 'influence') return location.pathname === '/influence';
-    if (pillar === 'coach') return location.pathname === '/';
-    return false;
-  };
-
   return (
     <header style={{
       backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',
@@ -39,30 +25,16 @@ export default function Header() {
     }}>
       <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '0 1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px' }}>
+
+          {/* Logo */}
           <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', textDecoration: 'none', flexShrink: 0 }}>
             <img src="/logo.svg" alt="Hello-EQ" style={{ width: '36px', height: '36px' }} />
             <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#4A5FC1', letterSpacing: '-0.01em' }}>Hello-EQ</span>
           </Link>
 
-          {/* Desktop pillar tabs */}
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }} className="hidden md:flex">
-            {pillarTabs.map(tab => {
-              const active = isTabActive(tab.pillar);
-              return (
-                <Link
-                  key={tab.pillar}
-                  to={tab.path}
-                  style={{
-                    padding: '0.5rem 0.875rem', borderRadius: '10px', fontSize: '0.875rem',
-                    fontWeight: 500, transition: 'all 0.2s', textDecoration: 'none',
-                    backgroundColor: active ? tab.activeBg : 'transparent',
-                    color: active ? tab.activeColor : '#6B7280',
-                  }}
-                >
-                  {tab.label}
-                </Link>
-              );
-            })}
+          {/* Desktop — FlowJourney as primary nav */}
+          <nav className="hidden md:flex" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <FlowJourney variant="nav" />
             <a
               href="https://forms.gle/qZAfUaUeYH4FNJnQ9"
               target="_blank"
@@ -70,7 +42,7 @@ export default function Header() {
               style={{
                 padding: '0.5rem 0.875rem', borderRadius: '10px', fontSize: '0.875rem',
                 fontWeight: 600, transition: 'all 0.2s', textDecoration: 'none',
-                backgroundColor: '#4A5FC1', color: '#FFFFFF', marginLeft: '0.25rem',
+                backgroundColor: '#4A5FC1', color: '#FFFFFF', marginLeft: '0.5rem',
               }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#3A4FA1')}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#4A5FC1')}
@@ -79,7 +51,7 @@ export default function Header() {
             </a>
           </nav>
 
-          {/* Hamburger menu — contains Growth, Insights, Account + account actions */}
+          {/* Hamburger menu */}
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
@@ -103,81 +75,66 @@ export default function Header() {
               }}>
                 <div style={{ padding: '0.5rem' }}>
 
-                  {/* Mobile pillar links */}
+                  {/* Mobile: full journey nav */}
                   <div className="md:hidden">
                     <div style={{ padding: '0.5rem 0.875rem 0.25rem', fontSize: '0.6875rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Pillars
+                      Your Journey
                     </div>
-                    {pillarTabs.map(tab => (
+                    {[
+                      { path: '/',          label: '🧠 Coach',     active: location.pathname === '/' },
+                      { path: '/signals',   label: '📡 Signals',   active: location.pathname === '/signals' },
+                      { path: '/product',   label: '🧪 Product',   active: location.pathname === '/product' },
+                      { path: '/influence', label: '⚡ Influence',  active: location.pathname === '/influence' },
+                      { path: '/actions',   label: '💡 Actions',   active: location.pathname === '/actions' },
+                    ].map(item => (
                       <Link
-                        key={tab.pillar}
-                        to={tab.path}
+                        key={item.path}
+                        to={item.path}
                         onClick={() => setMenuOpen(false)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: '0.625rem',
                           padding: '0.625rem 0.875rem', borderRadius: '8px',
-                          fontSize: '0.875rem', fontWeight: 500, textDecoration: 'none',
-                          color: isTabActive(tab.pillar) ? tab.activeColor : '#374151',
-                          backgroundColor: isTabActive(tab.pillar) ? tab.activeBg : 'transparent',
+                          fontSize: '0.875rem', fontWeight: item.active ? 600 : 500,
+                          textDecoration: 'none',
+                          color: item.active ? '#1F2937' : '#374151',
+                          backgroundColor: item.active ? 'rgba(0,0,0,0.04)' : 'transparent',
                         }}
-                        onMouseEnter={(e) => { if (!isTabActive(tab.pillar)) e.currentTarget.style.backgroundColor = '#F9FAFB'; }}
-                        onMouseLeave={(e) => { if (!isTabActive(tab.pillar)) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                        onMouseEnter={(e) => { if (!item.active) e.currentTarget.style.backgroundColor = '#F9FAFB'; }}
+                        onMouseLeave={(e) => { if (!item.active) e.currentTarget.style.backgroundColor = 'transparent'; }}
                       >
-                        {tab.label}
+                        {item.label}
                       </Link>
                     ))}
                     <div style={{ height: '1px', backgroundColor: '#F3F4F6', margin: '0.375rem 0' }} />
                   </div>
 
-                  {/* Growth & Insights */}
+                  {/* More section */}
                   <div style={{ padding: '0.25rem 0.875rem 0.25rem', fontSize: '0.6875rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     More
                   </div>
-                  <Link
-                    to="/growth"
-                    onClick={() => setMenuOpen(false)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '0.625rem',
-                      padding: '0.625rem 0.875rem', borderRadius: '8px',
-                      fontSize: '0.875rem', fontWeight: 500, textDecoration: 'none',
-                      color: location.pathname === '/growth' ? '#4A5FC1' : '#374151',
-                      backgroundColor: location.pathname === '/growth' ? 'rgba(74,95,193,0.08)' : 'transparent',
-                    }}
-                    onMouseEnter={(e) => { if (location.pathname !== '/growth') e.currentTarget.style.backgroundColor = '#F9FAFB'; }}
-                    onMouseLeave={(e) => { if (location.pathname !== '/growth') e.currentTarget.style.backgroundColor = 'transparent'; }}
-                  >
-                    <TrendingUp size={15} color="#6B7280" /> Growth
-                  </Link>
-                  <Link
-                    to="/insights"
-                    onClick={() => setMenuOpen(false)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '0.625rem',
-                      padding: '0.625rem 0.875rem', borderRadius: '8px',
-                      fontSize: '0.875rem', fontWeight: 500, textDecoration: 'none',
-                      color: location.pathname === '/insights' ? '#4A5FC1' : '#374151',
-                      backgroundColor: location.pathname === '/insights' ? 'rgba(74,95,193,0.08)' : 'transparent',
-                    }}
-                    onMouseEnter={(e) => { if (location.pathname !== '/insights') e.currentTarget.style.backgroundColor = '#F9FAFB'; }}
-                    onMouseLeave={(e) => { if (location.pathname !== '/insights') e.currentTarget.style.backgroundColor = 'transparent'; }}
-                  >
-                    <BarChart3 size={15} color="#6B7280" /> Insights
-                  </Link>
-                  <Link
-                    to="/account"
-                    onClick={() => setMenuOpen(false)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '0.625rem',
-                      padding: '0.625rem 0.875rem', borderRadius: '8px',
-                      fontSize: '0.875rem', fontWeight: 500, textDecoration: 'none',
-                      color: location.pathname === '/account' ? '#4A5FC1' : '#374151',
-                      backgroundColor: location.pathname === '/account' ? 'rgba(74,95,193,0.08)' : 'transparent',
-                    }}
-                    onMouseEnter={(e) => { if (location.pathname !== '/account') e.currentTarget.style.backgroundColor = '#F9FAFB'; }}
-                    onMouseLeave={(e) => { if (location.pathname !== '/account') e.currentTarget.style.backgroundColor = 'transparent'; }}
-                  >
-                    <User size={15} color="#6B7280" /> Account
-                  </Link>
+                  {[
+                    { path: '/growth',   label: 'Growth',   icon: <TrendingUp size={15} color="#6B7280" /> },
+                    { path: '/insights', label: 'Insights', icon: <BarChart3 size={15} color="#6B7280" /> },
+                    { path: '/account',  label: 'Account',  icon: <User size={15} color="#6B7280" /> },
+                  ].map(item => (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setMenuOpen(false)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '0.625rem',
+                        padding: '0.625rem 0.875rem', borderRadius: '8px',
+                        fontSize: '0.875rem', fontWeight: 500, textDecoration: 'none',
+                        color: location.pathname === item.path ? '#4A5FC1' : '#374151',
+                        backgroundColor: location.pathname === item.path ? 'rgba(74,95,193,0.08)' : 'transparent',
+                      }}
+                      onMouseEnter={(e) => { if (location.pathname !== item.path) e.currentTarget.style.backgroundColor = '#F9FAFB'; }}
+                      onMouseLeave={(e) => { if (location.pathname !== item.path) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    >
+                      {item.icon} {item.label}
+                    </Link>
+                  ))}
+
                   {/* Account actions */}
                   {state.user && (
                     <>

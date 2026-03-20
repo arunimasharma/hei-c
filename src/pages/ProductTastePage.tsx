@@ -3,11 +3,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   FlaskConical, Sparkles, Send, Star, CheckCircle2,
   ArrowRight, Target, TrendingUp, BarChart3, Brain,
-  Users, Globe, RefreshCw, ChevronLeft, Check, Mic2,
+  Users, Globe, RefreshCw, ChevronLeft, Check, Mic2, Zap,
 } from 'lucide-react';
 import Header from '../components/layout/Header';
+import InfoTooltip from '../components/common/InfoTooltip';
 import { useApp } from '../context/AppContext';
 import PmInterviewExercise from '../components/product/PmInterviewExercise';
+import FrictionCaseExercise from '../components/product/FrictionCaseExercise';
 import { callEvaluateTaste, EvaluatorNotConfiguredError } from '../services/productTasteEvaluatorApi';
 import { callClaudeMessages, parseActionResponse } from '../services/claudeApi';
 import {
@@ -19,7 +21,7 @@ import {
 } from '../services/tasteExercisePromptBuilder';
 import type { TasteExercise, TasteExerciseAnswer, TasteEvaluatorResult } from '../types';
 
-type PageView = 'landing' | 'exercise' | 'interview';
+type PageView = 'landing' | 'exercise' | 'interview' | 'friction';
 type ExercisePhase = 'naming' | 'questioning' | 'analyzing' | 'done';
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
@@ -463,6 +465,22 @@ export default function ProductTastePage() {
             </div>
           )}
 
+          {/* Step 2 bridge — nudge toward Friction Cases after taste analysis */}
+          {phase === 'done' && (evalResult || legacyResult) && (
+            <div style={{ padding: '0.875rem 1rem', borderRadius: '14px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: '0 0 0.125rem', fontSize: '0.8125rem', fontWeight: 700, color: '#92400E' }}>Step 2: Test your instincts</p>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: '#B45309', lineHeight: 1.4 }}>Diagnose real friction signals scored against actual user data.</p>
+              </div>
+              <button
+                onClick={() => setView('friction')}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.5rem 0.875rem', borderRadius: '10px', border: 'none', backgroundColor: '#D97706', color: 'white', fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+              >
+                <Zap size={14} /> Friction Cases
+              </button>
+            </div>
+          )}
+
           <div ref={chatEndRef} />
         </div>
 
@@ -500,6 +518,11 @@ export default function ProductTastePage() {
     return <PmInterviewExercise onBack={() => setView('landing')} />;
   }
 
+  // ─── FRICTION CASE VIEW ───────────────────────────────────────────────────────
+  if (view === 'friction') {
+    return <FrictionCaseExercise onBack={() => setView('landing')} onStartTaste={startExercise} />;
+  }
+
   // ─── LANDING VIEW ────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', backgroundColor: BG, fontFamily: 'inherit' }}>
@@ -512,70 +535,112 @@ export default function ProductTastePage() {
           {/* Badge */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', padding: '0.375rem 0.875rem', borderRadius: '999px', border: '1px solid rgba(124,58,237,0.2)', backgroundColor: 'rgba(124,58,237,0.05)', marginBottom: '1.5rem' }}>
             <Sparkles size={13} color={PRIMARY} />
-            <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: PRIMARY }}>Your AI Product Thinking Companion</span>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: PRIMARY }}>Product Intelligence Studio</span>
           </motion.div>
 
           {/* Headline */}
           <motion.h1 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} style={{ fontSize: 'clamp(2rem, 5vw, 3.25rem)', fontWeight: 900, lineHeight: 1.15, margin: '0 0 1.25rem', color: '#111827' }}>
-            Sharpen Your{' '}
+            Develop Your{' '}
             <span style={{ backgroundImage: GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-              Product Thinking
+              Product Intelligence
             </span>
-            <br />with Your AI Companion
+            <br />One Product at a Time
           </motion.h1>
 
           <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} style={{ fontSize: '1.0625rem', color: '#6B7280', lineHeight: 1.7, margin: '0 auto 2rem', maxWidth: '520px' }}>
-            Have a thoughtful conversation about any product you love, use, or want to understand better. Your AI companion helps you discover and articulate your product instincts — at your own pace, with no wrong answers.
+            Two exercises that work together: explore how you see products through an AI conversation, then test your analytical accuracy on real friction cases scored against actual user data.
           </motion.p>
 
-          {/* Exercise type picker */}
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', maxWidth: '560px', margin: '0 auto 1.25rem' }}>
-            {/* Card 1 — Product Taste Analysis */}
-            <button
-              onClick={startExercise}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.625rem', padding: '1.25rem', borderRadius: '16px', border: 'none', background: GRAD, color: 'white', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 20px rgba(124,58,237,0.3)', textAlign: 'left', transition: 'transform 0.15s, box-shadow 0.15s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 28px rgba(124,58,237,0.38)'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'none'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(124,58,237,0.3)'; }}
-            >
-              <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FlaskConical size={20} color="white" />
-              </div>
-              <div>
-                <p style={{ margin: '0 0 0.25rem', fontWeight: 700, fontSize: '1rem', color: 'white' }}>Product Taste Analysis</p>
-                <p style={{ margin: 0, fontSize: '0.8125rem', color: 'rgba(255,255,255,0.8)', lineHeight: 1.5 }}>Have a 6-question conversation about any product and get AI feedback on your thinking.</p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginTop: '0.25rem' }}>
-                Start Exercise <ArrowRight size={14} />
-              </div>
-            </button>
+          {/* ── Exercise picker — unified two-step layout ── */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '740px', margin: '0 auto 1.25rem' }}>
 
-            {/* Card 2 — PM Interview Practice */}
+            {/* Step 1 + Step 2 as a connected pair */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.875rem' }}>
+
+              {/* Step 1 — Product Taste Analysis */}
+              <button
+                onClick={startExercise}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.75rem', padding: '1.375rem', borderRadius: '20px', border: 'none', background: GRAD, color: 'white', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 20px rgba(124,58,237,0.3)', textAlign: 'left', transition: 'transform 0.15s, box-shadow 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 28px rgba(124,58,237,0.38)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'none'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(124,58,237,0.3)'; }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <FlaskConical size={20} color="white" />
+                  </div>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'rgba(255,255,255,0.9)', backgroundColor: 'rgba(255,255,255,0.2)', padding: '0.2rem 0.625rem', borderRadius: '999px', letterSpacing: '0.04em' }}>STEP 1 · ARTICULATE</span>
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 0.25rem', fontWeight: 700, fontSize: '1rem', color: 'white' }}>Product Taste Analysis</p>
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: 'rgba(255,255,255,0.8)', lineHeight: 1.55 }}>Pick any product. Answer 6 questions with an AI companion. Discover and articulate your real product instincts.</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginTop: '0.125rem' }}>
+                  Start Exploring <ArrowRight size={14} />
+                </div>
+              </button>
+
+              {/* Step 2 — Real Friction Cases */}
+              <button
+                onClick={() => setView('friction')}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.75rem', padding: '1.375rem', borderRadius: '20px', border: '2px solid #FDE68A', backgroundColor: 'white', color: '#1F2937', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 12px rgba(217,119,6,0.1)', textAlign: 'left', transition: 'transform 0.15s, box-shadow 0.15s, border-color 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 24px rgba(217,119,6,0.18)'; (e.currentTarget as HTMLElement).style.borderColor = '#D97706'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'none'; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px rgba(217,119,6,0.1)'; (e.currentTarget as HTMLElement).style.borderColor = '#FDE68A'; }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg, #D97706, #F59E0B)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Zap size={20} color="white" />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#D97706', backgroundColor: '#FFFBEB', padding: '0.2rem 0.625rem', borderRadius: '999px', letterSpacing: '0.04em', border: '1px solid #FDE68A' }}>STEP 2 · DIAGNOSE</span>
+                    <span style={{ padding: '0.2rem 0.45rem', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 700, backgroundColor: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                      ⚡ feeds Influence
+                      <InfoTooltip
+                        side="top"
+                        width={230}
+                        text="Your score on each case is recorded and builds your Insight Credibility score on the Influence page. Expert tags unlock when you get ≥60% accuracy in a theme."
+                        iconSize={11}
+                        iconColor="#D97706"
+                      />
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 0.25rem', fontWeight: 700, fontSize: '1rem', color: '#111827' }}>Real Friction Cases</p>
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: '#6B7280', lineHeight: 1.55 }}>Analyse anonymised friction signals from real products. Diagnose the root issue and recommend the fix — scored against actual outcomes.</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: 600, color: '#D97706', marginTop: '0.125rem' }}>
+                  Diagnose Cases <ArrowRight size={14} />
+                </div>
+              </button>
+            </div>
+
+            {/* Connection label */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', justifyContent: 'center' }}>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#E5E7EB', maxWidth: '100px' }} />
+              <span style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 500, padding: '0.2rem 0.75rem', borderRadius: '999px', backgroundColor: '#F9FAFB', border: '1px solid #F3F4F6' }}>
+                Articulate your perspective → then validate it with real data
+              </span>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#E5E7EB', maxWidth: '100px' }} />
+            </div>
+
+            {/* PM Interview — secondary card */}
             <button
               onClick={() => setView('interview')}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.625rem', padding: '1.25rem', borderRadius: '16px', border: '2px solid #EDE9FE', backgroundColor: 'white', color: '#1F2937', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 12px rgba(124,58,237,0.08)', textAlign: 'left', transition: 'transform 0.15s, box-shadow 0.15s, border-color 0.15s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 24px rgba(124,58,237,0.15)'; (e.currentTarget as HTMLElement).style.borderColor = PRIMARY; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'none'; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px rgba(124,58,237,0.08)'; (e.currentTarget as HTMLElement).style.borderColor = '#EDE9FE'; }}
+              style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', borderRadius: '16px', border: '1.5px solid #EDE9FE', backgroundColor: 'white', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'border-color 0.15s, box-shadow 0.15s', boxShadow: '0 1px 4px rgba(124,58,237,0.06)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = PRIMARY; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 16px rgba(124,58,237,0.12)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#EDE9FE'; (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 4px rgba(124,58,237,0.06)'; }}
             >
-              <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Mic2 size={20} color="white" />
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Mic2 size={18} color="white" />
               </div>
-              <div>
-                <p style={{ margin: '0 0 0.25rem', fontWeight: 700, fontSize: '1rem', color: '#111827' }}>PM Interview Practice</p>
-                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#6B7280', lineHeight: 1.5 }}>150 real PM interview questions across Product Sense, Analytical Thinking & Behavioral.</p>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: '0 0 0.125rem', fontWeight: 700, fontSize: '0.9375rem', color: '#111827' }}>PM Interview Practice</p>
+                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#6B7280' }}>150 real PM questions across Product Sense, Analytical Thinking & Behavioral.</p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: 600, color: PRIMARY, marginTop: '0.25rem' }}>
-                Start Practice <ArrowRight size={14} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8125rem', fontWeight: 600, color: PRIMARY, flexShrink: 0 }}>
+                Practice <ArrowRight size={13} />
               </div>
             </button>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
-            <a
-              href="#how"
-              style={{ display: 'inline-flex', alignItems: 'center', padding: '0.625rem 1.25rem', borderRadius: '10px', border: '1.5px solid #E5E7EB', color: '#6B7280', fontSize: '0.875rem', fontWeight: 500, textDecoration: 'none', backgroundColor: 'transparent' }}
-            >
-              Learn How Product Taste Works
-            </a>
           </motion.div>
         </div>
 
@@ -621,7 +686,7 @@ export default function ProductTastePage() {
       <section id="how" style={{ padding: '5rem 1.5rem', backgroundColor: '#1F2937' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.5rem)', fontWeight: 800, color: 'white', margin: '0 0 0.75rem' }}>How It Works</h2>
-          <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.6)', margin: '0 0 3rem' }}>A friendly conversation that helps you think out loud about products you care about</p>
+          <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.6)', margin: '0 0 3rem' }}>Two exercises that build on each other — articulate your perspective, then test your analytical accuracy</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
             {[
               { num: 1, icon: FlaskConical, title: 'Pick a Product', desc: 'Choose any product you\'ve used and want to think through — Notion, Figma, Spotify, or anything you\'re curious about.' },
@@ -764,20 +829,17 @@ export default function ProductTastePage() {
               Ready to sharpen your product skills?
             </h2>
             <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.8)', margin: '0 auto 2rem', maxWidth: '440px', lineHeight: 1.65 }}>
-              Analyse a product you love, or drill real PM interview questions. Both exercises build the instincts that matter.
+              Articulate your product perspective, diagnose real friction, and practise PM interviews — each builds your product intelligence.
             </p>
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button
-                onClick={startExercise}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.875rem 1.75rem', borderRadius: '14px', border: 'none', backgroundColor: 'white', color: PRIMARY, fontSize: '1rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}
-              >
-                <FlaskConical size={17} /> Product Taste
+              <button onClick={startExercise} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.375rem', borderRadius: '12px', border: 'none', backgroundColor: 'white', color: PRIMARY, fontSize: '0.9375rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}>
+                <FlaskConical size={16} /> Product Taste
               </button>
-              <button
-                onClick={() => setView('interview')}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.875rem 1.75rem', borderRadius: '14px', border: '2px solid rgba(255,255,255,0.4)', backgroundColor: 'transparent', color: 'white', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-              >
-                <Mic2 size={17} /> Interview Prep
+              <button onClick={() => setView('interview')} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.375rem', borderRadius: '12px', border: '2px solid rgba(255,255,255,0.4)', backgroundColor: 'transparent', color: 'white', fontSize: '0.9375rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Mic2 size={16} /> Interview Prep
+              </button>
+              <button onClick={() => setView('friction')} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.375rem', borderRadius: '12px', border: '2px solid rgba(255,255,255,0.4)', backgroundColor: 'transparent', color: 'white', fontSize: '0.9375rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Zap size={16} /> Friction Cases
               </button>
             </div>
           </motion.div>

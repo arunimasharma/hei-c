@@ -9,6 +9,12 @@ const STORE_KEY = 'heq_friction_feedback';
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
+export interface ProductContext {
+  url?: string;
+  product_name?: string;
+  page_type?: 'pricing' | 'onboarding' | 'checkout' | 'unknown';
+}
+
 export interface FeedbackEntry {
   id: string;
   trigger: string;
@@ -18,6 +24,7 @@ export interface FeedbackEntry {
   sessionId: string;
   socialProofPct: number;
   pointsEarned: number;
+  product_context?: ProductContext;
 }
 
 export interface ReputationSummary {

@@ -13,6 +13,8 @@ import AccountPage from './pages/AccountPage';
 import ProductTastePage from './pages/ProductTastePage';
 import TransparencyHubPage from './pages/TransparencyHubPage';
 import InfluencePage from './pages/InfluencePage';
+import SignalsPage from './pages/SignalsPage';
+import ActionsPage from './pages/ActionsPage';
 import { Analytics } from '@vercel/analytics/react';
 
 // Lazy-load admin pages so next-auth/react is code-split into a separate chunk
@@ -55,10 +57,11 @@ export default function App() {
           <Route path="/dashboard" element={<Suspense fallback={null}><UsageDashboardPage /></Suspense>} />
 
           <Route path="/influence" element={<ProtectedRoute><InfluencePage /></ProtectedRoute>} />
+          <Route path="/signals" element={<ProtectedRoute><SignalsPage /></ProtectedRoute>} />
+          <Route path="/actions" element={<ProtectedRoute><ActionsPage /></ProtectedRoute>} />
 
           {/* Legacy redirects */}
           <Route path="/timeline" element={<Navigate to="/insights" replace />} />
-          <Route path="/actions" element={<Navigate to="/growth" replace />} />
           <Route path="/goals" element={<Navigate to="/growth" replace />} />
           <Route path="/profile" element={<Navigate to="/account" replace />} />
           <Route path="/settings" element={<Navigate to="/account" replace />} />

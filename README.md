@@ -1,151 +1,166 @@
-Hello-EQ 🧠💙
+# Hello-EQ
 
-An Emotional Intelligence & Product Taste gym for your career.
+**Turn real-world product experiences into structured insights that sharpen product thinking.**
 
-Live app → hello-eq.club
+Hello-EQ is a product thinking coach for PMs and aspiring product managers. It guides you through a deliberate practice loop: reflect on products you use, diagnose friction cases, build a credibility signal, and get targeted recommendations for where to go deeper.
 
-What is Hello-EQ?
-Hello-EQ is a private AI-powered journaling companion designed for your work life — built specifically for the emotional realities of careers in the AI era.
-Most career tools track what you do. Hello-EQ helps you understand how you feel — and what to do about it.
-Write about a difficult meeting, a rejection you're still carrying, feedback that landed hard, or a win you haven't fully processed. Hello-EQ unpacks the emotional layer behind the experience, surfaces patterns, and helps you build real self-awareness over time.
-It also includes Product Taste Exercises — a shareable feature designed to help Product Managers actively hone and demonstrate their product intuition.
+Live app → [hello-eq.club](https://hello-eq.club)
 
-Why it exists
-During a period of active job searching, the gap became obvious: interviewers aren't just evaluating your skills — they're evaluating your emotional intelligence. How you handle uncertainty, process feedback, and show up under pressure.
-Yet most of us navigate those moments alone, without a space to reflect or grow.
-Hello-EQ was built to fill that gap.
+---
 
-Features
-🪞 AI Journal
+## The 5-Step Journey
 
-- Write freely about your work experiences
-- AI detects your dominant emotion and career context (feedback, conflict, achievement, job search, deadlines)
-- Surfaces the triggers behind your reaction
-- Reflects back an empathetic summary of your entry
-- Tracks patterns over time and generates action recommendations to improve your EQ
+```
+🧠 Coach  →  📡 Signals  →  🧪 Product  →  ⚡ Influence  →  💡 Actions
+```
 
-🎯 Product Taste Exercises
+| Step | What happens |
+|------|-------------|
+| **Coach** | Reflect on product experiences and start exercises |
+| **Signals** | See friction patterns you've identified through exercises |
+| **Product** | Diagnose real-world friction cases to build analytical credibility |
+| **Influence** | Track your Insight Credibility Score and reputation |
+| **Actions** | Get rule-based next steps based on your exercise signals |
 
-- Structured exercises to actively build your product intuition
-- Shareable results directly to LinkedIn — make your taste visible to the people hiring and building with you
+---
 
-🔒 Privacy First
+## Features
 
-- Private by design — no performance reviews, no leaderboards, no sharing unless you choose it
-- Your journal is yours
+### 🧪 Friction Case Exercises
+Multiple-choice diagnostic exercises built around real product scenarios (e.g. Spotify's free tier friction, Notion's onboarding drop-off). You identify the root issue and recommend a fix. Each submission is scored 0 / 0.5 / 1 based on accuracy. Results accumulate into your **Insight Credibility Score** and theme-level accuracy profile.
 
+### 🎯 Product Taste Exercises
+Free-text exercises where you evaluate a real product you use. Describe friction you've noticed — onboarding, pricing, trust, UX — and your responses are evaluated by AI for depth and specificity. Results feed into your friction signal profile.
 
-Built with
+### 📡 Friction Signals
+Signals come from what you write and analyze — not behavioral tracking. View your signals by theme (Pricing, UX, Onboarding, Value Prop, Trust) with accuracy progress bars and a timestamped feed of your exercise submissions.
 
-Claude Code — AI-assisted development
-Anthropic Claude API — powering the emotional intelligence layer under the hood
+### ⚡ Influence & Credibility Score
+Your Insight Credibility Score (0–100) is computed from exercise count, average accuracy, theme coverage, and recency. Expert tags unlock when you reach high accuracy in a specific domain. The Influence page displays your reputation and score trajectory.
 
+### 💡 Recommended Actions
+Fully rule-based recommendations derived from your InsightProfile. Rules fire on: no exercises yet, low case count, low accuracy, narrow theme coverage, single-theme over-indexing, expert tag unlocked, or high volume depth. Deterministic and explainable.
 
-Who it's for
+### 📊 Product Insights
+A personal dashboard with three tabs:
+- **Overview** — Exercises done, avg accuracy, themes explored, credibility score, latest exercise card, theme performance bars
+- **Exercise Log** — Friction case history with scores, Product Taste exercise list
+- **Reflections** — Product journal entries and key decisions log
 
-- Product Managers sharpening their craft and EQ
-- Job seekers navigating the emotional rollercoaster of interviews and rejection
-- Anyone in tech who wants to build self-awareness as a career skill
+### 📈 Development
+A control plane for steering your practice:
+- **Product Direction** — What product areas you're focused on
+- **Thinking Context** — Engineering constraints or collaboration context to shape prompts
+- **Career Focus** — Where you're headed professionally
 
+The AI (Claude API) synthesizes your reflections and exercises to generate a **Work Profile** — including a product profile, coworker compatibility profile, and suggested automation projects. Includes structured goals and actions tracking.
 
-Potential Improvements Roadmap
+---
 
- > Community growth features with APM Club;
+## Tech Stack
 
- > EQ pattern dashboard and longitudinal insights;
+| Layer | Technology |
+|-------|-----------|
+| Framework | React 19 + TypeScript |
+| Build | Vite 7 |
+| Routing | React Router 7 |
+| Animation | Motion (Framer Motion) |
+| Charts | Recharts |
+| Icons | Lucide React |
+| Styling | Tailwind CSS 4 |
+| Auth | Supabase |
+| Persistence | localStorage (exercises, signals, profile) |
+| AI | Anthropic Claude API |
+| Analytics | Vercel Analytics |
+| Deploy | Vercel |
 
- > More Product Taste exercise formats;
+---
 
- > Mobile experience improvements
+## Local Development
 
+```bash
+npm install
+npm run dev
+```
 
-Status
-<> This is a v0 hobby project built with genuine belief that emotional intelligence is the defining career skill of the AI era. It is actively maintained and improved based on community feedback.
-<> Feedback, ideas, and constructive criticism are very welcome — open an issue or reach out directly.
+Create a `.env` file with:
+```
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+VITE_ANTHROPIC_API_KEY=...
+```
 
-Author
-Arunima Sharma
+```bash
+npm run build       # production build
+npm run typecheck   # TypeScript check without emit
+npm run lint        # ESLint
+```
+
+---
+
+## Data Architecture
+
+All user exercise data is stored in **localStorage** — no server-side user data. Supabase handles authentication only.
+
+| Store | Contents |
+|-------|----------|
+| `InsightStore` | Friction Case submissions — theme, score, root/fix correctness |
+| `AppContext` | Product Taste exercises, reflections, user profile |
+| `FeedbackStore` | Influence/reputation events from the feedback system |
+
+`InsightStore.getProfile()` returns your `InsightProfile` — the single source of truth for Signals, Actions, and Insights pages.
+
+---
+
+## Project Structure
+
+```
+src/
+├── pages/
+│   ├── HomePage.tsx           # Coach — reflections + exercise entry
+│   ├── SignalsPage.tsx         # Friction signals from exercises
+│   ├── ProductTastePage.tsx    # Friction Case + Product Taste exercises
+│   ├── InfluencePage.tsx       # Credibility score + reputation
+│   ├── ActionsPage.tsx         # Rule-based recommendations
+│   ├── InsightsPage.tsx        # Exercise log + theme performance
+│   └── GrowthPage.tsx          # Development control plane + goals
+├── components/
+│   ├── common/FlowJourney.tsx  # 5-step nav component
+│   ├── feedback/               # Influence panel
+│   ├── layout/                 # Header, DashboardLayout
+│   └── product/                # FrictionCaseExercise
+├── lib/
+│   ├── InsightStore.ts         # Friction Case submissions + profile
+│   └── FeedbackStore.ts        # Influence/reputation events
+├── data/
+│   └── frictionCases.ts        # Case bank + theme metadata
+└── context/
+    ├── AppContext.tsx
+    └── AuthContext.tsx
+```
+
+---
+
+## Philosophy
+
+Product intuition is a **trainable skill**, not a personality trait. Hello-EQ creates a deliberate practice loop:
+
+1. **Engage** with real products critically
+2. **Diagnose** what's broken and why — not just "this feels off"
+3. **Score** your diagnosis against expert analysis
+4. **Track** where your thinking is sharp and where it has gaps
+5. **Act** on specific, prioritized exercises to close those gaps
+
+Signals in Hello-EQ come from **what you write and analyze** — not from passive behavioral tracking.
+
+---
+
+## Author
+
+**Arunima Sharma**
 PM at Protegrity · Founder of Hello-EQ
-LinkedIn https://www.linkedin.com/in/arunimasharma/ · hello-eq.club
+[LinkedIn](https://www.linkedin.com/in/arunimasharma/) · [hello-eq.club](https://hello-eq.club)
 
-Careers are not just built with skills. They're shaped by how well we understand ourselves along the way.
+---
 
-...Exit Product-focused Readme/...
-
-
---------------- OLDER README WITH LOCAL TECH SETUP EXPLANATIONS ------------------
-
-# HELLO-EQ (previously, hei-c) is your Emotionally Intelligent Career Operating System aka an emotional intelligence & product taste gym for your career
-... with private AI journaling and shareable insights built for the AI era of work.
-
-
-Here's some help with the minimal setup to get React working in Vite with HMR and some ESLint rules.
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Built with [Claude Code](https://claude.ai/claude-code).

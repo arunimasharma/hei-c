@@ -280,10 +280,10 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>
-              Your Growth
+              Your Development
             </h1>
             <p style={{ color: '#6B7280', marginTop: '0.25rem', margin: 0 }}>
-              Track actions and set goals for your development
+              Build product thinking depth through structured goals and practice
             </p>
           </div>
 
@@ -372,10 +372,10 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
                   </span>
                 </div>
                 <p style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'white', margin: 0 }}>
-                  Steer your AI — set your direction, shape every recommendation
+                  Steer your development — set your direction, shape every recommendation
                 </p>
                 <p style={{ fontSize: '0.75rem', color: '#A5B4FC', margin: '0.25rem 0 0' }}>
-                  Your targets here flow into Actions, Work Profile analysis, and journal prompts
+                  Your targets here flow into Actions, Work Profile analysis, and product exercise prompts
                 </p>
               </div>
               <button
@@ -464,7 +464,7 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
                     <div style={{ padding: '0.75rem 1rem', background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <span style={{ fontSize: '0.875rem' }}>🤝</span>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065F46', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Emotional Bandwidth</span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065F46', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Thinking Context</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         {eqGoalsCount > 0 && <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#059669' }}>{eqGoalsCount} goal{eqGoalsCount !== 1 ? 's' : ''}</span>}
@@ -489,7 +489,7 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
                       <textarea
                         value={focusDraft.coworker}
                         onChange={e => setFocusDraft(p => ({ ...p, coworker: e.target.value }))}
-                        placeholder="e.g. Grow capacity to work with high-demand, fast-moving engineering leads"
+                        placeholder="e.g. Improve how I work with fast-moving engineering teams and technical constraints"
                         rows={2}
                         style={{
                           width: '100%', padding: '0.625rem 0.75rem', borderRadius: '8px',
@@ -503,8 +503,8 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
 
                     <div style={{ padding: '0.625rem 1rem', borderTop: '1px solid #ECFDF5', backgroundColor: '#F9FAFB', display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
                       <span style={{ fontSize: '0.6875rem', color: '#9CA3AF', alignSelf: 'center' }}>steers →</span>
-                      <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1875rem 0.5rem', borderRadius: '6px', backgroundColor: '#F0FDF4', color: '#059669' }}>📓 Journal Prompts</span>
-                      <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1875rem 0.5rem', borderRadius: '6px', backgroundColor: '#ECFDF5', color: '#065F46' }}>🤝 Coworker Profile</span>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1875rem 0.5rem', borderRadius: '6px', backgroundColor: '#F0FDF4', color: '#059669' }}>📓 Reflection Prompts</span>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1875rem 0.5rem', borderRadius: '6px', backgroundColor: '#ECFDF5', color: '#065F46' }}>🤝 Work Context Profile</span>
                     </div>
                   </div>
                 );
@@ -580,7 +580,7 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Info size={15} style={{ color: '#3B82F6', flexShrink: 0 }} />
                     <p style={{ fontSize: '0.8125rem', color: '#1D4ED8', margin: 0 }}>
-                      You logged new emotions since these were generated.
+                      You've added new exercises or reflections since these were generated.
                     </p>
                   </div>
                   <button
@@ -625,16 +625,7 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
 
               {weekSummary && weekSummary.top.length > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Tailored to:</span>
-                  {weekSummary.top.map(({ emotion, avg }) => (
-                    <span key={emotion} style={{
-                      fontSize: '0.75rem', fontWeight: 500, padding: '0.2rem 0.625rem',
-                      borderRadius: '999px', backgroundColor: '#F3F4F6', color: '#374151',
-                      display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
-                    }}>
-                      {emotion} <span style={{ color: '#9CA3AF' }}>· {avg.toFixed(0)}/10</span>
-                    </span>
-                  ))}
+                  <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Informed by your recent activity</span>
                 </div>
               )}
 
@@ -671,7 +662,7 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
                 <Card>
                   <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
                     <p style={{ color: '#9CA3AF', margin: 0, fontSize: '0.875rem' }}>
-                      Analyzing your emotional patterns…
+                      Analyzing your product thinking patterns…
                     </p>
                   </div>
                 </Card>
@@ -833,7 +824,7 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
                           <>
                             <Brain size={32} style={{ color: '#D1D5DB', margin: '0 auto 0.75rem', display: 'block' }} />
                             <p style={{ color: '#6B7280', margin: '0 0 1rem', fontSize: '0.875rem' }}>
-                              Log how you're feeling to get actions tailored to your current state.
+                              Complete exercises or add reflections to get actions tailored to your product thinking.
                             </p>
                             <Button size="sm" variant="outline" onClick={refreshActions}>Generate anyway</Button>
                           </>
@@ -841,7 +832,7 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
                           <>
                             <Trophy size={32} style={{ color: '#D1D5DB', margin: '0 auto 0.75rem', display: 'block' }} />
                             <p style={{ color: '#6B7280', margin: '0 0 1rem', fontSize: '0.875rem' }}>
-                              All caught up. Generate a fresh set based on your latest emotions.
+                              All caught up. Generate a fresh set based on your latest exercises and reflections.
                             </p>
                             <Button size="sm" variant="outline" onClick={refreshActions}>
                               {llmState.isLoading ? 'Generating…' : 'Generate new actions'}
@@ -910,7 +901,7 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
               </Card>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {/* EI goals — green left border (Emotional Bandwidth lane) */}
+                {/* EI goals — green left border (Thinking Context lane) */}
                 {activeGoals.filter(g => 'focusArea' in g).map((goal, idx) => (
                   <motion.div key={goal.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.04 }}>
                     <div style={{ borderLeft: '3px solid #34D399', borderRadius: '0 12px 12px 0', overflow: 'hidden' }}>
@@ -1028,7 +1019,7 @@ Based on this, describe my ideal work scenario across the 3 dimensions.`;
                   </motion.div>
                   <div>
                     <p style={{ fontWeight: 600, color: '#1F2937', margin: '0 0 0.25rem' }}>Synthesising your data…</p>
-                    <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>Analysing emotional patterns, product instincts, and growth signals</p>
+                    <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>Analysing your product instincts, thinking patterns, and growth signals</p>
                   </div>
                 </div>
               </Card>
