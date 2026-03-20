@@ -4,7 +4,7 @@
  * No ML — pure rule matching. Modular, MVP-simple.
  */
 
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
 import {
   Lightbulb, CheckCircle2, ArrowRight, AlertTriangle,
@@ -27,7 +27,7 @@ interface Action {
   description: string;
   cta: string;
   ctaPath?: string;
-  icon: JSX.Element;
+  icon: React.ReactElement;
   color: string;
   bg: string;
 }

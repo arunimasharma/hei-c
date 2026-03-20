@@ -162,8 +162,6 @@ export default function FrictionCaseExercise({ onBack, onStartTaste }: Props) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {filteredCases.map(c => {
                   const meta = THEME_LABELS[c.theme];
-                  const profile = InsightStore.getProfile();
-                  const already = profile.domainAccuracy[c.theme];
                   const done = InsightStore.getAll().some(s => s.caseId === c.id);
                   return (
                     <motion.button

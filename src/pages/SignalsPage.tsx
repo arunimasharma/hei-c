@@ -4,7 +4,7 @@
  * Each exercise submission becomes a structured signal — stored locally, never shared.
  */
 
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
 import {
   Activity, MousePointerClick, Clock, Scroll, Ban,
@@ -20,7 +20,7 @@ import { THEME_LABELS, type FrictionTheme } from '../data/frictionCases';
 // These describe behavioral friction patterns observed in real products —
 // the same patterns our exercise scenarios are built from.
 
-const TRIGGER_META: Record<string, { label: string; icon: JSX.Element; color: string; bg: string }> = {
+const TRIGGER_META: Record<string, { label: string; icon: React.ReactElement; color: string; bg: string }> = {
   exit_intent:  { label: 'Exit Intent',  icon: <MousePointerClick size={14} />, color: '#DC2626', bg: '#FEF2F2' },
   time_stall:   { label: 'Time Stall',   icon: <Clock size={14} />,             color: '#D97706', bg: '#FFFBEB' },
   scroll_stall: { label: 'Scroll Stall', icon: <Scroll size={14} />,            color: '#4A5FC1', bg: '#EEF0FB' },
