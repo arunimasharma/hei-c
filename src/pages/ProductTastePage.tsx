@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   FlaskConical, Sparkles, Send, Star, CheckCircle2,
   ArrowRight, Target, TrendingUp, BarChart3, Brain,
-  Users, Globe, RefreshCw, ChevronLeft, Check,
+  Users, Globe, RefreshCw, ChevronLeft, Check, Mic2,
 } from 'lucide-react';
 import Header from '../components/layout/Header';
 import { useApp } from '../context/AppContext';
+import PmInterviewExercise from '../components/product/PmInterviewExercise';
 import { callEvaluateTaste, EvaluatorNotConfiguredError } from '../services/productTasteEvaluatorApi';
 import { callClaudeMessages, parseActionResponse } from '../services/claudeApi';
 import {
@@ -18,7 +19,7 @@ import {
 } from '../services/tasteExercisePromptBuilder';
 import type { TasteExercise, TasteExerciseAnswer, TasteEvaluatorResult } from '../types';
 
-type PageView = 'landing' | 'exercise';
+type PageView = 'landing' | 'exercise' | 'interview';
 type ExercisePhase = 'naming' | 'questioning' | 'analyzing' | 'done';
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
@@ -494,6 +495,11 @@ export default function ProductTastePage() {
     );
   }
 
+  // ─── INTERVIEW VIEW ──────────────────────────────────────────────────────────
+  if (view === 'interview') {
+    return <PmInterviewExercise onBack={() => setView('landing')} />;
+  }
+
   // ─── LANDING VIEW ────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', backgroundColor: BG, fontFamily: 'inherit' }}>
@@ -522,18 +528,53 @@ export default function ProductTastePage() {
             Have a thoughtful conversation about any product you love, use, or want to understand better. Your AI companion helps you discover and articulate your product instincts — at your own pace, with no wrong answers.
           </motion.p>
 
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} style={{ display: 'flex', gap: '0.875rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          {/* Exercise type picker */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', maxWidth: '560px', margin: '0 auto 1.25rem' }}>
+            {/* Card 1 — Product Taste Analysis */}
             <button
               onClick={startExercise}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.875rem 1.75rem', borderRadius: '14px', border: 'none', background: GRAD, color: 'white', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 20px rgba(124,58,237,0.3)' }}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.625rem', padding: '1.25rem', borderRadius: '16px', border: 'none', background: GRAD, color: 'white', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 20px rgba(124,58,237,0.3)', textAlign: 'left', transition: 'transform 0.15s, box-shadow 0.15s' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 28px rgba(124,58,237,0.38)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'none'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(124,58,237,0.3)'; }}
             >
-              Start the Conversation <ArrowRight size={17} />
+              <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FlaskConical size={20} color="white" />
+              </div>
+              <div>
+                <p style={{ margin: '0 0 0.25rem', fontWeight: 700, fontSize: '1rem', color: 'white' }}>Product Taste Analysis</p>
+                <p style={{ margin: 0, fontSize: '0.8125rem', color: 'rgba(255,255,255,0.8)', lineHeight: 1.5 }}>Have a 6-question conversation about any product and get AI feedback on your thinking.</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginTop: '0.25rem' }}>
+                Start Exercise <ArrowRight size={14} />
+              </div>
             </button>
+
+            {/* Card 2 — PM Interview Practice */}
+            <button
+              onClick={() => setView('interview')}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.625rem', padding: '1.25rem', borderRadius: '16px', border: '2px solid #EDE9FE', backgroundColor: 'white', color: '#1F2937', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 12px rgba(124,58,237,0.08)', textAlign: 'left', transition: 'transform 0.15s, box-shadow 0.15s, border-color 0.15s' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 24px rgba(124,58,237,0.15)'; (e.currentTarget as HTMLElement).style.borderColor = PRIMARY; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'none'; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px rgba(124,58,237,0.08)'; (e.currentTarget as HTMLElement).style.borderColor = '#EDE9FE'; }}
+            >
+              <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Mic2 size={20} color="white" />
+              </div>
+              <div>
+                <p style={{ margin: '0 0 0.25rem', fontWeight: 700, fontSize: '1rem', color: '#111827' }}>PM Interview Practice</p>
+                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#6B7280', lineHeight: 1.5 }}>150 real PM interview questions across Product Sense, Analytical Thinking & Behavioral.</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: 600, color: PRIMARY, marginTop: '0.25rem' }}>
+                Start Practice <ArrowRight size={14} />
+              </div>
+            </button>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
             <a
               href="#how"
-              style={{ display: 'flex', alignItems: 'center', padding: '0.875rem 1.75rem', borderRadius: '14px', border: '2px solid #1F2937', color: '#1F2937', fontSize: '1rem', fontWeight: 700, textDecoration: 'none', backgroundColor: 'transparent' }}
+              style={{ display: 'inline-flex', alignItems: 'center', padding: '0.625rem 1.25rem', borderRadius: '10px', border: '1.5px solid #E5E7EB', color: '#6B7280', fontSize: '0.875rem', fontWeight: 500, textDecoration: 'none', backgroundColor: 'transparent' }}
             >
-              Learn How It Works
+              Learn How Product Taste Works
             </a>
           </motion.div>
         </div>
@@ -720,17 +761,25 @@ export default function ProductTastePage() {
           >
             <Brain size={44} color="white" style={{ display: 'block', margin: '0 auto 1.25rem' }} />
             <h2 style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', fontWeight: 800, color: 'white', margin: '0 0 0.875rem', lineHeight: 1.25 }}>
-              Ready to explore your product instincts?
+              Ready to sharpen your product skills?
             </h2>
             <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.8)', margin: '0 auto 2rem', maxWidth: '440px', lineHeight: 1.65 }}>
-              Have a quick conversation about a product you know. Your AI companion will help you see your own thinking more clearly — and give you ideas to keep growing.
+              Analyse a product you love, or drill real PM interview questions. Both exercises build the instincts that matter.
             </p>
-            <button
-              onClick={startExercise}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.875rem 2rem', borderRadius: '14px', border: 'none', backgroundColor: 'white', color: PRIMARY, fontSize: '1rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}
-            >
-              Start the Conversation <ArrowRight size={17} />
-            </button>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={startExercise}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.875rem 1.75rem', borderRadius: '14px', border: 'none', backgroundColor: 'white', color: PRIMARY, fontSize: '1rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}
+              >
+                <FlaskConical size={17} /> Product Taste
+              </button>
+              <button
+                onClick={() => setView('interview')}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.875rem 1.75rem', borderRadius: '14px', border: '2px solid rgba(255,255,255,0.4)', backgroundColor: 'transparent', color: 'white', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                <Mic2 size={17} /> Interview Prep
+              </button>
+            </div>
           </motion.div>
         </div>
       </section>
