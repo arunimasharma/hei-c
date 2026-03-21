@@ -17,8 +17,7 @@ import { InsightStore } from '../lib/InsightStore';
 import { THEME_LABELS, type FrictionTheme } from '../data/frictionCases';
 
 // ── platform-level trigger metadata (reference product patterns) ───────────────
-// These describe behavioral friction patterns observed in real products —
-// the same patterns our exercise scenarios are built from.
+// These describe behavioral friction patterns used in exercise scenarios.
 
 const TRIGGER_META: Record<string, { label: string; icon: React.ReactElement; color: string; bg: string }> = {
   exit_intent:  { label: 'Exit Intent',  icon: <MousePointerClick size={14} />, color: '#DC2626', bg: '#FEF2F2' },
@@ -28,7 +27,7 @@ const TRIGGER_META: Record<string, { label: string; icon: React.ReactElement; co
 };
 
 // ── aggregate (static) platform signal data ───────────────────────────────────
-// Anonymised aggregate patterns from real products — the basis for exercise scenarios.
+// Anonymised aggregate patterns — the basis for exercise scenarios.
 
 const PLATFORM_SIGNALS = [
   { option: 'Too expensive',           count: 1847, trigger: 'exit_intent',  pct: 71 },
@@ -244,12 +243,12 @@ export default function SignalsPage() {
             <InfoTooltip
               side="right"
               width={250}
-              text="Anonymised aggregate data from real products across the internet — the same friction patterns our exercises are built from. Use this to contextualise your own signals and spot industry-wide patterns."
+              text="Anonymised aggregate patterns used as the basis for our exercises. Use this to contextualise your own signals and spot common friction patterns."
             />
             <span style={{ marginLeft: 'auto', padding: '0.15rem 0.5rem', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 700, backgroundColor: '#EEF0FB', color: '#4A5FC1' }}>Aggregate</span>
           </div>
           <p style={{ fontSize: '0.8rem', color: '#9CA3AF', margin: '0 0 1rem', lineHeight: 1.5 }}>
-            Anonymised patterns from real products across the internet — pricing pages, onboarding flows, checkout, and more. These are the scenarios our exercises are based on.
+            Anonymised friction patterns — pricing pages, onboarding flows, checkout, and more. These are the scenarios our exercises are based on.
           </p>
 
           {/* Trigger type glossary */}
@@ -326,7 +325,7 @@ export default function SignalsPage() {
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
             <AlertCircle size={14} color="#9CA3AF" style={{ flexShrink: 0, marginTop: '0.125rem' }} />
             <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: 0, lineHeight: 1.55 }}>
-              Platform aggregate data is anonymised and represents real friction patterns from products across the internet. Your personal signals are derived from your written responses in Product exercises and stored locally on your device only.
+              Platform aggregate data is anonymised and represents illustrative friction patterns used as exercise scenarios. Your personal signals are derived from your written responses in Product exercises and stored locally on your device only.
             </p>
           </div>
         </div>

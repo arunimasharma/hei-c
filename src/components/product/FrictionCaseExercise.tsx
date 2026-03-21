@@ -1,22 +1,24 @@
 /**
  * FrictionCaseExercise
- * "Real Friction Cases" — PM insight simulator + validator
+ * "Friction Cases" — PM insight simulator + validator
  *
  * Flow: browse → analyze (root issue MCQ → fix MCQ) → reveal → done
  *   browse:  filter by theme, pick a case card
  *   analyze: 2-step MCQ (root issue → fix recommendation)
- *   reveal:  accuracy score + real-data insight explanation
+ *   reveal:  accuracy score + benchmark insight explanation
  *   done:    save score to InsightStore → feeds /influence credibility
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ChevronLeft, Target, Zap, CheckCircle2, XCircle,
-  ArrowRight, RefreshCw, TrendingUp, Filter, FlaskConical,
+  ArrowRight, RefreshCw, TrendingUp, Filter, FlaskConical, MessageSquare, Sparkles, Loader2,
 } from 'lucide-react';
 import { FRICTION_CASES, THEME_LABELS, type FrictionCase, type FrictionTheme } from '../../data/frictionCases';
 import { InsightStore } from '../../lib/InsightStore';
+import { BenchmarkStore, type CaseBenchmarkStats } from '../../lib/BenchmarkStore';
+import { callClaude, parseActionResponse } from '../../services/claudeApi';
 
 const GRAD = 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)';
 const PRIMARY = '#7C3AED';
@@ -28,7 +30,7 @@ const TRIGGER_LABEL: Record<string, string> = {
   no_action:    '💤 No action',
 };
 
-type Phase = 'browse' | 'root_issue' | 'fix' | 'reveal' | 'done';
+type Phase = 'browse' | 'root_issue' | 'fix' | 'reflect' | 'reveal' | 'done';
 
 interface Props {
   onBack: () => void;
@@ -42,6 +44,10 @@ export default function FrictionCaseExercise({ onBack, onStartTaste }: Props) {
   const [rootAnswer, setRootAnswer] = useState<number | null>(null);
   const [fixAnswer, setFixAnswer] = useState<number | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [liveStats, setLiveStats] = useState<CaseBenchmarkStats | null>(null);
+  const [reflectionText, setReflectionText] = useState('');
+  const [aiCoaching, setAiCoaching] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const filteredCases = useMemo(() =>
     themeFilter === 'all'
@@ -56,11 +62,22 @@ export default function FrictionCaseExercise({ onBack, onStartTaste }: Props) {
     return root + fix;
   }, [rootAnswer, fixAnswer, activeCase]);
 
+  // Fetch live benchmark stats when the reveal phase opens
+  useEffect(() => {
+    if (phase === 'reveal' && activeCase) {
+      setLiveStats(null);
+      BenchmarkStore.getStats(activeCase.id).then(setLiveStats);
+    }
+  }, [phase, activeCase]);
+
   const handleSelectCase = (c: FrictionCase) => {
     setActiveCase(c);
     setRootAnswer(null);
     setFixAnswer(null);
     setSavedId(null);
+    setLiveStats(null);
+    setReflectionText('');
+    setAiCoaching(null);
     setPhase('root_issue');
   };
 
@@ -71,18 +88,63 @@ export default function FrictionCaseExercise({ onBack, onStartTaste }: Props) {
 
   const handleConfirmFix = () => {
     if (fixAnswer === null) return;
+    setPhase('reflect');
+  };
+
+  const handleSkipReflection = () => {
     setPhase('reveal');
+  };
+
+  const handleSubmitReflection = async () => {
+    if (!activeCase || rootAnswer === null || fixAnswer === null) return;
+    if (!reflectionText.trim()) { setPhase('reveal'); return; }
+
+    setAiLoading(true);
+    try {
+      const rootSelected = activeCase.rootIssueOptions[rootAnswer];
+      const fixSelected  = activeCase.fixOptions[fixAnswer];
+      const rootCorrect  = rootAnswer === activeCase.correctRootIssueIndex;
+      const fixCorrect   = fixAnswer  === activeCase.correctFixIndex;
+
+      const system = `You are a senior product manager coach evaluating a PM's diagnostic reasoning on a friction case. Give precise, honest, and encouraging coaching. Respond in 3 sentences maximum. Be specific — reference what they actually wrote.`;
+
+      const user = `FRICTION CASE
+Context: ${activeCase.context}
+User signal: "${activeCase.rawResponse}"
+Background: ${activeCase.narrative}
+
+PM'S MCQ SELECTIONS
+Root issue: "${rootSelected}" — ${rootCorrect ? 'CORRECT' : 'INCORRECT (correct was: "' + activeCase.rootIssueOptions[activeCase.correctRootIssueIndex] + '")'}
+Fix: "${fixSelected}" — ${fixCorrect ? 'CORRECT' : 'INCORRECT (correct was: "' + activeCase.fixOptions[activeCase.correctFixIndex] + '")'}
+
+PM'S OPEN REFLECTION
+"${reflectionText.trim()}"
+
+Evaluate the quality of their reasoning. What did they reason well about? What dimension did they miss or underweight? Give one specific, actionable coaching tip for next time.`;
+
+      const response = await callClaude(system, user);
+      setAiCoaching(parseActionResponse(response));
+    } catch {
+      setAiCoaching(null); // silently degrade — reveal still shows without AI coaching
+    } finally {
+      setAiLoading(false);
+      setPhase('reveal');
+    }
   };
 
   const handleSave = () => {
     if (!activeCase || rootAnswer === null || fixAnswer === null) return;
+    const rootIssueCorrect = rootAnswer === activeCase.correctRootIssueIndex;
+    const fixCorrect = fixAnswer === activeCase.correctFixIndex;
     const submission = InsightStore.submit({
       caseId: activeCase.id,
       theme: activeCase.theme,
-      rootIssueCorrect: rootAnswer === activeCase.correctRootIssueIndex,
-      fixCorrect: fixAnswer === activeCase.correctFixIndex,
+      rootIssueCorrect,
+      fixCorrect,
       score,
     });
+    // Fire-and-forget: contribute this submission to the community benchmark
+    BenchmarkStore.submit(activeCase.id, rootIssueCorrect, fixCorrect, score);
     setSavedId(submission.id);
     setPhase('done');
   };
@@ -96,7 +158,8 @@ export default function FrictionCaseExercise({ onBack, onStartTaste }: Props) {
     browse:     'Pick a case to analyse',
     root_issue: activeCase ? `${THEME_LABELS[activeCase.theme].emoji} ${THEME_LABELS[activeCase.theme].label}` : '',
     fix:        'Recommend a fix',
-    reveal:     'Real-data insight',
+    reflect:    'Your PM reasoning',
+    reveal:     'Benchmark insight',
     done:       'Score saved',
   }[phase];
 
@@ -117,7 +180,7 @@ export default function FrictionCaseExercise({ onBack, onStartTaste }: Props) {
           <ChevronLeft size={18} color="white" />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9375rem', color: 'white' }}>Real Friction Cases</p>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9375rem', color: 'white' }}>Friction Cases</p>
           <p style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(255,255,255,0.75)' }}>{topBarSubtitle}</p>
         </div>
         {phase === 'browse' && (
@@ -268,8 +331,58 @@ export default function FrictionCaseExercise({ onBack, onStartTaste }: Props) {
                 disabled={fixAnswer === null}
                 style={{ width: '100%', padding: '0.875rem', borderRadius: '14px', border: 'none', background: fixAnswer === null ? '#E5E7EB' : GRAD, color: fixAnswer === null ? '#9CA3AF' : 'white', fontSize: '0.9375rem', fontWeight: 700, cursor: fixAnswer === null ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
               >
-                See what real data shows <Zap size={17} />
+                See the analysis <Zap size={17} />
               </button>
+            </motion.div>
+          )}
+
+          {/* ── REFLECT ─────────────────────────────────────────────────────── */}
+          {phase === 'reflect' && activeCase && (
+            <motion.div key="reflect" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              {/* Header card */}
+              <div style={{ backgroundColor: 'white', borderRadius: '14px', border: '1px solid #E5E7EB', padding: '1rem 1.125rem', marginBottom: '1.25rem', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <MessageSquare size={15} color="#7C3AED" />
+                  <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Optional: your PM reasoning</p>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#6B7280', lineHeight: 1.55 }}>
+                  Add your own take before seeing the answer. Claude will analyse the quality of your reasoning and give you coaching specific to how you think — beyond just right or wrong.
+                </p>
+              </div>
+
+              {/* Textarea */}
+              <textarea
+                value={reflectionText}
+                onChange={e => setReflectionText(e.target.value)}
+                placeholder="e.g. I think the real issue is that users haven't built enough trust to enter their card details. The form is fine — the problem is earlier in the flow. I'd add a security reassurance line and a no-credit-card callout before the form..."
+                rows={6}
+                style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '12px', border: '1.5px solid #E5E7EB', fontSize: '0.875rem', color: '#374151', lineHeight: 1.6, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', outline: 'none', backgroundColor: 'white', transition: 'border-color 0.15s', marginBottom: '1rem' }}
+                onFocus={e => { e.currentTarget.style.borderColor = '#7C3AED'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = '#E5E7EB'; }}
+              />
+
+              {/* Actions */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                <button
+                  onClick={handleSubmitReflection}
+                  disabled={aiLoading || !reflectionText.trim()}
+                  style={{ width: '100%', padding: '0.875rem', borderRadius: '14px', border: 'none', background: (!reflectionText.trim() || aiLoading) ? '#E5E7EB' : 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)', color: (!reflectionText.trim() || aiLoading) ? '#9CA3AF' : 'white', fontSize: '0.9375rem', fontWeight: 700, cursor: (!reflectionText.trim() || aiLoading) ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                >
+                  {aiLoading
+                    ? <><Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} /> Analysing your reasoning…</>
+                    : <><Sparkles size={17} /> Get AI coaching</>
+                  }
+                </button>
+                <button
+                  onClick={handleSkipReflection}
+                  disabled={aiLoading}
+                  style={{ width: '100%', padding: '0.875rem', borderRadius: '14px', border: '1.5px solid #EDE9FE', backgroundColor: 'white', color: '#7C3AED', fontSize: '0.9375rem', fontWeight: 600, cursor: aiLoading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', opacity: aiLoading ? 0.4 : 1 }}
+                >
+                  Skip to reveal <ArrowRight size={17} />
+                </button>
+              </div>
+
+              <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
             </motion.div>
           )}
 
@@ -327,20 +440,47 @@ export default function FrictionCaseExercise({ onBack, onStartTaste }: Props) {
                 </div>
               </div>
 
-              {/* Real data insight */}
+              {/* AI coaching (shown when user submitted a reflection) */}
+              {aiCoaching && (
+                <div style={{ backgroundColor: '#F0F9FF', borderRadius: '14px', border: '1px solid #BAE6FD', padding: '1rem 1.125rem', marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <Sparkles size={14} color="#0369A1" />
+                    <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: 700, color: '#0369A1', textTransform: 'uppercase', letterSpacing: '0.04em' }}>AI coaching on your reasoning</p>
+                  </div>
+                  {reflectionText.trim() && (
+                    <p style={{ margin: '0 0 0.625rem', fontSize: '0.8125rem', color: '#64748B', fontStyle: 'italic', lineHeight: 1.5, paddingLeft: '0.75rem', borderLeft: '2px solid #BAE6FD' }}>
+                      "{reflectionText.trim()}"
+                    </p>
+                  )}
+                  <p style={{ margin: 0, fontSize: '0.875rem', color: '#0C4A6E', lineHeight: 1.65 }}>{aiCoaching}</p>
+                </div>
+              )}
+
+              {/* Benchmark insight */}
               <div style={{ backgroundColor: '#F5F3FF', borderRadius: '14px', border: '1px solid #EDE9FE', padding: '1rem 1.125rem', marginBottom: '1.25rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <TrendingUp size={14} color={PRIMARY} />
-                  <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: 700, color: PRIMARY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>What real data shows</p>
+                  <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: 700, color: PRIMARY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Benchmark insight</p>
                 </div>
                 <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem', color: '#374151', lineHeight: 1.65 }}>{activeCase.realDataInsight}</p>
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6B7280', padding: '0.2rem 0.625rem', borderRadius: '999px', backgroundColor: 'white', border: '1px solid #E5E7EB' }}>
                     {activeCase.signalStrength}% of users signalled this
                   </span>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6B7280', padding: '0.2rem 0.625rem', borderRadius: '999px', backgroundColor: 'white', border: '1px solid #E5E7EB' }}>
-                    {activeCase.pmAgreementRate}% of PMs got this right
-                  </span>
+                  {liveStats ? (
+                    <>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6B7280', padding: '0.2rem 0.625rem', borderRadius: '999px', backgroundColor: 'white', border: '1px solid #E5E7EB' }}>
+                        {liveStats.pmAgreementRate}% got both right
+                      </span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6B7280', padding: '0.2rem 0.625rem', borderRadius: '999px', backgroundColor: '#F0F9FF', border: '1px solid #BAE6FD' }}>
+                        {liveStats.totalSubmissions} submissions
+                      </span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6B7280', padding: '0.2rem 0.625rem', borderRadius: '999px', backgroundColor: 'white', border: '1px solid #E5E7EB' }}>
+                      {activeCase.pmAgreementRate}% of PMs got this right
+                    </span>
+                  )}
                 </div>
               </div>
 

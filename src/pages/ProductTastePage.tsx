@@ -470,7 +470,7 @@ export default function ProductTastePage() {
             <div style={{ padding: '0.875rem 1rem', borderRadius: '14px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
               <div style={{ minWidth: 0 }}>
                 <p style={{ margin: '0 0 0.125rem', fontSize: '0.8125rem', fontWeight: 700, color: '#92400E' }}>Step 2: Test your instincts</p>
-                <p style={{ margin: 0, fontSize: '0.75rem', color: '#B45309', lineHeight: 1.4 }}>Diagnose real friction signals scored against actual user data.</p>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: '#B45309', lineHeight: 1.4 }}>Diagnose friction signals and test your analytical accuracy.</p>
               </div>
               <button
                 onClick={() => setView('friction')}
@@ -548,7 +548,7 @@ export default function ProductTastePage() {
           </motion.h1>
 
           <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} style={{ fontSize: '1.0625rem', color: '#6B7280', lineHeight: 1.7, margin: '0 auto 2rem', maxWidth: '520px' }}>
-            Two exercises that work together: explore how you see products through an AI conversation, then test your analytical accuracy on real friction cases scored against actual user data.
+            Two exercises that work together: explore how you see products through an AI conversation, then sharpen your analytical accuracy on friction cases scored against benchmarked outcomes.
           </motion.p>
 
           {/* ── Exercise picker — unified two-step layout ── */}
@@ -572,14 +572,14 @@ export default function ProductTastePage() {
                 </div>
                 <div>
                   <p style={{ margin: '0 0 0.25rem', fontWeight: 700, fontSize: '1rem', color: 'white' }}>Product Taste Analysis</p>
-                  <p style={{ margin: 0, fontSize: '0.8125rem', color: 'rgba(255,255,255,0.8)', lineHeight: 1.55 }}>Pick any product. Answer 6 questions with an AI companion. Discover and articulate your real product instincts.</p>
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: 'rgba(255,255,255,0.8)', lineHeight: 1.55 }}>Pick any product. Answer 6 questions with an AI companion. Discover and articulate your product instincts.</p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginTop: '0.125rem' }}>
                   Start Exploring <ArrowRight size={14} />
                 </div>
               </button>
 
-              {/* Step 2 — Real Friction Cases */}
+              {/* Step 2 — Friction Cases */}
               <button
                 onClick={() => setView('friction')}
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.75rem', padding: '1.375rem', borderRadius: '20px', border: '2px solid #FDE68A', backgroundColor: 'white', color: '#1F2937', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 12px rgba(217,119,6,0.1)', textAlign: 'left', transition: 'transform 0.15s, box-shadow 0.15s, border-color 0.15s' }}
@@ -605,8 +605,8 @@ export default function ProductTastePage() {
                   </div>
                 </div>
                 <div>
-                  <p style={{ margin: '0 0 0.25rem', fontWeight: 700, fontSize: '1rem', color: '#111827' }}>Real Friction Cases</p>
-                  <p style={{ margin: 0, fontSize: '0.8125rem', color: '#6B7280', lineHeight: 1.55 }}>Analyse anonymised friction signals from real products. Diagnose the root issue and recommend the fix — scored against actual outcomes.</p>
+                  <p style={{ margin: '0 0 0.25rem', fontWeight: 700, fontSize: '1rem', color: '#111827' }}>Friction Cases</p>
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: '#6B7280', lineHeight: 1.55 }}>Analyse anonymised friction scenarios. Diagnose the root issue and recommend the fix — scored against benchmarked outcomes.</p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: 600, color: '#D97706', marginTop: '0.125rem' }}>
                   Diagnose Cases <ArrowRight size={14} />
@@ -618,7 +618,7 @@ export default function ProductTastePage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', justifyContent: 'center' }}>
               <div style={{ flex: 1, height: '1px', backgroundColor: '#E5E7EB', maxWidth: '100px' }} />
               <span style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 500, padding: '0.2rem 0.75rem', borderRadius: '999px', backgroundColor: '#F9FAFB', border: '1px solid #F3F4F6' }}>
-                Articulate your perspective → then validate it with real data
+                Articulate your perspective → then test it against benchmarked analysis
               </span>
               <div style={{ flex: 1, height: '1px', backgroundColor: '#E5E7EB', maxWidth: '100px' }} />
             </div>
@@ -829,7 +829,7 @@ export default function ProductTastePage() {
               Ready to sharpen your product skills?
             </h2>
             <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.8)', margin: '0 auto 2rem', maxWidth: '440px', lineHeight: 1.65 }}>
-              Articulate your product perspective, diagnose real friction, and practise PM interviews — each builds your product intelligence.
+              Articulate your product perspective, diagnose friction scenarios, and practise PM interviews — each builds your product intelligence.
             </p>
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
               <button onClick={startExercise} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.375rem', borderRadius: '12px', border: 'none', backgroundColor: 'white', color: PRIMARY, fontSize: '0.9375rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}>

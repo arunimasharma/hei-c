@@ -72,7 +72,7 @@ function EmptyState() {
         </p>
         <p style={{ fontSize: '0.875rem', color: '#6B7280', maxWidth: '18rem', margin: '0 auto' }}>
           The next time you hesitate or try to leave a product page, a prompt will appear.
-          One tap = influence points + a signal about real product friction.
+          One tap = influence points + a signal about product friction.
         </p>
       </div>
     </Card>
@@ -107,7 +107,7 @@ export default function InfluencePanel() {
               <InfoTooltip
                 side="bottom"
                 width={240}
-                text="Your influence score grows each time you capture friction from a real product. Rare signals (minority opinions) earn extra points because they identify issues most users miss."
+                text="Your influence score grows each time you capture a friction signal. Rare signals (minority opinions) earn extra points because they identify issues most users miss."
               />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.375rem' }}>
@@ -214,14 +214,14 @@ export default function InfluencePanel() {
               <InfoTooltip
                 side="right"
                 width={260}
-                text="Earned by completing Real Friction Cases in the Product section. Each case is scored against real outcome data — your accuracy builds this score. Low volume cases score lower to prevent lucky guesses."
+                text="Earned by completing Friction Cases in the Product section. Each case is scored against benchmarked outcomes — your accuracy builds this score. Low volume cases score lower to prevent lucky guesses."
               />
             </div>
           </div>
 
           {/* Credibility score bar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
-            <span style={{ fontSize: '0.75rem', color: '#6B7280', fontWeight: 600 }}>Accuracy vs. real-world patterns</span>
+            <span style={{ fontSize: '0.75rem', color: '#6B7280', fontWeight: 600 }}>Accuracy vs. benchmark scenarios</span>
             <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#D97706' }}>{insight.credibilityScore}/100</span>
           </div>
           <div style={{ height: '8px', borderRadius: '999px', backgroundColor: '#F3F4F6', overflow: 'hidden', marginBottom: '0.5rem' }}>
@@ -250,7 +250,7 @@ export default function InfluencePanel() {
               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#D97706', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Impact Alignment</span>
             </div>
             <p style={{ margin: 0, fontSize: '0.8125rem', color: '#374151', lineHeight: 1.55 }}>
-              Your insights aligned with real user feedback patterns <strong>{Math.round(insight.avgAccuracy * 100)}%</strong> of the time — putting you in the top {Math.round(100 - insight.avgAccuracy * 60)}% of analysers.
+              Your diagnoses matched the benchmark analysis <strong>{Math.round(insight.avgAccuracy * 100)}%</strong> of the time — putting you in the top {Math.round(100 - insight.avgAccuracy * 60)}% of analysers.
             </p>
           </div>
 

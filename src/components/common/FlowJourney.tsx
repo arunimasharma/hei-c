@@ -25,7 +25,7 @@ interface Step {
 const STEPS: Step[] = [
   { id: 'coach',     emoji: '🧠', label: 'Coach',     path: '/',          tip: 'Reflect on product experiences and start exercises' },
   { id: 'signals',   emoji: '📡', label: 'Signals',   path: '/signals',   tip: 'Friction patterns you\'ve identified through exercises' },
-  { id: 'product',   emoji: '🧪', label: 'Product',   path: '/product',   tip: 'Diagnose real friction cases to build analytical credibility' },
+  { id: 'product',   emoji: '🧪', label: 'Product',   path: '/product',   tip: 'Diagnose friction cases to build analytical credibility' },
   { id: 'influence', emoji: '⚡', label: 'Influence',  path: '/influence', tip: 'Your reputation & Insight Credibility score' },
   { id: 'actions',   emoji: '💡', label: 'Actions',   path: '/actions',   tip: 'Recommended next steps based on your exercise signals' },
 ];

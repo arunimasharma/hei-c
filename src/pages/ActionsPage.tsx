@@ -77,7 +77,7 @@ function deriveActions(
       priority: 'high',
       category: 'Improve Accuracy',
       title: 'Review your diagnostic approach',
-      description: `Your current accuracy is ${Math.round(insight.avgAccuracy * 100)}%. Try reading the real-data insights after each exercise — they reveal what the data actually shows vs. common assumptions.`,
+      description: `Your current accuracy is ${Math.round(insight.avgAccuracy * 100)}%. Try reading the benchmark insights after each exercise — they reveal the expected analysis vs. common assumptions.`,
       cta: 'Practice Friction Cases',
       ctaPath: '/product',
       icon: <AlertTriangle size={16} />,

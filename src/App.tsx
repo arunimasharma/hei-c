@@ -1,8 +1,7 @@
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/AuthContext';
-import { useAuth } from './context/AuthContext';
 import { useFrictionFeedback } from './hooks/useFrictionFeedback';
 import FrictionFeedbackWidget from './components/common/FrictionFeedbackWidget';
 import OnboardingPage from './pages/OnboardingPage';
@@ -28,37 +27,28 @@ function FrictionLayer() {
   return <FrictionFeedbackWidget {...friction} />;
 }
 
-function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { user, authReady } = useAuth();
-  if (!authReady) return null;
-  const isGuest = sessionStorage.getItem('heq_guest_session') === 'true';
-  if (!user && !isGuest) return <Navigate to="/auth/signin" replace />;
-  return <>{children}</>;
-}
-
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
       <AppProvider>
         <Routes>
-          {/* ── Protected app routes — require sign-in ── */}
-          <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
-          <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-          <Route path="/product" element={<ProtectedRoute><ProductTastePage /></ProtectedRoute>} />
-          <Route path="/insights" element={<ProtectedRoute><InsightsPage /></ProtectedRoute>} />
-          <Route path="/growth" element={<ProtectedRoute><GrowthPage /></ProtectedRoute>} />
-          <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
-          <Route path="/transparency" element={<ProtectedRoute><TransparencyHubPage /></ProtectedRoute>} />
+          {/* ── App routes — no sign-in required ── */}
+          <Route path="/onboarding" element={<OnboardingPage />} />
+          <Route path="/" element={<HomePage />} />
+          <Route path="/product" element={<ProductTastePage />} />
+          <Route path="/insights" element={<InsightsPage />} />
+          <Route path="/growth" element={<GrowthPage />} />
+          <Route path="/account" element={<AccountPage />} />
+          <Route path="/transparency" element={<TransparencyHubPage />} />
+          <Route path="/influence" element={<InfluencePage />} />
+          <Route path="/signals" element={<SignalsPage />} />
+          <Route path="/actions" element={<ActionsPage />} />
 
-          {/* ── Auth + admin routes — public ── */}
+          {/* ── Auth + admin routes ── */}
           <Route path="/auth/signin" element={<Suspense fallback={null}><SignInPage /></Suspense>} />
           <Route path="/unauthorized" element={<Suspense fallback={null}><UnauthorizedPage /></Suspense>} />
           <Route path="/dashboard" element={<Suspense fallback={null}><UsageDashboardPage /></Suspense>} />
-
-          <Route path="/influence" element={<ProtectedRoute><InfluencePage /></ProtectedRoute>} />
-          <Route path="/signals" element={<ProtectedRoute><SignalsPage /></ProtectedRoute>} />
-          <Route path="/actions" element={<ProtectedRoute><ActionsPage /></ProtectedRoute>} />
 
           {/* Legacy redirects */}
           <Route path="/timeline" element={<Navigate to="/insights" replace />} />

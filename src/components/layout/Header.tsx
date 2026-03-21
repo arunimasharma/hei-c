@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Menu, X, LogOut, Settings, BarChart3, TrendingUp, User } from 'lucide-react';
+import { Menu, X, LogOut, Settings, BarChart3, TrendingUp, User, LogIn } from 'lucide-react';
 import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -134,6 +134,27 @@ export default function Header() {
                       {item.icon} {item.label}
                     </Link>
                   ))}
+
+                  {/* Sign in CTA for unauthenticated users */}
+                  {!authUser && (
+                    <>
+                      <div style={{ height: '1px', backgroundColor: '#F3F4F6', margin: '0.375rem 0' }} />
+                      <Link
+                        to="/auth/signin"
+                        onClick={() => setMenuOpen(false)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '0.625rem',
+                          padding: '0.625rem 0.875rem', borderRadius: '8px',
+                          fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none',
+                          color: '#4A5FC1',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(74,95,193,0.06)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      >
+                        <LogIn size={15} color="#4A5FC1" /> Sign In
+                      </Link>
+                    </>
+                  )}
 
                   {/* Account actions */}
                   {state.user && (
