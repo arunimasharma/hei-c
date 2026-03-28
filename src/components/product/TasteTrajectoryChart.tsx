@@ -21,14 +21,13 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { TrendingUp, TrendingDown, Minus, BarChart3, Target } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, BarChart3 } from 'lucide-react';
 import type { FrictionTheme } from '../../data/frictionCases';
 import {
   getCachedOrComputeSeries,
   buildTrajectorySeries,
   computeTrajectoryInsights,
   getMockTrajectoryData,
-  type TrajectorySeries,
   type TrajectoryInsight,
   type TrajectoryPoint,
 } from '../../utils/trajectory';
