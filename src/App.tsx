@@ -18,9 +18,11 @@ import { Analytics } from '@vercel/analytics/react';
 
 // Lazy-load admin pages so next-auth/react is code-split into a separate chunk
 // and never bundled with the main app (keeps regular routes free of NextAuth).
-const UsageDashboardPage = lazy(() => import('./pages/UsageDashboardPage'));
-const SignInPage = lazy(() => import('./pages/SignInPage'));
-const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'));
+const UsageDashboardPage  = lazy(() => import('./pages/UsageDashboardPage'));
+const SignInPage          = lazy(() => import('./pages/SignInPage'));
+const UnauthorizedPage    = lazy(() => import('./pages/UnauthorizedPage'));
+// Public profile page — no auth required, minimal bundle
+const PublicProfilePage   = lazy(() => import('./pages/PublicProfilePage'));
 
 function FrictionLayer() {
   const friction = useFrictionFeedback();
@@ -44,6 +46,9 @@ export default function App() {
           <Route path="/influence" element={<InfluencePage />} />
           <Route path="/signals" element={<SignalsPage />} />
           <Route path="/actions" element={<ActionsPage />} />
+
+          {/* ── Public profile (no auth required) ── */}
+          <Route path="/p/:slug" element={<Suspense fallback={null}><PublicProfilePage /></Suspense>} />
 
           {/* ── Auth + admin routes ── */}
           <Route path="/auth/signin" element={<Suspense fallback={null}><SignInPage /></Suspense>} />

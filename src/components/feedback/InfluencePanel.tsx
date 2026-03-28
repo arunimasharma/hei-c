@@ -15,6 +15,7 @@ import { InsightStore } from '../../lib/InsightStore';
 import { THEME_LABELS } from '../../data/frictionCases';
 import Card from '../common/Card';
 import InfoTooltip from '../common/InfoTooltip';
+import PublicProfileToggle from '../profile/PublicProfileToggle';
 
 // ── static impact cards (real claims once Supabase is wired) ─────────────────
 
@@ -326,6 +327,15 @@ export default function InfluencePanel() {
           </p>
         </div>
       </div>
+
+      {/* ── 5. Public Profile ─────────────────────────────────────────────── */}
+      <div>
+        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.75rem' }}>
+          Share your credibility
+        </p>
+        <PublicProfileToggle />
+      </div>
+
     </motion.div>
   );
 }
