@@ -1,6 +1,7 @@
 import { Zap } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import InfluencePanel from '../components/feedback/InfluencePanel';
+import TasteTrajectoryChart from '../components/product/TasteTrajectoryChart';
 
 export default function InfluencePage() {
   return (
@@ -38,6 +39,9 @@ export default function InfluencePage() {
             </p>
           </div>
         </div>
+
+        {/* Taste Trajectory — accuracy growth chart */}
+        <TasteTrajectoryChart />
 
         <InfluencePanel />
       </div>

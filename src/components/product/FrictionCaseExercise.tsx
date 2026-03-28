@@ -18,6 +18,7 @@ import {
 import { FRICTION_CASES, THEME_LABELS, type FrictionCase, type FrictionTheme } from '../../data/frictionCases';
 import { InsightStore } from '../../lib/InsightStore';
 import { BenchmarkStore, type CaseBenchmarkStats } from '../../lib/BenchmarkStore';
+import { invalidateTrajectoryCache } from '../../utils/trajectory';
 import { callClaude, parseActionResponse } from '../../services/claudeApi';
 
 const GRAD = 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)';
@@ -145,6 +146,8 @@ Evaluate the quality of their reasoning. What did they reason well about? What d
     });
     // Fire-and-forget: contribute this submission to the community benchmark
     BenchmarkStore.submit(activeCase.id, rootIssueCorrect, fixCorrect, score);
+    // Bust trajectory cache so the chart reflects the new submission
+    invalidateTrajectoryCache();
     setSavedId(submission.id);
     setPhase('done');
   };
