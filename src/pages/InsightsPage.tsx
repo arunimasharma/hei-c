@@ -8,6 +8,7 @@ import Card from '../components/common/Card';
 import { useApp } from '../context/AppContext';
 import { InsightStore } from '../lib/InsightStore';
 import { THEME_LABELS, type FrictionTheme } from '../data/frictionCases';
+import type { ThemeStat } from '../lib/credibilityEngine';
 
 export default function InsightsPage() {
   const { state } = useApp();
@@ -26,7 +27,7 @@ export default function InsightsPage() {
   const latestSub    = submissions.length > 0 ? submissions[submissions.length - 1] : null;
 
   const themeEntries = useMemo(() =>
-    (Object.entries(insight.domainAccuracy) as [FrictionTheme, { attempts: number; correct: number }][])
+    (Object.entries(insight.domainAccuracy) as [FrictionTheme, ThemeStat][])
       .sort((a, b) => b[1].attempts - a[1].attempts),
     [insight]
   );
@@ -172,9 +173,9 @@ export default function InsightsPage() {
                   <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>Theme Performance</h2>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {themeEntries.map(([theme, { attempts, correct }]) => {
+                  {themeEntries.map(([theme, { attempts, accuracy }]) => {
                     const meta = THEME_LABELS[theme];
-                    const pct = Math.round((correct / attempts) * 100);
+                    const pct = Math.round(accuracy * 100);
                     return (
                       <div key={theme}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>

@@ -143,6 +143,7 @@ Evaluate the quality of their reasoning. What did they reason well about? What d
       rootIssueCorrect,
       fixCorrect,
       score,
+      maxScore: 1,
     });
     // Fire-and-forget: contribute this submission to the community benchmark
     BenchmarkStore.submit(activeCase.id, rootIssueCorrect, fixCorrect, score);

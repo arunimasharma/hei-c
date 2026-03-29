@@ -257,6 +257,7 @@ export function getMockTrajectoryData(): InsightSubmission[] {
     rootIssueCorrect: score >= 0.5,
     fixCorrect:       score >= 1,
     score,
+    maxScore:         1,
     timestamp:        new Date(base + i * Math.round(2.8 * 24 * 60 * 60 * 1000)).toISOString(),
   }));
 }

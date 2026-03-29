@@ -15,6 +15,7 @@ import Card from '../components/common/Card';
 import InfoTooltip from '../components/common/InfoTooltip';
 import { InsightStore } from '../lib/InsightStore';
 import { THEME_LABELS, type FrictionTheme } from '../data/frictionCases';
+import type { ThemeStat } from '../lib/credibilityEngine';
 
 // ── platform-level trigger metadata (reference product patterns) ───────────────
 // These describe behavioral friction patterns used in exercise scenarios.
@@ -76,7 +77,7 @@ export default function SignalsPage() {
 
   // Theme breakdown from exercise submissions
   const themeEntries = useMemo(() =>
-    (Object.entries(insight.domainAccuracy) as [FrictionTheme, { attempts: number; correct: number }][])
+    (Object.entries(insight.domainAccuracy) as [FrictionTheme, ThemeStat][])
       .sort((a, b) => b[1].attempts - a[1].attempts),
     [insight]
   );
@@ -148,9 +149,9 @@ export default function SignalsPage() {
                 <div style={{ marginBottom: '1.25rem' }}>
                   <p style={{ fontSize: '0.72rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.625rem' }}>By friction theme</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {themeEntries.map(([theme, { attempts, correct }]) => {
+                    {themeEntries.map(([theme, { attempts, accuracy }]) => {
                       const meta = THEME_LABELS[theme];
-                      const accuracyPct = Math.round((correct / attempts) * 100);
+                      const accuracyPct = Math.round(accuracy * 100);
                       return (
                         <div key={theme}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>

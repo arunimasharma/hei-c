@@ -92,7 +92,7 @@ function deriveActions(
     const allThemes: FrictionTheme[] = ['pricing', 'ux', 'onboarding', 'value', 'trust'];
     const unmastered = allThemes.find(t => {
       const d = insight.domainAccuracy[t];
-      return !d || d.attempts < 2 || (d.correct / d.attempts) < 0.6;
+      return !d || d.attempts < 2 || d.accuracy < 0.6;
     });
     if (unmastered) {
       const meta = THEME_LABELS[unmastered];
