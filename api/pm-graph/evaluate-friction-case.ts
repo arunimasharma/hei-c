@@ -231,7 +231,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const evaluation = await callPMGraphEvaluate(
-      pmGraphRequest as Record<string, unknown>,
+      pmGraphRequest as unknown as Record<string, unknown>,
       requestId,
     );
 
