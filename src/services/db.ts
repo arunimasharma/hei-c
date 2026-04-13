@@ -7,14 +7,20 @@
  * updatedAt) so that queries can be performed without decryption.
  *
  * Table overview:
- *   keyvalue   – singleton collection blobs (settings, aiState, llmMemory)
- *   emotions   – one row per EmotionEntry
- *   events     – one row per CareerEvent
- *   reflections– one row per JournalReflection
- *   actions    – one row per MicroAction
- *   goals      – one row per Goal
- *   exercises  – one row per TasteExercise
- *   users      – one row per UserProfile (collectionId = 'profile')
+ *   keyvalue            – singleton collection blobs (settings, aiState, llmMemory)
+ *   emotions            – one row per EmotionEntry
+ *   events              – one row per CareerEvent
+ *   reflections         – one row per JournalReflection
+ *   actions             – one row per MicroAction
+ *   goals               – one row per Goal
+ *   exercises           – one row per TasteExercise
+ *   users               – one row per UserProfile (collectionId = 'profile')
+ *   exercise_evaluations– one row per PMGraphEvaluationRecord (added v3)
+ *
+ * Schema versions:
+ *   v1 — initial schema (keyvalue, emotions, events, reflections, actions, goals, exercises)
+ *   v2 — added decisions, workModes
+ *   v3 — added exercise_evaluations (PM Graph-backed evaluation results)
  */
 
 import Dexie, { type Table } from 'dexie';
@@ -32,11 +38,23 @@ export interface EncryptedRow {
   updatedAt: string;
 }
 
+/**
+ * Evaluation row — extends EncryptedRow with one unencrypted index field.
+ *
+ * `hello_eq_exercise_id` is stored in plaintext so that evaluations for a
+ * specific friction case can be queried without decrypting every row.
+ * All other evaluation fields (scores, signals, etc.) live in the encrypted blob.
+ */
+export interface EvaluationRow extends EncryptedRow {
+  /** Plaintext index — the FrictionCase ID this evaluation belongs to. */
+  hello_eq_exercise_id: string;
+}
+
 // Singleton keys used in the keyvalue table.
-export const KV_SETTINGS = 'settings' as const;
-export const KV_AI_STATE = 'aiState' as const;
+export const KV_SETTINGS  = 'settings'  as const;
+export const KV_AI_STATE  = 'aiState'   as const;
 export const KV_LLM_MEMORY = 'llmMemory' as const;
-export const KV_USER = 'user' as const;
+export const KV_USER      = 'user'      as const;
 
 // ── Database class ────────────────────────────────────────────────────────────
 
@@ -44,17 +62,25 @@ class HEQDatabase extends Dexie {
   /** Key-value singletons: settings, aiState, llmMemory, user. */
   keyvalue!: Table<EncryptedRow, string>;
 
-  emotions!: Table<EncryptedRow, string>;
-  events!: Table<EncryptedRow, string>;
+  emotions!:    Table<EncryptedRow, string>;
+  events!:      Table<EncryptedRow, string>;
   reflections!: Table<EncryptedRow, string>;
-  actions!: Table<EncryptedRow, string>;
-  goals!: Table<EncryptedRow, string>;
-  exercises!: Table<EncryptedRow, string>;
-  decisions!: Table<EncryptedRow, string>;
-  workModes!: Table<EncryptedRow, string>;
+  actions!:     Table<EncryptedRow, string>;
+  goals!:       Table<EncryptedRow, string>;
+  exercises!:   Table<EncryptedRow, string>;
+  decisions!:   Table<EncryptedRow, string>;
+  workModes!:   Table<EncryptedRow, string>;
+
+  /**
+   * PM Graph-backed evaluation results.
+   * Uses EvaluationRow so hello_eq_exercise_id is an indexed, unencrypted
+   * field while all score/signal data lives in the encrypted blob.
+   */
+  exercise_evaluations!: Table<EvaluationRow, string>;
 
   constructor() {
     super('hello-eq-db-v1');
+
     this.version(1).stores({
       keyvalue:    'id',
       emotions:    'id, updatedAt',
@@ -64,6 +90,7 @@ class HEQDatabase extends Dexie {
       goals:       'id, updatedAt',
       exercises:   'id, updatedAt',
     });
+
     this.version(2).stores({
       keyvalue:    'id',
       emotions:    'id, updatedAt',
@@ -74,6 +101,20 @@ class HEQDatabase extends Dexie {
       exercises:   'id, updatedAt',
       decisions:   'id, updatedAt',
       workModes:   'id, updatedAt',
+    });
+
+    this.version(3).stores({
+      keyvalue:             'id',
+      emotions:             'id, updatedAt',
+      events:               'id, updatedAt',
+      reflections:          'id, updatedAt',
+      actions:              'id, updatedAt',
+      goals:                'id, updatedAt',
+      exercises:            'id, updatedAt',
+      decisions:            'id, updatedAt',
+      workModes:            'id, updatedAt',
+      // hello_eq_exercise_id is a plaintext index — see EvaluationRow.
+      exercise_evaluations: 'id, updatedAt, hello_eq_exercise_id',
     });
   }
 }
@@ -136,6 +177,41 @@ export async function dbReplaceAll<T extends { id: string }>(
   await table.bulkPut(rows);
 }
 
+/**
+ * Write (upsert) a single EvaluationRow — like dbPut but preserves the
+ * plaintext hello_eq_exercise_id index field alongside the encrypted blob.
+ */
+export async function dbPutEvaluation<T>(
+  table: Table<EvaluationRow, string>,
+  id: string,
+  exerciseId: string,
+  value: T,
+): Promise<void> {
+  const blob = await encrypt(value);
+  await table.put({
+    id,
+    blob,
+    updatedAt:             new Date().toISOString(),
+    hello_eq_exercise_id:  exerciseId,
+  });
+}
+
+/**
+ * Read and decrypt all EvaluationRows that belong to a specific exercise,
+ * sorted by updatedAt descending.
+ */
+export async function dbGetEvaluationsByExercise<T>(
+  table: Table<EvaluationRow, string>,
+  exerciseId: string,
+): Promise<T[]> {
+  const rows = await table
+    .where('hello_eq_exercise_id')
+    .equals(exerciseId)
+    .reverse()
+    .sortBy('updatedAt');
+  return Promise.all(rows.map(r => decrypt<T>(r.blob)));
+}
+
 // ── Migration helper: import from legacy localStorage ────────────────────────
 
 /**
@@ -173,10 +249,10 @@ export async function migrateFromLocalStorage(): Promise<void> {
     if (rawSettings) await dbPut(db.keyvalue, KV_SETTINGS, JSON.parse(rawSettings));
 
     const aiUsageCount = localStorage.getItem(legacy.aiUsageCount);
-    const aiUnlocked = localStorage.getItem(legacy.aiUnlocked);
+    const aiUnlocked   = localStorage.getItem(legacy.aiUnlocked);
     await dbPut(db.keyvalue, KV_AI_STATE, {
       aiUsageCount: aiUsageCount ? (JSON.parse(aiUsageCount) as number) : 0,
-      aiUnlocked:   aiUnlocked  ? (JSON.parse(aiUnlocked)  as boolean) : false,
+      aiUnlocked:   aiUnlocked   ? (JSON.parse(aiUnlocked)  as boolean) : false,
     });
 
     // Migrate arrays
