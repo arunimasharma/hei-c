@@ -79,7 +79,7 @@ export default function Header() {
               onMouseEnter={e => { if (!location.pathname.startsWith('/validator')) e.currentTarget.style.backgroundColor = '#F3F4F6'; }}
               onMouseLeave={e => { if (!location.pathname.startsWith('/validator')) e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
-              <Sparkles size={14} /> Validator
+              <Sparkles size={14} /> Idea Validator
             </Link>
             <a
               href="https://forms.gle/qZAfUaUeYH4FNJnQ9"
@@ -159,7 +159,7 @@ export default function Header() {
                     More
                   </div>
                   {[
-                    { path: '/validator', label: 'Validator', icon: <Sparkles size={15} color="#6B7280" /> },
+                    { path: '/validator', label: 'Idea Validator', icon: <Sparkles size={15} color="#6B7280" /> },
                     { path: '/growth',    label: 'Growth',    icon: <TrendingUp size={15} color="#6B7280" /> },
                     { path: '/insights',  label: 'Insights',  icon: <BarChart3 size={15} color="#6B7280" /> },
                     { path: '/account',   label: 'Account',   icon: <User size={15} color="#6B7280" /> },

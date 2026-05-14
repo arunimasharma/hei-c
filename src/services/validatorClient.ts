@@ -1,4 +1,3 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import type {
   ValidatorMode,
   ValidatorMessage,
@@ -8,12 +7,7 @@ import type {
 } from '../types/validator';
 
 const API_URL = '/api/validator';
-
-// TEMP: matches the BYPASS_AUTH flag in src/components/validator/RequireAuth.tsx.
-// Active only in `npm run dev` (Vite MODE === 'development'). In production
-// builds and in vitest, this is false so the real auth + Supabase path runs.
-// To force off in dev too, hard-code `false`.
-const BYPASS_AUTH = import.meta.env.MODE === 'development';
+const STORAGE_KEY = 'hei.validator.sessions.v1';
 
 export class ValidatorError extends Error {
   status: number;
@@ -26,21 +20,101 @@ export class ValidatorError extends Error {
   }
 }
 
-async function authedFetch(body: unknown): Promise<Response> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+// ── Local persistence ─────────────────────────────────────────────────────────
+//
+// Sessions live entirely in localStorage on the user's device. The server is
+// stateless for this feature — it only proxies Anthropic calls.
 
-  if (!BYPASS_AUTH) {
-    if (!supabase) throw new ValidatorError('Supabase is not configured.', 500);
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-    if (!token) throw new ValidatorError('You are not signed in.', 401);
-    headers.Authorization = `Bearer ${token}`;
+interface StoredSession {
+  id: string;
+  mode: ValidatorMode;
+  title: string | null;
+  generatedDoc: string | null;
+  docGeneratedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  messages: ValidatorMessage[];
+}
+
+function loadStore(): Record<string, StoredSession> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, StoredSession>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
   }
+}
 
+function saveStore(store: Record<string, StoredSession>): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  } catch {
+    // Quota exceeded or storage unavailable — silently drop the write.
+  }
+}
+
+function toSession(s: StoredSession): ValidatorSession {
+  return {
+    id:             s.id,
+    userId:         '',
+    mode:           s.mode,
+    title:          s.title,
+    generatedDoc:   s.generatedDoc,
+    docGeneratedAt: s.docGeneratedAt,
+    createdAt:      s.createdAt,
+    updatedAt:      s.updatedAt,
+  };
+}
+
+function ensureStoredSession(
+  store: Record<string, StoredSession>,
+  sessionId: string,
+  mode: ValidatorMode,
+  firstUserMessage: string,
+): StoredSession {
+  const existing = store[sessionId];
+  if (existing && !existing.deletedAt) return existing;
+  const now = new Date().toISOString();
+  const created: StoredSession = {
+    id:             sessionId,
+    mode,
+    title:          deriveTitle(firstUserMessage),
+    generatedDoc:   null,
+    docGeneratedAt: null,
+    createdAt:      now,
+    updatedAt:      now,
+    deletedAt:      null,
+    messages:       [],
+  };
+  store[sessionId] = created;
+  return created;
+}
+
+function deriveTitle(text: string): string {
+  const trimmed = text.trim().replace(/\s+/g, ' ');
+  if (!trimmed) return 'Untitled idea';
+  return trimmed.length > 60 ? `${trimmed.slice(0, 57)}…` : trimmed;
+}
+
+function localMessageId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
+// ── Server proxy (Anthropic only — no auth) ───────────────────────────────────
+
+async function postValidator(body: unknown): Promise<Response> {
   return fetch(API_URL, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body),
   });
 }
 
@@ -56,133 +130,103 @@ async function unwrap<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// ── Server-backed ops ─────────────────────────────────────────────────────────
+// ── Public API ────────────────────────────────────────────────────────────────
 
 export async function sendChat(input: {
   sessionId: string;
   mode: ValidatorMode;
   messages: Array<{ role: ValidatorRole; content: string }>;
 }): Promise<{ message: string; readiness: ValidatorReadiness }> {
-  const res = await authedFetch({ op: 'chat', ...input });
-  return unwrap(res);
+  const res = await postValidator({ op: 'chat', mode: input.mode, messages: input.messages });
+  const { message, readiness } = await unwrap<{ message: string; readiness: ValidatorReadiness }>(res);
+
+  // Persist the user turn + assistant reply locally.
+  const lastUser = [...input.messages].reverse().find(m => m.role === 'user');
+  const store = loadStore();
+  const session = ensureStoredSession(store, input.sessionId, input.mode, lastUser?.content ?? '');
+  const now = new Date().toISOString();
+  if (lastUser) {
+    session.messages.push({
+      id:        localMessageId(),
+      sessionId: input.sessionId,
+      role:      'user',
+      content:   lastUser.content,
+      createdAt: now,
+    });
+  }
+  session.messages.push({
+    id:        localMessageId(),
+    sessionId: input.sessionId,
+    role:      'assistant',
+    content:   message,
+    createdAt: new Date().toISOString(),
+  });
+  session.updatedAt = new Date().toISOString();
+  saveStore(store);
+
+  return { message, readiness };
 }
 
 export async function generateDoc(input: {
   sessionId: string;
   generateAnyway?: boolean;
 }): Promise<{ doc: string }> {
-  const res = await authedFetch({ op: 'generate', ...input });
-  return unwrap(res);
-}
+  const store = loadStore();
+  const session = store[input.sessionId];
+  if (!session || session.deletedAt) {
+    throw new ValidatorError('Session not found.', 404);
+  }
+  const chatHistory = session.messages
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => ({ role: m.role, content: m.content }));
+  if (chatHistory.length === 0) {
+    throw new ValidatorError('Cannot generate from an empty chat.', 400);
+  }
 
-// ── Direct Supabase CRUD (RLS-enforced) ───────────────────────────────────────
+  const res = await postValidator({
+    op:             'generate',
+    mode:           session.mode,
+    messages:       chatHistory,
+    generateAnyway: input.generateAnyway === true,
+  });
+  const { doc } = await unwrap<{ doc: string }>(res);
 
-interface SessionRow {
-  id: string;
-  user_id: string;
-  mode: ValidatorMode;
-  title: string | null;
-  generated_doc: string | null;
-  doc_generated_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
+  const now = new Date().toISOString();
+  session.generatedDoc   = doc;
+  session.docGeneratedAt = now;
+  session.updatedAt      = now;
+  saveStore(store);
 
-interface MessageRow {
-  id: string;
-  session_id: string;
-  role: ValidatorRole;
-  content: string;
-  created_at: string;
-}
-
-function toSession(row: SessionRow): ValidatorSession {
-  return {
-    id:             row.id,
-    userId:         row.user_id,
-    mode:           row.mode,
-    title:          row.title,
-    generatedDoc:   row.generated_doc,
-    docGeneratedAt: row.doc_generated_at,
-    createdAt:      row.created_at,
-    updatedAt:      row.updated_at,
-  };
-}
-
-function toMessage(row: MessageRow): ValidatorMessage {
-  return {
-    id:        row.id,
-    sessionId: row.session_id,
-    role:      row.role,
-    content:   row.content,
-    createdAt: row.created_at,
-  };
+  return { doc };
 }
 
 export async function listSessions(): Promise<ValidatorSession[]> {
-  if (BYPASS_AUTH) {
-    const res = await authedFetch({ op: 'list' });
-    const { sessions } = await unwrap<{ sessions: SessionRow[] }>(res);
-    return sessions.map(toSession);
-  }
-  if (!isSupabaseConfigured || !supabase) return [];
-  const { data, error } = await supabase
-    .from('validator_sessions')
-    .select('id, user_id, mode, title, generated_doc, doc_generated_at, created_at, updated_at')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false });
-  if (error) throw new ValidatorError(error.message, 500);
-  return (data ?? []).map(toSession);
+  const store = loadStore();
+  return Object.values(store)
+    .filter(s => !s.deletedAt)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(toSession);
 }
 
 export async function getSession(sessionId: string): Promise<{
   session: ValidatorSession;
   messages: ValidatorMessage[];
 } | null> {
-  if (BYPASS_AUTH) {
-    const res = await authedFetch({ op: 'get', sessionId });
-    if (res.status === 404) return null;
-    const { session, messages } = await unwrap<{ session: SessionRow; messages: MessageRow[] }>(res);
-    return { session: toSession(session), messages: messages.map(toMessage) };
-  }
-  if (!isSupabaseConfigured || !supabase) return null;
-
-  const { data: sessionRow, error: sessionErr } = await supabase
-    .from('validator_sessions')
-    .select('id, user_id, mode, title, generated_doc, doc_generated_at, created_at, updated_at')
-    .eq('id', sessionId)
-    .is('deleted_at', null)
-    .maybeSingle();
-  if (sessionErr) throw new ValidatorError(sessionErr.message, 500);
-  if (!sessionRow) return null;
-
-  const { data: messageRows, error: msgErr } = await supabase
-    .from('validator_messages')
-    .select('id, session_id, role, content, created_at')
-    .eq('session_id', sessionId)
-    .order('created_at', { ascending: true });
-  if (msgErr) throw new ValidatorError(msgErr.message, 500);
-
+  const store = loadStore();
+  const s = store[sessionId];
+  if (!s || s.deletedAt) return null;
   return {
-    session:  toSession(sessionRow),
-    messages: (messageRows ?? []).map(toMessage),
+    session:  toSession(s),
+    messages: [...s.messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
   };
 }
 
 export async function softDeleteSession(sessionId: string): Promise<void> {
-  if (BYPASS_AUTH) {
-    const res = await authedFetch({ op: 'delete', sessionId });
-    await unwrap<{ ok: true }>(res);
-    return;
-  }
-  if (!isSupabaseConfigured || !supabase) {
-    throw new ValidatorError('Supabase is not configured.', 500);
-  }
-  const { error } = await supabase
-    .from('validator_sessions')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', sessionId);
-  if (error) throw new ValidatorError(error.message, 500);
+  const store = loadStore();
+  const s = store[sessionId];
+  if (!s) return;
+  s.deletedAt = new Date().toISOString();
+  saveStore(store);
 }
 
 // ── Local UUID (for sessionId minted client-side) ─────────────────────────────
@@ -191,6 +235,5 @@ export function newSessionId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
   }
-  // Fallback: not cryptographically strong but fine for an opaque id.
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}-${Math.random().toString(16).slice(2, 10)}`;
 }

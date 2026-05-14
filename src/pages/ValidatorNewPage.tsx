@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router';
 import { Send, Sparkles, AlertTriangle } from 'lucide-react';
 import { motion } from 'motion/react';
 import DashboardLayout from '../components/layout/DashboardLayout';
-import RequireAuth from '../components/validator/RequireAuth';
 import ChatBubble from '../components/validator/ChatBubble';
 import ModeToggle from '../components/validator/ModeToggle';
 import Button from '../components/common/Button';
@@ -40,11 +39,9 @@ interface UIMessage {
 
 export default function ValidatorNewPage() {
   return (
-    <RequireAuth>
-      <DashboardLayout>
-        <ValidatorNewInner />
-      </DashboardLayout>
-    </RequireAuth>
+    <DashboardLayout>
+      <ValidatorNewInner />
+    </DashboardLayout>
   );
 }
 

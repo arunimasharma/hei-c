@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { Copy, Download, RefreshCw, ArrowLeft, Check, Code2 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
-import RequireAuth from '../components/validator/RequireAuth';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -21,11 +20,9 @@ type Tab = 'hypothesis' | 'build_prompt';
 
 export default function ValidatorSessionPage() {
   return (
-    <RequireAuth>
-      <DashboardLayout>
-        <ValidatorSessionInner />
-      </DashboardLayout>
-    </RequireAuth>
+    <DashboardLayout>
+      <ValidatorSessionInner />
+    </DashboardLayout>
   );
 }
 
@@ -155,7 +152,7 @@ function ValidatorSessionInner() {
         <p style={{ margin: 0, color: '#B91C1C', fontSize: '0.875rem' }}>{error ?? 'Session not found.'}</p>
         <div style={{ marginTop: '1rem' }}>
           <Link to="/validator" style={{ color: '#4A5FC1', fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none' }}>
-            ← Back to Validator
+            ← Back to Idea Validator
           </Link>
         </div>
       </Card>

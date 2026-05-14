@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Sparkles, Trash2, FileText, MessageSquare } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
-import RequireAuth from '../components/validator/RequireAuth';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -11,11 +10,9 @@ import type { ValidatorSession } from '../types/validator';
 
 export default function ValidatorIndexPage() {
   return (
-    <RequireAuth>
-      <DashboardLayout>
-        <ValidatorIndexInner />
-      </DashboardLayout>
-    </RequireAuth>
+    <DashboardLayout>
+      <ValidatorIndexInner />
+    </DashboardLayout>
   );
 }
 
