@@ -60,7 +60,7 @@ export default function SignInPage() {
 
     try {
       if (mode === 'signup') {
-        const { error: authError, needsEmailConfirmation } = await signUp(email, password);
+        const { error: authError, needsEmailConfirmation, session } = await signUp(email, password);
         if (authError) {
           setError(authError.message);
           return;
@@ -74,11 +74,14 @@ export default function SignInPage() {
           setConfirmPassword('');
           return;
         }
-        // Email confirmation is disabled: Supabase auto-created a session and
-        // onAuthStateChange will flip `user` to truthy, which triggers the
-        // <Navigate /> at the top of this component. Show a brief confirmation
-        // state until that happens (typically a single render tick).
+        // Email confirmation is disabled: Supabase auto-created a session.
+        // Navigate explicitly — don't rely on the <Navigate> guard at the top
+        // of this component, which depends on onAuthStateChange races we've
+        // already been bitten by.
         setSignupSuccess('auto-signed-in');
+        if (session) {
+          navigate(safeNext, { replace: true });
+        }
         return;
       }
 

@@ -2,8 +2,6 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/AuthContext';
-import { useFrictionFeedback } from './hooks/useFrictionFeedback';
-import FrictionFeedbackWidget from './components/common/FrictionFeedbackWidget';
 import OnboardingPage from './pages/OnboardingPage';
 import HomePage from './pages/HomePage';
 import InsightsPage from './pages/InsightsPage';
@@ -27,11 +25,6 @@ const PublicProfilePage   = lazy(() => import('./pages/PublicProfilePage'));
 const ValidatorIndexPage   = lazy(() => import('./pages/ValidatorIndexPage'));
 const ValidatorNewPage     = lazy(() => import('./pages/ValidatorNewPage'));
 const ValidatorSessionPage = lazy(() => import('./pages/ValidatorSessionPage'));
-
-function FrictionLayer() {
-  const friction = useFrictionFeedback();
-  return <FrictionFeedbackWidget {...friction} />;
-}
 
 export default function App() {
   return (
@@ -73,7 +66,6 @@ export default function App() {
           <Route path="/add-event" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-        <FrictionLayer />
       </AppProvider>
       </AuthProvider>
       <Analytics />
