@@ -328,7 +328,7 @@ function pmGraphFrictionCaseDevPlugin(baseUrl: string, serviceToken: string): Pl
               return
             }
 
-            const data = await pmRes.json()
+            const data = await pmRes.json() as Record<string, unknown>
             res.statusCode = 200
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ ...data, request_id: requestId }))
@@ -376,7 +376,7 @@ interface DevValidatorSession {
 interface DevSessionRow {
   id:                string
   user_id:           string
-  mode:              'aspiring' | 'working'
+  mode:              'quick_prototype' | 'strategic_bet'
   title:             string | null
   generated_doc:     string | null
   doc_generated_at:  string | null
