@@ -18,7 +18,6 @@ import {
   buildGenerationPrompt,
   evaluateReadiness,
   stripAreasTag,
-  deriveSessionTitle,
 } from './src/services/validatorPrompts.js'
 
 // ── Dev middleware: handles /api/evaluate-taste locally (npm run dev) ──────────
@@ -347,82 +346,14 @@ function pmGraphFrictionCaseDevPlugin(baseUrl: string, serviceToken: string): Pl
 
 // ── Dev middleware: handles /api/validator locally (npm run dev) ──────────────
 //
-// TEMP local-testing helper. The production handler lives at api/validator.ts
-// and requires a Supabase JWT + RLS-protected Postgres. For `npm run dev` this
-// middleware bypasses auth entirely and stores sessions/messages in an
-// in-memory Map (reset on dev-server restart). The client side has a matching
-// BYPASS_AUTH flag in src/services/validatorClient.ts. To re-enable the real
-// auth path, flip both flags back to false and remove this middleware from the
-// plugins list below.
+// Stateless mirror of api/validator.ts for the Vite dev server. The Validator
+// is unauthenticated; sessions/messages are persisted client-side in
+// localStorage (see src/services/validatorClient.ts). This middleware just
+// proxies to Anthropic for `chat` and `generate`.
 
-interface DevValidatorMessage {
-  id:        string
-  sessionId: string
-  role:      'user' | 'assistant'
-  content:   string
-  createdAt: string
-}
-interface DevValidatorSession {
-  id:              string
-  userId:          string
-  mode:            'quick_prototype' | 'strategic_bet'
-  title:           string | null
-  generatedDoc:    string | null
-  docGeneratedAt:  string | null
-  createdAt:       string
-  updatedAt:       string
-  deletedAt:       string | null
-}
-interface DevSessionRow {
-  id:                string
-  user_id:           string
-  mode:              'quick_prototype' | 'strategic_bet'
-  title:             string | null
-  generated_doc:     string | null
-  doc_generated_at:  string | null
-  created_at:        string
-  updated_at:        string
-}
-interface DevMessageRow {
-  id:         string
-  session_id: string
-  role:       'user' | 'assistant'
-  content:    string
-  created_at: string
-}
-
-const VALIDATOR_DEV_USER_ID = '00000000-0000-0000-0000-000000000000'
-const VALIDATOR_DEV_CHAT_MODEL      = 'claude-sonnet-4-20250514'
+const VALIDATOR_DEV_CHAT_MODEL          = 'claude-sonnet-4-20250514'
 const VALIDATOR_DEV_CHAT_MAX_TOKENS     = 800
 const VALIDATOR_DEV_GENERATE_MAX_TOKENS = 4096
-
-function devNewId(): string {
-  // Random hex; matches the look of UUIDs but doesn't need to be one.
-  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}-${Math.random().toString(16).slice(2, 10)}`
-}
-
-function toSessionRow(s: DevValidatorSession): DevSessionRow {
-  return {
-    id:                s.id,
-    user_id:           s.userId,
-    mode:              s.mode,
-    title:             s.title,
-    generated_doc:     s.generatedDoc,
-    doc_generated_at:  s.docGeneratedAt,
-    created_at:        s.createdAt,
-    updated_at:        s.updatedAt,
-  }
-}
-
-function toMessageRow(m: DevValidatorMessage): DevMessageRow {
-  return {
-    id:         m.id,
-    session_id: m.sessionId,
-    role:       m.role,
-    content:    m.content,
-    created_at: m.createdAt,
-  }
-}
 
 async function callAnthropicDev(
   apiKey: string,
@@ -455,9 +386,6 @@ async function callAnthropicDev(
 }
 
 function validatorDevPlugin(apiKey: string): Plugin {
-  // Module-scoped store: sessionId -> {session, messages[]}
-  const store = new Map<string, { session: DevValidatorSession; messages: DevValidatorMessage[] }>()
-
   return {
     name: 'heq-validator-dev',
     configureServer(server) {
@@ -471,7 +399,6 @@ function validatorDevPlugin(apiKey: string): Plugin {
             return
           }
 
-          // Read body
           const chunks: Buffer[] = []
           for await (const chunk of req) chunks.push(chunk as Buffer)
           let body: Record<string, unknown>
@@ -490,86 +417,36 @@ function validatorDevPlugin(apiKey: string): Plugin {
             res.end(JSON.stringify(payload))
           }
 
-          const op = body.op
-          const userId = VALIDATOR_DEV_USER_ID
-
-          // ── op: list ──
-          if (op === 'list') {
-            const sessions = Array.from(store.values())
-              .filter(({ session }) => session.deletedAt === null)
-              .sort((a, b) => b.session.createdAt.localeCompare(a.session.createdAt))
-              .map(({ session }) => toSessionRow(session))
-            send(200, { sessions })
+          if (!apiKey) {
+            send(500, { error: 'ANTHROPIC_API_KEY not set in .env' })
             return
           }
 
-          // ── op: get ──
-          if (op === 'get') {
-            const sessionId = typeof body.sessionId === 'string' ? body.sessionId : ''
-            const entry = store.get(sessionId)
-            if (!entry || entry.session.deletedAt !== null) {
-              send(404, { error: 'Session not found.' })
-              return
-            }
-            send(200, {
-              session:  toSessionRow(entry.session),
-              messages: entry.messages.map(toMessageRow),
-            })
+          const op       = body.op
+          const mode     = body.mode === 'quick_prototype' || body.mode === 'strategic_bet' ? body.mode : null
+          const messages = Array.isArray(body.messages)
+            ? body.messages as Array<{ role: 'user' | 'assistant'; content: string }>
+            : null
+
+          if (op !== 'chat' && op !== 'generate') {
+            send(400, { error: 'Unknown op. Expected "chat" or "generate".' })
+            return
+          }
+          if (!mode) {
+            send(400, { error: 'mode must be "quick_prototype" or "strategic_bet".' })
+            return
+          }
+          if (!messages?.length) {
+            send(400, { error: 'messages must be a non-empty array.' })
             return
           }
 
-          // ── op: delete (soft) ──
-          if (op === 'delete') {
-            const sessionId = typeof body.sessionId === 'string' ? body.sessionId : ''
-            const entry = store.get(sessionId)
-            if (!entry) { send(404, { error: 'Session not found.' }); return }
-            entry.session.deletedAt = new Date().toISOString()
-            entry.session.updatedAt = entry.session.deletedAt
-            send(200, { ok: true })
-            return
-          }
-
-          // ── op: chat ──
           if (op === 'chat') {
-            if (!apiKey) { send(500, { error: 'ANTHROPIC_API_KEY not set in .env' }); return }
-
-            const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : ''
-            const mode      = body.mode === 'quick_prototype' || body.mode === 'strategic_bet' ? body.mode : null
-            const messages  = Array.isArray(body.messages) ? body.messages as Array<{ role: 'user' | 'assistant'; content: string }> : null
-            if (!sessionId)         { send(400, { error: 'sessionId is required.' });  return }
-            if (!mode)              { send(400, { error: 'mode must be "quick_prototype" or "strategic_bet".' }); return }
-            if (!messages?.length)  { send(400, { error: 'messages must be a non-empty array.' }); return }
-
             const last = messages[messages.length - 1]
             if (last.role !== 'user' || !last.content?.trim()) {
               send(400, { error: 'Last message must be a non-empty user message.' })
               return
             }
-
-            // Ensure session exists (in-memory)
-            let entry = store.get(sessionId)
-            if (!entry) {
-              const now = new Date().toISOString()
-              entry = {
-                session: {
-                  id: sessionId, userId, mode,
-                  title: deriveSessionTitle(last.content.trim()),
-                  generatedDoc: null, docGeneratedAt: null,
-                  createdAt: now, updatedAt: now, deletedAt: null,
-                },
-                messages: [],
-              }
-              store.set(sessionId, entry)
-            } else if (entry.session.mode !== mode) {
-              send(409, { error: 'Mode mismatch on existing session.' })
-              return
-            }
-
-            // Persist user turn
-            entry.messages.push({
-              id: devNewId(), sessionId, role: 'user',
-              content: last.content.trim(), createdAt: new Date().toISOString(),
-            })
 
             let rawAssistantText: string
             try {
@@ -587,56 +464,30 @@ function validatorDevPlugin(apiKey: string): Plugin {
 
             const readiness = evaluateReadiness(rawAssistantText)
             const assistantText = stripAreasTag(rawAssistantText)
-
-            entry.messages.push({
-              id: devNewId(), sessionId, role: 'assistant',
-              content: assistantText, createdAt: new Date().toISOString(),
-            })
-            entry.session.updatedAt = new Date().toISOString()
-
             send(200, { message: assistantText, readiness })
             return
           }
 
-          // ── op: generate ──
-          if (op === 'generate') {
-            if (!apiKey) { send(500, { error: 'ANTHROPIC_API_KEY not set in .env' }); return }
+          // op === 'generate'
+          const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant')
+          const readiness = lastAssistant ? evaluateReadiness(lastAssistant.content) : null
+          const generateAnyway = body.generateAnyway === true || !readiness || !readiness.ready
 
-            const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : ''
-            const entry = store.get(sessionId)
-            if (!entry) { send(404, { error: 'Session not found.' }); return }
-
-            const chatHistory = entry.messages.map(m => ({ role: m.role, content: m.content }))
-            if (!chatHistory.length) { send(400, { error: 'Cannot generate from an empty chat.' }); return }
-
-            const lastAssistant = [...chatHistory].reverse().find(m => m.role === 'assistant')
-            const readiness = lastAssistant ? evaluateReadiness(lastAssistant.content) : null
-            const generateAnyway = body.generateAnyway === true || !readiness || !readiness.ready
-
-            const prompt = buildGenerationPrompt({ mode: entry.session.mode, chatHistory, generateAnyway })
-            let doc: string
-            try {
-              doc = await callAnthropicDev(
-                apiKey,
-                'You are an exceptional product leader. Respond with markdown only — no preamble, no code fences.',
-                [{ role: 'user', content: prompt }],
-                VALIDATOR_DEV_GENERATE_MAX_TOKENS,
-              )
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : 'Unknown upstream error'
-              send(502, { error: msg })
-              return
-            }
-
-            const now = new Date().toISOString()
-            entry.session.generatedDoc    = doc
-            entry.session.docGeneratedAt  = now
-            entry.session.updatedAt       = now
-            send(200, { doc })
+          const prompt = buildGenerationPrompt({ mode, chatHistory: messages, generateAnyway })
+          let doc: string
+          try {
+            doc = await callAnthropicDev(
+              apiKey,
+              'You are an exceptional product leader. Respond with markdown only — no preamble, no code fences.',
+              [{ role: 'user', content: prompt }],
+              VALIDATOR_DEV_GENERATE_MAX_TOKENS,
+            )
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unknown upstream error'
+            send(502, { error: msg })
             return
           }
-
-          send(400, { error: 'Unknown op. Expected chat | generate | list | get | delete.' })
+          send(200, { doc })
         },
       )
     },
@@ -669,7 +520,7 @@ export default defineConfig(({ mode }) => {
       evaluatorKey ? evaluateTasteDevPlugin(evaluatorKey) : null,
       // PM Graph friction-case dev middleware — always mounted; returns degraded if env vars absent
       pmGraphFrictionCaseDevPlugin(pmGraphBaseUrl ?? '', pmGraphToken ?? ''),
-      // Validator dev middleware — TEMP, bypasses auth and uses in-memory storage
+      // Idea Validator dev middleware — stateless Anthropic proxy (no auth)
       validatorDevPlugin(apiKey ?? ''),
     ],
     resolve: {
