@@ -32,11 +32,12 @@ export default function SignInPage() {
   const [loading, setLoading] = useState(false);
   const [migrating, setMigrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [signupSuccess, setSignupSuccess] = useState(false);
+  const [signupSuccess, setSignupSuccess] = useState<null | 'auto-signed-in' | 'needs-confirmation'>(null);
 
   const switchMode = (next: 'signin' | 'signup') => {
     setMode(next);
     setError(null);
+    setSignupSuccess(null);
     setPassword('');
     setConfirmPassword('');
   };
@@ -59,13 +60,25 @@ export default function SignInPage() {
 
     try {
       if (mode === 'signup') {
-        const authError = await signUp(email, password);
+        const { error: authError, needsEmailConfirmation } = await signUp(email, password);
         if (authError) {
           setError(authError.message);
           return;
         }
-        setSignupSuccess(true);
-        switchMode('signin');
+        if (needsEmailConfirmation) {
+          // User must click the verification link before they can sign in.
+          // Keep them on the signup view with a clear message — switching to
+          // signin would just put them in a loop of "Email not confirmed".
+          setSignupSuccess('needs-confirmation');
+          setPassword('');
+          setConfirmPassword('');
+          return;
+        }
+        // Email confirmation is disabled: Supabase auto-created a session and
+        // onAuthStateChange will flip `user` to truthy, which triggers the
+        // <Navigate /> at the top of this component. Show a brief confirmation
+        // state until that happens (typically a single render tick).
+        setSignupSuccess('auto-signed-in');
         return;
       }
 
@@ -161,13 +174,22 @@ export default function SignInPage() {
             </p>
           </div>
 
-          {signupSuccess && (
+          {signupSuccess === 'needs-confirmation' && (
+            <div style={{
+              backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px',
+              padding: '0.75rem 1rem', marginBottom: '1rem',
+              fontSize: '0.875rem', color: '#92400E', textAlign: 'center',
+            }}>
+              Check your inbox to confirm <strong>{email}</strong>, then sign in below.
+            </div>
+          )}
+          {signupSuccess === 'auto-signed-in' && (
             <div style={{
               backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px',
               padding: '0.75rem 1rem', marginBottom: '1rem',
               fontSize: '0.875rem', color: '#15803D', textAlign: 'center',
             }}>
-              Account created! Please sign in to continue.
+              Account created! Taking you in…
             </div>
           )}
 
