@@ -3,7 +3,7 @@ import {
   type ReadinessArea,
   type ValidatorMode,
   type ValidatorReadiness,
-} from '../types/validator';
+} from '../types/validator.js';
 
 // ── Hidden machine-readable status tag ────────────────────────────────────────
 //
