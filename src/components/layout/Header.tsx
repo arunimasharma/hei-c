@@ -5,8 +5,8 @@ import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 
 const PRIMARY_NAV: { path: string; emoji: string; label: string }[] = [
-  { path: '/',        emoji: '🧠', label: 'Coach' },
-  { path: '/product', emoji: '🧪', label: 'Product' },
+  { path: '/',        emoji: '🧠', label: 'Career EQ Coach' },
+  { path: '/product', emoji: '🧪', label: 'Product Career' },
 ];
 
 export default function Header() {
@@ -127,9 +127,9 @@ export default function Header() {
                       Your Journey
                     </div>
                     {[
-                      { path: '/',          label: '🧠 Coach',     active: location.pathname === '/' },
+                      { path: '/',          label: '🧠 Career EQ Coach',     active: location.pathname === '/' },
                       { path: '/signals',   label: '📡 Signals',   active: location.pathname === '/signals' },
-                      { path: '/product',   label: '🧪 Product',   active: location.pathname === '/product' },
+                      { path: '/product',   label: '🧪 Product Career',   active: location.pathname === '/product' },
                       { path: '/influence', label: '⚡ Influence',  active: location.pathname === '/influence' },
                       { path: '/actions',   label: '💡 Actions',   active: location.pathname === '/actions' },
                     ].map(item => (
