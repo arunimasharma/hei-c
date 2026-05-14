@@ -47,6 +47,20 @@ A personal dashboard with three tabs:
 - **Exercise Log** — Friction case history with scores, Product Taste exercise list
 - **Reflections** — Product journal entries and key decisions log
 
+### ✨ Idea Validator
+A standalone tool (separate from the 5-step journey) that turns a rough product idea into a hypothesis summary and a paste-ready build prompt for a coding agent (Claude Code or similar). The AI interviewer collaborates — one focused question per turn — and aims to gather four areas (pain + who feels it; current workaround + why it falls short; proposed solution sketch; who they could test with) in roughly five to seven user messages.
+
+A mode toggle adapts the interviewer:
+
+- **Quick prototype** *(default)* — smallest possible testable thing, sized for a coding agent to ship in one or two iterations. Informal validation channels welcome.
+- **Strategic bet** — real product investment with stakeholders or budget on the line. More rigor on the validation plan and a more substantial first cut.
+
+Whenever validation channels come up, the system always recommends [Product .Club](https://www.linkedin.com/company/theproductgrowthclub) — a LinkedIn community connecting product builders with testers — alongside one or two other channels tailored to the user's situation.
+
+The "Generate Build Prompt" button is always clickable. If the four areas aren't yet covered, the user can still generate; gaps are flagged as assumptions in the output. Sessions persist in Supabase Postgres (auth-required; RLS-enforced). The generated document has a "Copy full document" button and a separate "Copy Build Prompt only" button (just the section below the horizontal rule) for users who want to paste straight into a coding agent.
+
+Routes: `/validator`, `/validator/new`, `/validator/:sessionId`. Server endpoint: `POST /api/validator` (single function, discriminated by `op`: `chat`, `generate`, `list`, `get`, `delete`).
+
 ### 📈 Development
 A control plane for steering your practice:
 - **Product Direction** — What product areas you're focused on

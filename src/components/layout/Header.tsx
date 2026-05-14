@@ -1,9 +1,13 @@
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Menu, X, LogOut, Settings, BarChart3, TrendingUp, User, LogIn } from 'lucide-react';
-import { useState } from 'react';
+import { Menu, X, LogOut, Settings, BarChart3, TrendingUp, User, LogIn, Sparkles, ChevronRight } from 'lucide-react';
+import { Fragment, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
-import FlowJourney from '../common/FlowJourney';
+
+const PRIMARY_NAV: { path: string; emoji: string; label: string }[] = [
+  { path: '/',        emoji: '🧠', label: 'Coach' },
+  { path: '/product', emoji: '🧪', label: 'Product' },
+];
 
 export default function Header() {
   const { state, logout } = useApp();
@@ -32,9 +36,51 @@ export default function Header() {
             <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#4A5FC1', letterSpacing: '-0.01em' }}>Hello-EQ</span>
           </Link>
 
-          {/* Desktop — FlowJourney as primary nav */}
-          <nav className="hidden md:flex" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <FlowJourney variant="nav" />
+          {/* Desktop — primary nav: Coach, Product, Validator */}
+          <nav className="hidden md:flex" style={{ display: 'flex', alignItems: 'center', gap: '0.125rem' }}>
+            {PRIMARY_NAV.map((item, idx) => {
+              const isCurrent = location.pathname === item.path;
+              return (
+                <Fragment key={item.path}>
+                  <Link
+                    to={item.path}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
+                      padding: '0.5rem 0.875rem', borderRadius: '10px',
+                      fontSize: '0.875rem',
+                      fontWeight: isCurrent ? 600 : 400,
+                      textDecoration: 'none', transition: 'background 0.15s, color 0.15s',
+                      color: isCurrent ? '#1F2937' : '#6B7280',
+                      backgroundColor: isCurrent ? 'rgba(0,0,0,0.05)' : 'transparent',
+                      pointerEvents: isCurrent ? 'none' : 'auto',
+                    }}
+                    onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.04)'; }}
+                    onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  >
+                    <span style={{ fontSize: '1rem' }}>{item.emoji}</span>
+                    <span>{item.label}</span>
+                  </Link>
+                  {idx < PRIMARY_NAV.length - 1 && (
+                    <ChevronRight size={13} color="#D1D5DB" style={{ flexShrink: 0 }} />
+                  )}
+                </Fragment>
+              );
+            })}
+            <Link
+              to="/validator"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
+                padding: '0.5rem 0.75rem', borderRadius: '10px',
+                fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none',
+                color: location.pathname.startsWith('/validator') ? '#4A5FC1' : '#374151',
+                backgroundColor: location.pathname.startsWith('/validator') ? 'rgba(74,95,193,0.08)' : 'transparent',
+                marginLeft: '0.5rem', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (!location.pathname.startsWith('/validator')) e.currentTarget.style.backgroundColor = '#F3F4F6'; }}
+              onMouseLeave={e => { if (!location.pathname.startsWith('/validator')) e.currentTarget.style.backgroundColor = 'transparent'; }}
+            >
+              <Sparkles size={14} /> Validator
+            </Link>
             <a
               href="https://forms.gle/qZAfUaUeYH4FNJnQ9"
               target="_blank"
@@ -75,8 +121,8 @@ export default function Header() {
               }}>
                 <div style={{ padding: '0.5rem' }}>
 
-                  {/* Mobile: full journey nav */}
-                  <div className="md:hidden">
+                  {/* Journey nav — all 5 steps, accessible on every screen size */}
+                  <div>
                     <div style={{ padding: '0.5rem 0.875rem 0.25rem', fontSize: '0.6875rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       Your Journey
                     </div>
@@ -113,9 +159,10 @@ export default function Header() {
                     More
                   </div>
                   {[
-                    { path: '/growth',   label: 'Growth',   icon: <TrendingUp size={15} color="#6B7280" /> },
-                    { path: '/insights', label: 'Insights', icon: <BarChart3 size={15} color="#6B7280" /> },
-                    { path: '/account',  label: 'Account',  icon: <User size={15} color="#6B7280" /> },
+                    { path: '/validator', label: 'Validator', icon: <Sparkles size={15} color="#6B7280" /> },
+                    { path: '/growth',    label: 'Growth',    icon: <TrendingUp size={15} color="#6B7280" /> },
+                    { path: '/insights',  label: 'Insights',  icon: <BarChart3 size={15} color="#6B7280" /> },
+                    { path: '/account',   label: 'Account',   icon: <User size={15} color="#6B7280" /> },
                   ].map(item => (
                     <Link
                       key={item.path}

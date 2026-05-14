@@ -206,6 +206,18 @@ export default function HomePage() {
     return () => clearInterval(timer);
   }, [journalText]);
 
+  // URL param: ?prefill= populates the journal composer once (used by the
+  // Idea Validator "Save reflection to journal" handoff). Nothing is written
+  // until the user explicitly submits.
+  const prefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (prefillAppliedRef.current) return;
+    const prefill = searchParams.get('prefill');
+    if (!prefill) return;
+    prefillAppliedRef.current = true;
+    if (!journalText.trim()) setJournalText(prefill);
+  }, [searchParams, journalText]);
+
   // URL param: select pillar whenever the search params change
   useEffect(() => {
     const pillar = searchParams.get('pillar');

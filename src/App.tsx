@@ -23,6 +23,10 @@ const SignInPage          = lazy(() => import('./pages/SignInPage'));
 const UnauthorizedPage    = lazy(() => import('./pages/UnauthorizedPage'));
 // Public profile page — no auth required, minimal bundle
 const PublicProfilePage   = lazy(() => import('./pages/PublicProfilePage'));
+// Idea Validator — auth-gated; lazy so it only loads when accessed.
+const ValidatorIndexPage   = lazy(() => import('./pages/ValidatorIndexPage'));
+const ValidatorNewPage     = lazy(() => import('./pages/ValidatorNewPage'));
+const ValidatorSessionPage = lazy(() => import('./pages/ValidatorSessionPage'));
 
 function FrictionLayer() {
   const friction = useFrictionFeedback();
@@ -46,6 +50,11 @@ export default function App() {
           <Route path="/influence" element={<InfluencePage />} />
           <Route path="/signals" element={<SignalsPage />} />
           <Route path="/actions" element={<ActionsPage />} />
+
+          {/* ── Idea Validator (auth-gated; gate handled inside the pages) ── */}
+          <Route path="/validator"             element={<Suspense fallback={null}><ValidatorIndexPage /></Suspense>} />
+          <Route path="/validator/new"         element={<Suspense fallback={null}><ValidatorNewPage /></Suspense>} />
+          <Route path="/validator/:sessionId"  element={<Suspense fallback={null}><ValidatorSessionPage /></Suspense>} />
 
           {/* ── Public profile (no auth required) ── */}
           <Route path="/p/:slug" element={<Suspense fallback={null}><PublicProfilePage /></Suspense>} />

@@ -50,7 +50,8 @@ export const BenchmarkStore = {
     supabase
       .from('case_benchmarks')
       .insert({ case_id: caseId, root_correct: rootIssueCorrect, fix_correct: fixCorrect, score })
-      .then(() => { /* ignore */ });
+      .then(() => { /* fire-and-forget */ })
+      .catch(() => { /* network error — ignore */ });
   },
 
   /**

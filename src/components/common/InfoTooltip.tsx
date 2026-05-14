@@ -78,8 +78,7 @@ export default function InfoTooltip({
       onFocus={show}
       onBlur={hide}
     >
-      <button
-        type="button"
+      <span
         aria-label="More information"
         style={{
           border: 'none', background: 'none', padding: '1px', cursor: 'help',
@@ -88,7 +87,7 @@ export default function InfoTooltip({
         }}
       >
         <Info size={iconSize} />
-      </button>
+      </span>
 
       {open && (
         <span style={tooltipStyle} role="tooltip">

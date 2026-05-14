@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Navigate } from 'react-router';
+import { useNavigate, Navigate, useSearchParams } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { migrateToSupabase } from '../services/migrationService';
@@ -17,6 +17,13 @@ export default function SignInPage() {
   const { signIn, signUp, user, authReady } = useAuth();
   const { state } = useApp();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Honor a ?next= path set by gates (e.g. RequireAuth) so the user lands
+  // back where they tried to go. Restrict to in-app paths to avoid open redirects.
+  const nextParam = searchParams.get('next');
+  const safeNext = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')
+    ? nextParam
+    : '/';
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -84,7 +91,7 @@ export default function SignInPage() {
         setMigrating(false);
       }
 
-      navigate('/', { replace: true });
+      navigate(safeNext, { replace: true });
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
@@ -93,7 +100,7 @@ export default function SignInPage() {
   };
 
   if (!authReady) return null;
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={safeNext} replace />;
 
   return (
     <div style={{
