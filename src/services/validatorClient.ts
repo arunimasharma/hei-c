@@ -4,10 +4,14 @@ import type {
   ValidatorRole,
   ValidatorSession,
   ValidatorReadiness,
+  ValidatorOutcome,
 } from '../types/validator';
 
-const API_URL = '/api/validator';
+const API_URL     = '/api/validator';
 const STORAGE_KEY = 'hei.validator.sessions.v1';
+
+/** Sessions older than this with no `outcome` show up in the "What happened?" nudge. */
+export const OUTCOME_PROMPT_AGE_DAYS = 7;
 
 export class ValidatorError extends Error {
   status: number;
@@ -35,6 +39,8 @@ interface StoredSession {
   updatedAt: string;
   deletedAt: string | null;
   messages: ValidatorMessage[];
+  /** Builder's logged outcome for the outcome loop. Null until logged. */
+  outcome?: ValidatorOutcome | null;
 }
 
 function loadStore(): Record<string, StoredSession> {
@@ -68,6 +74,7 @@ function toSession(s: StoredSession): ValidatorSession {
     docGeneratedAt: s.docGeneratedAt,
     createdAt:      s.createdAt,
     updatedAt:      s.updatedAt,
+    outcome:        s.outcome ?? null,
   };
 }
 
@@ -90,6 +97,7 @@ function ensureStoredSession(
     updatedAt:      now,
     deletedAt:      null,
     messages:       [],
+    outcome:        null,
   };
   store[sessionId] = created;
   return created;
@@ -122,8 +130,11 @@ async function unwrap<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
     try {
-      const data = await res.json() as { error?: string };
-      if (data.error) message = data.error;
+      const data = await res.json() as { error?: string; message?: string };
+      // Prefer the human-readable `message` (e.g. "Set SUPABASE_URL…");
+      // fall back to the short `error` code only when nothing else is offered.
+      if (data.message) message = data.message;
+      else if (data.error) message = data.error;
     } catch { /* fall through */ }
     throw new ValidatorError(message, res.status);
   }
@@ -236,4 +247,31 @@ export function newSessionId(): string {
     return crypto.randomUUID();
   }
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
+// ── Outcome loop (entirely local) ─────────────────────────────────────────────
+
+export async function saveOutcome(sessionId: string, outcome: Omit<ValidatorOutcome, 'loggedAt'>): Promise<ValidatorOutcome> {
+  const store = loadStore();
+  const session = store[sessionId];
+  if (!session || session.deletedAt) throw new ValidatorError('Session not found.', 404);
+
+  const now = new Date().toISOString();
+  const saved: ValidatorOutcome = { ...outcome, loggedAt: now };
+  session.outcome   = saved;
+  session.updatedAt = now;
+  saveStore(store);
+  return saved;
+}
+
+/** Sessions whose `docGeneratedAt` is older than the threshold and have no `outcome`. */
+export async function listOutcomePromptCandidates(): Promise<ValidatorSession[]> {
+  const cutoff = Date.now() - OUTCOME_PROMPT_AGE_DAYS * 24 * 60 * 60 * 1000;
+  const store = loadStore();
+  return Object.values(store)
+    .filter(s => !s.deletedAt)
+    .filter(s => !s.outcome)
+    .filter(s => s.docGeneratedAt !== null && Date.parse(s.docGeneratedAt) < cutoff)
+    .sort((a, b) => (a.docGeneratedAt ?? '').localeCompare(b.docGeneratedAt ?? ''))
+    .map(toSession);
 }

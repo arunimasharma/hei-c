@@ -7,7 +7,9 @@ import Button from '../components/common/Button';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ChatBubble from '../components/validator/ChatBubble';
 import Markdown from '../components/validator/Markdown';
+import OutcomePanel from '../components/validator/OutcomePanel';
 import { getSession, generateDoc } from '../services/validatorClient';
+import { splitOnHorizontalRule } from '../utils/validatorDoc';
 import {
   trackDocCopied,
   trackDocDownloaded,
@@ -249,6 +251,10 @@ function ValidatorSessionInner() {
           </div>
         </Card>
       )}
+
+      {session.generatedDoc && (
+        <OutcomePanel session={session} onChange={setSession} />
+      )}
     </div>
   );
 }
@@ -315,26 +321,3 @@ function HypothesisPanel({ hypothesisDoc, fullDoc }: HypothesisPanelProps) {
   );
 }
 
-// ── Doc splitter ──────────────────────────────────────────────────────────────
-//
-// The generation prompt produces a doc with the structure:
-//   <hypothesis framing sections>
-//   ---
-//   # Claude Code Build Prompt
-//   <paste-ready agent prompt>
-// Find the first horizontal-rule line and split there. If we can't find one,
-// return null for both halves so the panels fall back to the full text.
-
-function splitOnHorizontalRule(doc: string): {
-  hypothesisDoc: string | null;
-  buildPromptDoc: string | null;
-} {
-  const lines = doc.replace(/\r\n/g, '\n').split('\n');
-  const ruleIdx = lines.findIndex(l => /^\s*-{3,}\s*$/.test(l));
-  if (ruleIdx < 0) return { hypothesisDoc: null, buildPromptDoc: null };
-
-  const above = lines.slice(0, ruleIdx).join('\n').trim();
-  const below = lines.slice(ruleIdx + 1).join('\n').trim();
-  if (!above || !below) return { hypothesisDoc: null, buildPromptDoc: null };
-  return { hypothesisDoc: above, buildPromptDoc: below };
-}

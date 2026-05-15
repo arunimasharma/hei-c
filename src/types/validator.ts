@@ -10,6 +10,17 @@ export interface ValidatorMessage {
   createdAt: string;
 }
 
+export type OutcomeDidTest    = 'yes' | 'no' | 'in_progress';
+export type OutcomeHypothesis = 'held' | 'partly' | 'broke' | 'inconclusive';
+
+export interface ValidatorOutcome {
+  didTest: OutcomeDidTest;
+  whatLearned: string;
+  hypothesisHeld: OutcomeHypothesis;
+  nextStep?: string;
+  loggedAt: string;
+}
+
 export interface ValidatorSession {
   id: string;
   userId: string;
@@ -19,6 +30,7 @@ export interface ValidatorSession {
   docGeneratedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  outcome: ValidatorOutcome | null;
 }
 
 export type ReadinessArea =

@@ -1,5 +1,10 @@
 import { track } from '@vercel/analytics';
-import type { ReadinessArea, ValidatorMode } from '../types/validator';
+import type {
+  ReadinessArea,
+  ValidatorMode,
+  OutcomeDidTest,
+  OutcomeHypothesis,
+} from '../types/validator';
 
 // Thin wrapper around @vercel/analytics so callers don't have to remember
 // event-name strings or guard against the function being unavailable.
@@ -66,4 +71,18 @@ export function trackProductClubMentioned(input: {
   surface: 'chat' | 'build_prompt';
 }): void {
   safeTrack('validator_product_club_mentioned', input);
+}
+
+// ── Outcome-loop events ───────────────────────────────────────────────────────
+
+export function trackOutcomePromptShown(input: { surface: 'session_page' | 'index'; sessionCount: number }): void {
+  safeTrack('validator_outcome_prompt_shown', input);
+}
+
+export function trackOutcomeLogged(input: {
+  sessionId: string;
+  didTest: OutcomeDidTest;
+  hypothesisHeld: OutcomeHypothesis;
+}): void {
+  safeTrack('validator_outcome_logged', input);
 }
