@@ -79,18 +79,6 @@ export interface ExerciseRecord {
   maxScore: number;
   /** Unix milliseconds — used for ordering and duplicate detection. */
   createdAt: number;
-  /**
-   * Opaque string identifying the scoring regime under which this record was
-   * produced (e.g. `'1.0.0::pm-graph-v1'`).
-   *
-   * Set by the PM Graph bridge (`pmGraphCredibility.ts`) as
-   * `<rubric_version>::<graph_version>`.  Absent on legacy InsightStore records
-   * that pre-date version tracking.
-   *
-   * Used by `computeCredibilityProfile` to detect mixed-version histories and
-   * populate `CredibilityProfile.versionMix`.
-   */
-  versionKey?: string;
 }
 
 // ── Output types ──────────────────────────────────────────────────────────────
@@ -131,32 +119,6 @@ export type ExpertTagMap = Partial<Record<FrictionTheme, ExpertTag>>;
  */
 export type ConfidenceBand = 'low' | 'medium' | 'high';
 
-/**
- * Describes the scoring-regime diversity of a credibility profile.
- *
- * Produced by `computeCredibilityProfile` when at least one input
- * `ExerciseRecord` carries a `versionKey`.  Null for legacy records
- * (InsightStore path) that pre-date version tracking.
- *
- * When `isMixed` is true the profile aggregates records evaluated under
- * different rubric or graph versions.  Scores across regimes are not
- * directly comparable, so the UI should surface a disclosure label.
- * See docs/integrations/pm-graph/mixed-version-handling.md for policy.
- */
-export interface VersionMixInfo {
-  /**
-   * Sorted list of every distinct `versionKey` that appears in the exercise
-   * records used to compute this profile.
-   * Format of each entry: `'<rubric_version>::<graph_version>'`.
-   */
-  distinctVersions: string[];
-  /**
-   * True when more than one scoring regime contributed to this profile.
-   * UI callers should show a disclosure label when this is true.
-   */
-  isMixed: boolean;
-}
-
 /** Full credibility profile returned to the Influence Page. */
 export interface CredibilityProfile {
   /** Credibility score 0–100, rounded integer. */
@@ -176,18 +138,6 @@ export interface CredibilityProfile {
    * { [theme]: { accuracy, attempts } }
    */
   breakdown: Partial<Record<FrictionTheme, { accuracy: number; attempts: number }>>;
-  /**
-   * Version mixture information for the records that contributed to this profile.
-   *
-   * Null when no records carry a `versionKey` (legacy InsightStore path).
-   * When `isMixed` is true, the credibility score aggregates evaluations from
-   * different rubric or graph versions — the UI should show a disclosure label.
-   *
-   * Policy: Hello-EQ aggregates across all versions (scores remain comparable
-   * within the normalized [0, 100] range) but labels mixed histories so users
-   * understand that earlier evaluations may have used different criteria.
-   */
-  versionMix: VersionMixInfo | null;
 }
 
 // ── Core functions ────────────────────────────────────────────────────────────
@@ -309,7 +259,6 @@ export function computeCredibilityProfile(exercises: ExerciseRecord[]): Credibil
       expertThemes:   [],
       totalExercises: 0,
       breakdown:      {},
-      versionMix:     null,
     };
   }
 
@@ -341,95 +290,10 @@ export function computeCredibilityProfile(exercises: ExerciseRecord[]): Credibil
     expertThemes,
     totalExercises,
     breakdown,
-    versionMix:  collectVersionMix(exercises),
   };
-}
-
-// ── PM Graph dimension scoring ────────────────────────────────────────────────
-
-/**
- * The six PM Graph rubric dimensions for a single Friction Case evaluation.
- *
- * Defined here (not imported from the PM Graph integration) to keep the engine
- * free of cross-module coupling.  The shape is identical to DimensionScores in
- * src/integrations/pmGraph/schema.ts — TypeScript's structural typing ensures
- * compatibility without a direct import.
- */
-export interface FrictionCaseDimensionScores {
-  product_judgment:   number; // overall PM judgment quality [0,1]
-  specificity:        number; // concreteness of reasoning [0,1]
-  tradeoff_awareness: number; // recognition of tradeoffs [0,1]
-  segmentation_logic: number; // user-segment reasoning [0,1]
-  strategic_empathy:  number; // understanding user perspective [0,1]
-  market_inference:   number; // product/market context [0,1]
-}
-
-/** Number of dimensions used in the equal-weight average. */
-export const FRICTION_CASE_DIMENSION_COUNT = 6;
-
-/**
- * computeFrictionCaseAttemptScore
- *
- * Derives a single [0, 1] score from PM Graph dimension_scores for one
- * Friction Case attempt.
- *
- * Formula:
- *   score = (product_judgment + specificity + tradeoff_awareness +
- *            segmentation_logic + strategic_empathy + market_inference) / 6
- *
- * Why equal weights?
- *   All six dimensions are independently measured by PM Graph and represent
- *   distinct PM competencies applied to Friction Case diagnosis.  No one
- *   dimension is privileged without empirical calibration data on predictive
- *   validity.  Equal weighting is the minimum-assumption choice and produces
- *   an interpretable score: a 0.72 attempt score means "average across all
- *   six rubric dimensions is 72 %".  Weights can be updated per-theme once
- *   calibration data is available — the formula signature stays unchanged.
- *
- * The result feeds directly into computeThemeStats as the attempt's `score`
- * field (maxScore = 1), so all downstream aggregation (accuracy, expert tags,
- * credibility) uses the existing engine pipeline without modification.
- */
-export function computeFrictionCaseAttemptScore(dims: FrictionCaseDimensionScores): number {
-  const sum =
-    dims.product_judgment +
-    dims.specificity +
-    dims.tradeoff_awareness +
-    dims.segmentation_logic +
-    dims.strategic_empathy +
-    dims.market_inference;
-  return sum / FRICTION_CASE_DIMENSION_COUNT;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * collectVersionMix
- *
- * Inspects the `versionKey` fields of the input exercises and returns a
- * `VersionMixInfo` summary, or null when no records carry a version key
- * (legacy InsightStore path).
- *
- * A profile is "mixed" when records from more than one scoring regime
- * (rubric_version × graph_version combination) are present.  In that case
- * the UI should show a disclosure label — scores aggregated across regimes
- * are directionally correct but not directly comparable to per-version scores.
- *
- * Called once per `computeCredibilityProfile` invocation.  O(n) over exercises.
- */
-export function collectVersionMix(exercises: ExerciseRecord[]): VersionMixInfo | null {
-  const keys = exercises
-    .map(e => e.versionKey)
-    .filter((k): k is string => k !== undefined);
-
-  if (keys.length === 0) return null;
-
-  const distinctVersions = [...new Set(keys)].sort();
-  return {
-    distinctVersions,
-    isMixed: distinctVersions.length > 1,
-  };
-}
 
 /**
  * Maps total exercise count to a confidence band.

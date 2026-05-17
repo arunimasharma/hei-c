@@ -15,12 +15,12 @@
  *   goals               – one row per Goal
  *   exercises           – one row per TasteExercise
  *   users               – one row per UserProfile (collectionId = 'profile')
- *   exercise_evaluations– one row per PMGraphEvaluationRecord (added v3)
  *
  * Schema versions:
  *   v1 — initial schema (keyvalue, emotions, events, reflections, actions, goals, exercises)
  *   v2 — added decisions, workModes
- *   v3 — added exercise_evaluations (PM Graph-backed evaluation results)
+ *   v3 — added exercise_evaluations (legacy; deprecated and dropped in v4)
+ *   v4 — dropped exercise_evaluations (no longer used)
  */
 
 import Dexie, { type Table } from 'dexie';
@@ -36,18 +36,6 @@ export interface EncryptedRow {
   blob: EncryptedBlob;
   /** ISO timestamp — allows pruning/sorting without decryption. */
   updatedAt: string;
-}
-
-/**
- * Evaluation row — extends EncryptedRow with one unencrypted index field.
- *
- * `hello_eq_exercise_id` is stored in plaintext so that evaluations for a
- * specific friction case can be queried without decrypting every row.
- * All other evaluation fields (scores, signals, etc.) live in the encrypted blob.
- */
-export interface EvaluationRow extends EncryptedRow {
-  /** Plaintext index — the FrictionCase ID this evaluation belongs to. */
-  hello_eq_exercise_id: string;
 }
 
 // Singleton keys used in the keyvalue table.
@@ -70,13 +58,6 @@ class HEQDatabase extends Dexie {
   exercises!:   Table<EncryptedRow, string>;
   decisions!:   Table<EncryptedRow, string>;
   workModes!:   Table<EncryptedRow, string>;
-
-  /**
-   * PM Graph-backed evaluation results.
-   * Uses EvaluationRow so hello_eq_exercise_id is an indexed, unencrypted
-   * field while all score/signal data lives in the encrypted blob.
-   */
-  exercise_evaluations!: Table<EvaluationRow, string>;
 
   constructor() {
     super('hello-eq-db-v1');
@@ -113,8 +94,14 @@ class HEQDatabase extends Dexie {
       exercises:            'id, updatedAt',
       decisions:            'id, updatedAt',
       workModes:            'id, updatedAt',
-      // hello_eq_exercise_id is a plaintext index — see EvaluationRow.
+      // Legacy exercise_evaluations store — dropped in v4.
+      // Kept in this version's schema so users on v3 upgrade cleanly.
       exercise_evaluations: 'id, updatedAt, hello_eq_exercise_id',
+    });
+
+    // v4 — drop the unused exercise_evaluations store.
+    this.version(4).stores({
+      exercise_evaluations: null,
     });
   }
 }
@@ -175,41 +162,6 @@ export async function dbReplaceAll<T extends { id: string }>(
   );
   await table.clear();
   await table.bulkPut(rows);
-}
-
-/**
- * Write (upsert) a single EvaluationRow — like dbPut but preserves the
- * plaintext hello_eq_exercise_id index field alongside the encrypted blob.
- */
-export async function dbPutEvaluation<T>(
-  table: Table<EvaluationRow, string>,
-  id: string,
-  exerciseId: string,
-  value: T,
-): Promise<void> {
-  const blob = await encrypt(value);
-  await table.put({
-    id,
-    blob,
-    updatedAt:             new Date().toISOString(),
-    hello_eq_exercise_id:  exerciseId,
-  });
-}
-
-/**
- * Read and decrypt all EvaluationRows that belong to a specific exercise,
- * sorted by updatedAt descending.
- */
-export async function dbGetEvaluationsByExercise<T>(
-  table: Table<EvaluationRow, string>,
-  exerciseId: string,
-): Promise<T[]> {
-  const rows = await table
-    .where('hello_eq_exercise_id')
-    .equals(exerciseId)
-    .reverse()
-    .sortBy('updatedAt');
-  return Promise.all(rows.map(r => decrypt<T>(r.blob)));
 }
 
 // ── Migration helper: import from legacy localStorage ────────────────────────

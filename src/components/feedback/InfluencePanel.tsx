@@ -16,9 +16,6 @@ import { THEME_LABELS } from '../../data/frictionCases';
 import Card from '../common/Card';
 import InfoTooltip from '../common/InfoTooltip';
 import PublicProfileToggle from '../profile/PublicProfileToggle';
-import { useFrictionCredibility } from '../../integrations/pmGraph/useFrictionCredibility';
-import { formatVersionKeyLabel } from '../../integrations/pmGraph/EvaluationStore';
-import ProvenanceBadge from '../common/ProvenanceBadge';
 
 // ── static impact cards (real claims once Supabase is wired) ─────────────────
 
@@ -92,23 +89,10 @@ export default function InfluencePanel() {
   const all     = useMemo(() => FeedbackStore.getAll(),           []);
   const insight = useMemo(() => InsightStore.getProfile(),        []);
 
-  // PM Graph-backed credibility — loaded async from EvaluationStore.
-  // When available, dimension-score-derived values replace the coarse MCQ scores.
-  // Falls back to InsightStore values while loading or if no PM Graph data exists.
-  const { pmProfile, pmEvalCount, loading: pmLoading } = useFrictionCredibility();
-
-  // Resolved values: prefer PM Graph when we have evaluated records.
-  const isPMBacked       = !pmLoading && pmProfile !== null && pmProfile.totalExercises > 0;
-  const credibilityScore = isPMBacked ? pmProfile!.score           : insight.credibilityScore;
-  const expertTags       = isPMBacked ? pmProfile!.expertThemes    : insight.expertTags;
-  const confidence       = isPMBacked ? pmProfile!.confidence      : insight.confidence;
-  const evalSourceCount  = isPMBacked ? pmEvalCount                : insight.totalCases;
-
-  // Strongest PM Graph theme — the theme with highest accuracy in the pm profile
-  const strongestPMTheme = isPMBacked && pmProfile
-    ? (Object.entries(pmProfile.themes) as [import('../../data/frictionCases').FrictionTheme, import('../../lib/credibilityEngine').ThemeStat][])
-        .sort((a, b) => b[1].accuracy - a[1].accuracy)[0] ?? null
-    : null;
+  const credibilityScore = insight.credibilityScore;
+  const expertTags       = insight.expertTags;
+  const confidence       = insight.confidence;
+  const evalSourceCount  = insight.totalCases;
 
   return (
     <motion.div
@@ -245,21 +229,8 @@ export default function InfluencePanel() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
               <span style={{ fontSize: '0.75rem', color: '#6B7280', fontWeight: 600 }}>
-                {isPMBacked ? 'PM dimension score' : 'Accuracy vs. benchmark scenarios'}
+                Accuracy vs. benchmark scenarios
               </span>
-              {isPMBacked && (
-                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#7C3AED', padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: '#EDE9FE' }}>
-                  PM Graph
-                </span>
-              )}
-              {isPMBacked && pmProfile?.versionMix?.isMixed && (
-                <span
-                  title={`Scored under ${pmProfile.versionMix.distinctVersions.length} rubric versions: ${pmProfile.versionMix.distinctVersions.join(', ')}. Scores are aggregated but may not be directly comparable across versions.`}
-                  style={{ fontSize: '0.65rem', fontWeight: 700, color: '#B45309', padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: '#FEF3C7', cursor: 'help' }}
-                >
-                  mixed rubrics
-                </span>
-              )}
             </div>
             <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#D97706' }}>{credibilityScore}/100</span>
           </div>
@@ -271,25 +242,16 @@ export default function InfluencePanel() {
               style={{ height: '100%', borderRadius: '999px', backgroundColor: '#D97706' }}
             />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: isPMBacked && pmProfile?.versionMix && !pmProfile.versionMix.isMixed ? '0.375rem' : '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '1rem' }}>
             <p style={{ fontSize: '0.72rem', color: '#9CA3AF', margin: 0 }}>
-              Based on {evalSourceCount} {isPMBacked ? 'PM Graph evaluation' : 'case'}{evalSourceCount !== 1 ? 's' : ''} · {confidence} confidence
+              Based on {evalSourceCount} case{evalSourceCount !== 1 ? 's' : ''} · {confidence} confidence
             </p>
             <InfoTooltip
               side="right"
               width={270}
-              text={isPMBacked
-                ? 'Score uses PM Graph dimension scores (6 rubric dimensions per attempt), not just right/wrong. Volume-weighted: more evaluated cases = more weight. Expert tags need ≥2 evaluations at ≥60%.'
-                : 'Score = accuracy × volume. More cases = more weight. A single lucky guess scores low; consistent accuracy over 10+ cases scores high.'}
+              text="Score = accuracy × volume. More cases = more weight. A single lucky guess scores low; consistent accuracy over 10+ cases scores high."
             />
           </div>
-          {/* Provenance label — single-version only; mixed case is already shown as a badge above. */}
-          {isPMBacked && pmProfile?.versionMix && !pmProfile.versionMix.isMixed && (
-            <ProvenanceBadge
-              label={formatVersionKeyLabel(pmProfile.versionMix.distinctVersions[0])}
-              style={{ margin: '0 0 1rem', fontSize: '0.68rem' }}
-            />
-          )}
 
           {/* Impact alignment stat */}
           <div style={{ padding: '0.75rem 1rem', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(217,119,6,0.06) 0%, rgba(245,158,11,0.06) 100%)', border: '1px solid rgba(217,119,6,0.15)', marginBottom: expertTags.length > 0 ? '1rem' : 0 }}>
@@ -302,22 +264,6 @@ export default function InfluencePanel() {
             </p>
           </div>
 
-          {/* Strongest PM theme — shown only when PM-backed and has theme data */}
-          {isPMBacked && strongestPMTheme && (
-            <div style={{ padding: '0.625rem 0.875rem', borderRadius: '10px', backgroundColor: '#F5F3FF', border: '1px solid #EDE9FE', marginTop: expertTags.length > 0 ? 0 : '0.75rem', marginBottom: '1rem' }}>
-              <p style={{ fontSize: '0.72rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.375rem' }}>Strongest domain</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.125rem' }}>{THEME_LABELS[strongestPMTheme[0]].emoji}</span>
-                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: THEME_LABELS[strongestPMTheme[0]].color }}>
-                  {THEME_LABELS[strongestPMTheme[0]].label}
-                </span>
-                <span style={{ fontSize: '0.75rem', color: '#6B7280', marginLeft: 'auto' }}>
-                  {Math.round(strongestPMTheme[1].accuracy * 100)}% avg · {strongestPMTheme[1].attempts} eval{strongestPMTheme[1].attempts !== 1 ? 's' : ''}
-                </span>
-              </div>
-            </div>
-          )}
-
           {/* Domain expert tags */}
           {expertTags.length > 0 && (
             <div>
@@ -326,9 +272,7 @@ export default function InfluencePanel() {
                 <InfoTooltip
                   side="right"
                   width={260}
-                  text={isPMBacked
-                    ? 'Unlocked when your PM Graph dimension-score average is ≥60% across at least 2 evaluated cases in a theme.'
-                    : 'Unlocked when you get ≥60% accuracy on at least 2 cases in a theme. Each tag shows PMs you have a track record in that problem area.'}
+                  text="Unlocked when you get ≥60% accuracy on at least 2 cases in a theme. Each tag shows PMs you have a track record in that problem area."
                 />
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>

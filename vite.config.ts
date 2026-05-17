@@ -10,10 +10,6 @@ import {
   parseEvaluatorResponse,
 } from './api/_evaluatorCore.js'
 import {
-  mapFrictionCaseToPMGraphRequest,
-  type HEQFrictionCaseSubmission,
-} from './src/integrations/pmGraph/mapper.js'
-import {
   buildChatSystemPrompt,
   buildGenerationPrompt,
   evaluateReadiness,
@@ -140,203 +136,6 @@ function evaluateTasteDevPlugin(evaluatorKey: string): Plugin {
             res.statusCode = 502
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ error: 'Evaluator network error. Please try again.' }))
-          }
-        },
-      )
-    },
-  }
-}
-
-// ── Dev middleware: handles /api/pm-graph/evaluate-friction-case locally ───────
-// In production this is served by api/pm-graph/evaluate-friction-case.ts (Vercel function).
-// Mirrors the Vercel handler: validates input, maps via mapper, calls PM Graph,
-// and returns a degraded response on failure — so the UI fallback path is testable.
-// Only mounted when PM_GRAPH_BASE_URL and PM_GRAPH_SERVICE_TOKEN are set.
-
-const VALID_THEMES_DEV = ['pricing', 'ux', 'onboarding', 'value', 'trust'] as const
-type FrictionThemeDev = typeof VALID_THEMES_DEV[number]
-
-function pmGraphFrictionCaseDevPlugin(baseUrl: string, serviceToken: string): Plugin {
-  return {
-    name: 'heq-pm-graph-friction-case-dev',
-    configureServer(server) {
-      server.middlewares.use(
-        '/api/pm-graph/evaluate-friction-case',
-        async (req: IncomingMessage, res: ServerResponse) => {
-          if (req.method !== 'POST') {
-            res.statusCode = 405
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ error: 'Method not allowed' }))
-            return
-          }
-
-          const sessionId = req.headers['x-session-id']
-          if (!sessionId || typeof sessionId !== 'string' || !sessionId.trim()) {
-            res.statusCode = 400
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ error: 'X-Session-Id header is required.' }))
-            return
-          }
-
-          const incomingId = req.headers['x-request-id']
-          const requestId = (typeof incomingId === 'string' && incomingId.trim())
-            ? incomingId.trim()
-            : `heq_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`
-
-          const degraded = (reason: string) => ({
-            degraded: true, reason, score: null,
-            dimension_scores: null, provenance: null, reasoning: null,
-            request_id: requestId,
-          })
-
-          // Read body
-          const chunks: Buffer[] = []
-          for await (const chunk of req) chunks.push(chunk as Buffer)
-          let body: Record<string, unknown>
-          try {
-            body = JSON.parse(Buffer.concat(chunks).toString())
-          } catch {
-            res.statusCode = 400
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ error: 'Invalid JSON body.' }))
-            return
-          }
-
-          // Validate required fields (mirrors Vercel handler validation)
-          const caseId = typeof body.caseId === 'string' ? body.caseId.trim() : ''
-          if (!caseId) {
-            res.statusCode = 400
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ error: 'caseId is required.' }))
-            return
-          }
-
-          if (!VALID_THEMES_DEV.includes(body.theme as FrictionThemeDev)) {
-            res.statusCode = 400
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ error: `theme must be one of: ${VALID_THEMES_DEV.join(', ')}.` }))
-            return
-          }
-          const theme = body.theme as FrictionThemeDev
-
-          const context     = typeof body.context     === 'string' ? body.context.trim()     : ''
-          const narrative   = typeof body.narrative   === 'string' ? body.narrative.trim()   : ''
-          const rawResponse = typeof body.rawResponse === 'string' ? body.rawResponse.trim() : ''
-          if (!context || !narrative || !rawResponse) {
-            res.statusCode = 400
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ error: 'context, narrative, and rawResponse are required.' }))
-            return
-          }
-
-          const rootIssueOptions = Array.isArray(body.rootIssueOptions) &&
-            body.rootIssueOptions.every((o) => typeof o === 'string')
-              ? (body.rootIssueOptions as string[]) : null
-          if (!rootIssueOptions || rootIssueOptions.length === 0) {
-            res.statusCode = 400
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ error: 'rootIssueOptions must be a non-empty string array.' }))
-            return
-          }
-
-          const rootAnswerIndex = typeof body.rootAnswerIndex === 'number'
-            ? Math.floor(body.rootAnswerIndex) : -1
-          if (rootAnswerIndex < 0 || rootAnswerIndex >= rootIssueOptions.length) {
-            res.statusCode = 400
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ error: 'rootAnswerIndex is out of bounds.' }))
-            return
-          }
-
-          const fixOptions = Array.isArray(body.fixOptions) &&
-            body.fixOptions.every((o) => typeof o === 'string')
-              ? (body.fixOptions as string[]) : null
-          if (!fixOptions || fixOptions.length === 0) {
-            res.statusCode = 400
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ error: 'fixOptions must be a non-empty string array.' }))
-            return
-          }
-
-          const fixAnswerIndex = typeof body.fixAnswerIndex === 'number'
-            ? Math.floor(body.fixAnswerIndex) : -1
-          if (fixAnswerIndex < 0 || fixAnswerIndex >= fixOptions.length) {
-            res.statusCode = 400
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ error: 'fixAnswerIndex is out of bounds.' }))
-            return
-          }
-
-          // Guard: env vars missing → return degraded immediately
-          if (!baseUrl || !serviceToken) {
-            res.statusCode = 200
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify(degraded('pm_graph_unavailable')))
-            return
-          }
-
-          const submission: HEQFrictionCaseSubmission = {
-            caseId,
-            submissionId:   typeof body.submissionId   === 'string' ? body.submissionId.trim()   : undefined,
-            theme,
-            context:        context.slice(0, 1000),
-            narrative:      narrative.slice(0, 2000),
-            rawResponse:    rawResponse.slice(0, 500),
-            rootIssueOptions,
-            rootAnswerIndex,
-            fixOptions,
-            fixAnswerIndex,
-            reflectionText: typeof body.reflectionText === 'string'
-              ? body.reflectionText.trim().slice(0, 3000) : undefined,
-            productName:    typeof body.productName    === 'string'
-              ? body.productName.trim().slice(0, 200)    : undefined,
-            productContext: typeof body.productContext  === 'string'
-              ? body.productContext.trim().slice(0, 500) : undefined,
-          }
-
-          const pmGraphRequest = mapFrictionCaseToPMGraphRequest(submission)
-
-          // Call PM Graph
-          try {
-            const url = `${baseUrl.replace(/\/$/, '')}/evaluate`
-            const controller = new AbortController()
-            const timeoutHandle = setTimeout(() => controller.abort(), 10_000)
-            let pmRes: Response
-            try {
-              pmRes = await fetch(url, {
-                method: 'POST',
-                headers: {
-                  'Content-Type':  'application/json',
-                  'Authorization': `Bearer ${serviceToken}`,
-                  'X-Request-Id':  requestId,
-                },
-                body: JSON.stringify(pmGraphRequest),
-                signal: controller.signal,
-              })
-            } finally {
-              clearTimeout(timeoutHandle)
-            }
-
-            if (!pmRes.ok) {
-              const reason = (pmRes.status === 401 || pmRes.status === 403)
-                ? 'pm_graph_auth_error' : 'pm_graph_unavailable'
-              console.warn(`[HEQ] pm-graph dev: HTTP ${pmRes.status} — returning degraded`)
-              res.statusCode = 200
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify(degraded(reason)))
-              return
-            }
-
-            const data = await pmRes.json() as Record<string, unknown>
-            res.statusCode = 200
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ ...data, request_id: requestId }))
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Unknown error'
-            console.warn('[HEQ] pm-graph dev: error —', msg)
-            res.statusCode = 200
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify(degraded('pm_graph_unavailable')))
           }
         },
       )
@@ -502,14 +301,9 @@ export default defineConfig(({ mode }) => {
   // Prefer dedicated evaluator key; fall back to shared key so a single-key
   // local setup still runs the rich evaluator dev middleware.
   const evaluatorKey   = env.ANTHROPIC_EVALUATOR_API_KEY || env.ANTHROPIC_API_KEY
-  const pmGraphBaseUrl = env.PM_GRAPH_BASE_URL?.trim()
-  const pmGraphToken   = env.PM_GRAPH_SERVICE_TOKEN?.trim()
 
   if (!env.ANTHROPIC_EVALUATOR_API_KEY && evaluatorKey) {
     console.warn('[HEQ] ANTHROPIC_EVALUATOR_API_KEY not set — using ANTHROPIC_API_KEY for evaluator dev middleware.')
-  }
-  if (!pmGraphBaseUrl || !pmGraphToken) {
-    console.warn('[HEQ] PM_GRAPH_BASE_URL or PM_GRAPH_SERVICE_TOKEN not set — pm-graph dev middleware will return degraded responses.')
   }
 
   return {
@@ -518,8 +312,6 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       // Evaluator dev middleware — mounted whenever any key is available
       evaluatorKey ? evaluateTasteDevPlugin(evaluatorKey) : null,
-      // PM Graph friction-case dev middleware — always mounted; returns degraded if env vars absent
-      pmGraphFrictionCaseDevPlugin(pmGraphBaseUrl ?? '', pmGraphToken ?? ''),
       // Idea Validator dev middleware — stateless Anthropic proxy (no auth)
       validatorDevPlugin(apiKey ?? ''),
     ],

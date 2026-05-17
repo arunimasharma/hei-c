@@ -162,66 +162,6 @@ export async function upsertDecision(decision: DecisionLog, userId: string): Pro
   if (error) throw error;
 }
 
-// ── PM Graph evaluation sync ─────────────────────────────────────────────────
-
-import type { PMGraphEvaluationRecord } from '../integrations/pmGraph/EvaluationStore';
-
-/**
- * Upserts a single PM Graph evaluation record to Supabase.
- *
- * Expected Supabase table: `exercise_evaluations`
- * (schema definition in docs/integrations/pm-graph/adapter.md)
- *
- * Usage — fire-and-forget after EvaluationStore.save() resolves:
- *
- *   const record = await EvaluationStore.save(input);
- *   syncEvaluation(record).catch(console.warn); // non-blocking
- *
- * Call EvaluationStore.markSynced(record.id) on success and
- * EvaluationStore.markSyncError(record.id) on failure so that
- * sync_status stays accurate in IndexedDB.
- *
- * Silently no-ops when Supabase is not configured (local-only environments).
- */
-export async function syncEvaluation(record: PMGraphEvaluationRecord): Promise<void> {
-  if (!isSupabaseConfigured || !supabase) return;
-
-  const row = {
-    id:                      record.id,
-    member_id:               record.member_id,
-    hello_eq_exercise_id:    record.hello_eq_exercise_id,
-    hello_eq_submission_id:  record.hello_eq_submission_id,
-    exercise_type:           record.exercise_type,
-    overall_score:           record.overall_score,
-    dimension_scores:        record.dimension_scores,
-    feedback:                record.feedback,
-    top_missed_insights:     record.top_missed_insights,
-    competing_stances:       record.competing_stances,
-    contested:               record.contested,
-    benchmark_surface:       record.benchmark_surface,
-    graph_case_id:           record.graph_case_id,
-    cluster_ids_used:        record.cluster_ids_used,
-    rubric_version:          record.rubric_version,
-    graph_version:           record.graph_version,
-    // Explicit provenance timestamp — canonical scoring moment.
-    evaluated_at:            record.evaluated_at,
-    // Extended provenance fields (null when PM Graph does not return them).
-    weights_used:            record.weights_used,
-    rubric_profile:          record.rubric_profile,
-    curation_version:        record.curation_version,
-    scoring_engine_version:  record.scoring_engine_version,
-    expert_tag_signals:      record.expert_tag_signals,
-    credibility_event:       record.credibility_event,
-    created_at:              record.created_at,
-  };
-
-  const { error } = await supabase
-    .from('exercise_evaluations')
-    .upsert(row, { onConflict: 'id' });
-
-  if (error) throw error;
-}
-
 // ── Load all synced data for a user ──────────────────────────────────────────
 
 const EMPTY_REMOTE = { profile: null, tasteExercises: [], microActions: [] };

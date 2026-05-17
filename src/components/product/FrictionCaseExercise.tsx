@@ -14,16 +14,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   ChevronLeft, Target, Zap, CheckCircle2, XCircle,
   ArrowRight, RefreshCw, TrendingUp, Filter, FlaskConical, MessageSquare, Sparkles, Loader2,
-  AlertCircle,
 } from 'lucide-react';
 import { FRICTION_CASES, THEME_LABELS, type FrictionCase, type FrictionTheme } from '../../data/frictionCases';
 import { InsightStore } from '../../lib/InsightStore';
 import { BenchmarkStore, type CaseBenchmarkStats } from '../../lib/BenchmarkStore';
 import { invalidateTrajectoryCache } from '../../utils/trajectory';
 import { callClaude, parseActionResponse } from '../../services/claudeApi';
-import { usePMGraphEvaluation } from '../../integrations/pmGraph/usePMGraphEvaluation';
-import { EvaluationStore, formatEvalProvenanceLabel, type PMGraphEvaluationRecord } from '../../integrations/pmGraph/EvaluationStore';
-import ProvenanceBadge from '../common/ProvenanceBadge';
 
 const GRAD = 'linear-gradient(135deg, #7C3AED 0%, #8B7EC8 100%)';
 const PRIMARY = '#7C3AED';
@@ -54,40 +50,6 @@ export default function FrictionCaseExercise({ onBack, onStartTaste }: Props) {
   const [aiCoaching, setAiCoaching] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
-  const { evalStatus, evalRecord, evaluate, retry, reset } = usePMGraphEvaluation();
-
-  /**
-   * evalHistory — most-recent PMGraphEvaluationRecord per friction case, indexed
-   * by hello_eq_exercise_id. Populated from EvaluationStore on mount and updated
-   * when a new evaluation completes in this session.
-   *
-   * Used by the browse view to surface PM Graph scores from prior sessions so
-   * dimension scores and provenance are accessible without re-running the exercise.
-   */
-  const [evalHistory, setEvalHistory] = useState<Record<string, PMGraphEvaluationRecord>>({});
-
-  // Load all persisted evaluations on mount — newest-first, one per case.
-  useEffect(() => {
-    EvaluationStore.getAll()
-      .then(records => {
-        const index: Record<string, PMGraphEvaluationRecord> = {};
-        for (const r of records) {
-          // getAll() returns newest first; skip if already have a newer one.
-          if (!index[r.hello_eq_exercise_id]) index[r.hello_eq_exercise_id] = r;
-        }
-        setEvalHistory(index);
-      })
-      .catch(() => {}); // non-critical — browse view degrades gracefully
-  }, []);
-
-  // Merge the just-completed evaluation into the history map so the browse card
-  // updates without requiring a remount.
-  useEffect(() => {
-    if (evalStatus === 'evaluated' && evalRecord) {
-      setEvalHistory(prev => ({ ...prev, [evalRecord.hello_eq_exercise_id]: evalRecord }));
-    }
-  }, [evalStatus, evalRecord]);
-
   const filteredCases = useMemo(() =>
     themeFilter === 'all'
       ? FRICTION_CASES
@@ -117,7 +79,6 @@ export default function FrictionCaseExercise({ onBack, onStartTaste }: Props) {
     setLiveStats(null);
     setReflectionText('');
     setAiCoaching(null);
-    reset();
     setPhase('root_issue');
   };
 
@@ -177,7 +138,7 @@ Evaluate the quality of their reasoning. What did they reason well about? What d
     const rootIssueCorrect = rootAnswer === activeCase.correctRootIssueIndex;
     const fixCorrect = fixAnswer === activeCase.correctFixIndex;
 
-    // 1. Persist submission locally — always first, never depends on PM Graph.
+    // 1. Persist submission locally.
     const submission = InsightStore.submit({
       caseId: activeCase.id,
       theme: activeCase.theme,
@@ -195,16 +156,6 @@ Evaluate the quality of their reasoning. What did they reason well about? What d
 
     setSavedId(submission.id);
     setPhase('done');
-
-    // 4. Start PM Graph evaluation non-blocking — UI advances to done immediately.
-    evaluate({
-      submission,
-      activeCase,
-      rootAnswerIndex: rootAnswer,
-      fixAnswerIndex:  fixAnswer,
-      reflectionText:  reflectionText.trim() || undefined,
-      memberId:        null, // no user identity gate at this layer yet
-    });
   };
 
   const handleNext = () => {
@@ -218,7 +169,7 @@ Evaluate the quality of their reasoning. What did they reason well about? What d
     fix:        'Recommend a fix',
     reflect:    'Your PM reasoning',
     reveal:     'Benchmark insight',
-    done:       evalStatus === 'evaluating' ? 'Evaluating your reasoning…' : 'Score saved',
+    done:       'Score saved',
   }[phase];
 
   // ── SCORE DISPLAY ─────────────────────────────────────────────────────────────
@@ -282,9 +233,8 @@ Evaluate the quality of their reasoning. What did they reason well about? What d
               {/* Case cards */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {filteredCases.map(c => {
-                  const meta     = THEME_LABELS[c.theme];
-                  const done     = InsightStore.getAll().some(s => s.caseId === c.id);
-                  const prevEval = evalHistory[c.id]; // PMGraphEvaluationRecord | undefined
+                  const meta = THEME_LABELS[c.theme];
+                  const done = InsightStore.getAll().some(s => s.caseId === c.id);
                   return (
                     <motion.button
                       key={c.id}
@@ -300,19 +250,6 @@ Evaluate the quality of their reasoning. What did they reason well about? What d
                           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: meta.color, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{meta.label}</span>
                           <span style={{ fontSize: '0.7rem', color: '#9CA3AF', fontWeight: 500 }}>{TRIGGER_LABEL[c.trigger]}</span>
                           {done && <span style={{ fontSize: '0.7rem', color: '#16A34A', fontWeight: 600 }}>✓ Done</span>}
-                          {/* PM Graph score badge — shown when a prior evaluation exists.
-                              dimension_scores and provenance are on prevEval for consumer use. */}
-                          {prevEval && (() => {
-                            const provLabel = formatEvalProvenanceLabel(prevEval);
-                            return (
-                              <span
-                                title={provLabel ?? undefined}
-                                style={{ fontSize: '0.7rem', fontWeight: 700, color: '#7C3AED', padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: '#EDE9FE', cursor: provLabel ? 'help' : 'default' }}
-                              >
-                                PM {Math.round(prevEval.overall_score * 100)}
-                              </span>
-                            );
-                          })()}
                         </div>
                         <p style={{ margin: '0 0 0.25rem', fontSize: '0.875rem', fontWeight: 600, color: '#111827', lineHeight: 1.4 }}>{c.context}</p>
                         <p style={{ margin: 0, fontSize: '0.8125rem', color: '#6B7280', lineHeight: 1.5 }}>"{c.rawResponse}"</p>
@@ -589,56 +526,6 @@ Evaluate the quality of their reasoning. What did they reason well about? What d
               <p style={{ fontSize: '0.9375rem', color: '#6B7280', lineHeight: 1.6, margin: '0 auto 1.5rem', maxWidth: '360px' }}>
                 Your score has been added to your credibility profile on the Influence page.
               </p>
-
-              {/* ── PM Graph evaluation status strip ──────────────────────────── */}
-              {evalStatus === 'evaluating' && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.75rem 1rem', borderRadius: '12px', backgroundColor: '#F5F3FF', border: '1px solid #EDE9FE', marginBottom: '1.25rem', maxWidth: '320px', margin: '0 auto 1.25rem' }}>
-                  <Loader2 size={15} color={PRIMARY} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.8125rem', color: PRIMARY, fontWeight: 500 }}>Running deep PM evaluation…</span>
-                </div>
-              )}
-
-              {evalStatus === 'evaluated' && evalRecord && (
-                <div style={{ padding: '0.875rem 1rem', borderRadius: '12px', backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', marginBottom: '1.25rem', maxWidth: '320px', margin: '0 auto 1.25rem', textAlign: 'left' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <CheckCircle2 size={15} color="#16A34A" />
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#16A34A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>PM Graph evaluation complete</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                    <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#111827' }}>{Math.round(evalRecord.overall_score * 100)}</span>
-                    <span style={{ fontSize: '0.8125rem', color: '#6B7280' }}>/ 100 overall PM score</span>
-                  </div>
-                  {evalRecord.feedback && (
-                    <p style={{ margin: '0.5rem 0 0', fontSize: '0.8125rem', color: '#374151', lineHeight: 1.55 }}>
-                      {evalRecord.feedback}
-                    </p>
-                  )}
-                  <ProvenanceBadge
-                    label={formatEvalProvenanceLabel(evalRecord)}
-                    style={{ marginTop: '0.5rem' }}
-                  />
-                </div>
-              )}
-
-              {evalStatus === 'evaluation_failed' && (
-                <div style={{ padding: '0.75rem 1rem', borderRadius: '12px', backgroundColor: '#FFF7ED', border: '1px solid #FED7AA', marginBottom: '1.25rem', maxWidth: '320px', margin: '0 auto 1.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.375rem' }}>
-                    <AlertCircle size={14} color="#D97706" />
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#D97706', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Deep evaluation unavailable</span>
-                  </div>
-                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.8125rem', color: '#92400E', lineHeight: 1.5 }}>
-                    Your score is saved. PM Graph analysis couldn't be reached right now.
-                  </p>
-                  <button
-                    onClick={retry}
-                    style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#D97706', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                  >
-                    <RefreshCw size={12} /> Retry evaluation
-                  </button>
-                </div>
-              )}
-
-              <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', maxWidth: '320px', margin: '0 auto' }}>
                 <button

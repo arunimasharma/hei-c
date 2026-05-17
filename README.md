@@ -79,7 +79,6 @@ Friction Cases feed the **Influence** page:
 
 - **Insight Credibility Score** (0–100) is computed from exercise count, average accuracy, theme coverage, and recency.
 - **Expert tags** unlock when a theme (Pricing, UX, Onboarding, Value Prop, Trust) reaches ≥60% accuracy.
-- Mixed-version evaluation histories are aggregated using **Policy A** — scores across rubric/graph versions are combined into one signal, with the version labelled in the UI (see `docs/integrations/evaluation-provenance.md`).
 
 ### PM Interview Practice
 
@@ -165,7 +164,7 @@ A single server endpoint — `POST /api/validator` — handles every operation, 
 | Persistence | `localStorage` for exercises/profile/reflections; **Supabase Postgres** for Validator sessions, messages, and outcomes (RLS-enforced) |
 | Local DB | Dexie (IndexedDB) for offline/encryption layer |
 | Validation | Zod |
-| AI | Anthropic Claude API (server functions: `/api/validator`, `/api/evaluate-taste`, `/api/pm-graph/evaluate-friction-case`, `/api/claude`) |
+| AI | Anthropic Claude API (server functions: `/api/validator`, `/api/evaluate-taste`, `/api/claude`) |
 | Analytics | Vercel Analytics + custom validator analytics events |
 | Deploy | Vercel |
 
@@ -247,11 +246,9 @@ src/
 api/
 ├── validator.ts                    # Single function — op: chat | generate | list | get | delete
 ├── evaluate-taste.ts               # V1 Taste Evaluator
-├── pm-graph/evaluate-friction-case.ts
 ├── public-profile/[slug].ts
 ├── claude.ts · _evaluatorCore.ts
 supabase/migrations/                # validator + public_profiles schema
-docs/integrations/                  # evaluation-provenance.md, pm-graph notes
 ```
 
 ---

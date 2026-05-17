@@ -9,10 +9,6 @@ import { useApp } from '../context/AppContext';
 import { InsightStore } from '../lib/InsightStore';
 import { THEME_LABELS, type FrictionTheme } from '../data/frictionCases';
 import type { ThemeStat } from '../lib/credibilityEngine';
-import { usePMGraphEvaluations } from '../integrations/pmGraph/usePMGraphEvaluations';
-import { useFrictionCredibility } from '../integrations/pmGraph/useFrictionCredibility';
-import { formatEvalProvenanceLabel } from '../integrations/pmGraph/EvaluationStore';
-import ProvenanceBadge from '../components/common/ProvenanceBadge';
 
 export default function InsightsPage() {
   const { state } = useApp();
@@ -36,23 +32,7 @@ export default function InsightsPage() {
     [insight]
   );
 
-  // PM Graph-backed data — async from EvaluationStore
-  const { dimensionAverages, topMissedInsights, rankedDimensions, records: pmRecords } =
-    usePMGraphEvaluations();
-  const { pmProfile } = useFrictionCredibility();
-  const isPMBacked = pmProfile !== null && pmProfile.totalExercises > 0;
-  const credibilityScore = isPMBacked ? pmProfile.score : insight.credibilityScore;
-
-  // Index pmRecords by hello_eq_exercise_id (== InsightSubmission.caseId) for
-  // per-row provenance lookup in the Exercise Log. getAll() returns newest-first
-  // so the first seen per case is the most recent eval.
-  const pmByCase = useMemo(() => {
-    const map: Record<string, typeof pmRecords[number]> = {};
-    for (const r of pmRecords) {
-      if (!map[r.hello_eq_exercise_id]) map[r.hello_eq_exercise_id] = r;
-    }
-    return map;
-  }, [pmRecords]);
+  const credibilityScore = insight.credibilityScore;
 
   const scoreLabel = (score: number) =>
     score === 1 ? 'Perfect read' : score === 0.5 ? 'Half right' : 'Learning moment';
@@ -116,12 +96,7 @@ export default function InsightsPage() {
                 <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#4A5FC1', margin: '0.5rem 0 0 0' }}>{themeEntries.length}</p>
               </Card>
               <Card>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: 0 }}>
-                  <p style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 600, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Credibility Score</p>
-                  {isPMBacked && (
-                    <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#7C3AED', padding: '0.1rem 0.35rem', borderRadius: '999px', backgroundColor: '#EDE9FE' }}>PM</span>
-                  )}
-                </div>
+                <p style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 600, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Credibility Score</p>
                 <p style={{ fontSize: '1.75rem', fontWeight: 700, color: '#D97706', margin: '0.5rem 0 0 0' }}>{credibilityScore}</p>
               </Card>
             </div>
@@ -227,83 +202,6 @@ export default function InsightsPage() {
                 </div>
               </Card>
             )}
-
-            {/* ── PM Graph dimension breakdown (Friction Case only) ── */}
-            {/* Shows when ≥1 PM Graph evaluation exists; gracefully hides when none. */}
-            {pmRecords.length > 0 && dimensionAverages ? (
-              <Card>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                  <div style={{ width: '22px', height: '22px', borderRadius: '6px', backgroundColor: '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: '0.75rem' }}>🧠</span>
-                  </div>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>PM Dimension Breakdown</h2>
-                  <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#7C3AED', padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: '#EDE9FE', marginLeft: 'auto' }}>
-                    {pmRecords.length} PM Graph eval{pmRecords.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                <p style={{ fontSize: '0.78rem', color: '#9CA3AF', margin: '0 0 0.875rem', lineHeight: 1.5 }}>
-                  Averaged across all PM Graph-evaluated Friction Cases.
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: topMissedInsights.length > 0 ? '1rem' : 0 }}>
-                  {rankedDimensions.map(({ key, label, avg }, idx) => {
-                    const pct = Math.round(avg * 100);
-                    const isTop    = idx === 0;
-                    const isBottom = idx === rankedDimensions.length - 1;
-                    const barColor = isTop ? '#16A34A' : isBottom ? '#DC2626' : '#7C3AED';
-                    return (
-                      <div key={key}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-                          <span style={{ fontSize: '0.8125rem', color: '#374151', fontWeight: isTop || isBottom ? 600 : 400 }}>{label}</span>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: barColor }}>{pct}%</span>
-                        </div>
-                        <div style={{ height: '5px', borderRadius: '999px', backgroundColor: '#F3F4F6', overflow: 'hidden' }}>
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${pct}%` }}
-                            transition={{ duration: 0.7, ease: 'easeOut', delay: idx * 0.05 }}
-                            style={{ height: '100%', borderRadius: '999px', backgroundColor: barColor, opacity: 0.75 }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {topMissedInsights.length > 0 && (
-                  <div>
-                    <p style={{ fontSize: '0.72rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.5rem' }}>Top missed insights</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                      {topMissedInsights.slice(0, 3).map((insight, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                          <span style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 700, flexShrink: 0, marginTop: '0.05rem' }}>#{i + 1}</span>
-                          <span style={{ fontSize: '0.8125rem', color: '#374151', lineHeight: 1.4 }}>{insight}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Provenance footnote — shows rubric/graph version(s) for this aggregation. */}
-                {pmProfile?.versionMix?.isMixed ? (
-                  <p style={{ fontSize: '0.7rem', color: '#B45309', margin: '0.75rem 0 0', lineHeight: 1.5 }}>
-                    Mixed rubric versions — scores aggregated across {pmProfile.versionMix.distinctVersions.length} rubric builds ({pmProfile.versionMix.distinctVersions.join(', ')}).
-                  </p>
-                ) : (
-                  <ProvenanceBadge
-                    label={pmRecords[0] ? formatEvalProvenanceLabel(pmRecords[0]) : null}
-                    style={{ marginTop: '0.75rem', lineHeight: 1.5 }}
-                  />
-                )}
-              </Card>
-            ) : pmRecords.length === 0 ? (
-              /* Subtle empty state — only shown when the user has completed at least one friction case */
-              insight.totalCases > 0 ? (
-                <div style={{ padding: '0.875rem 1rem', borderRadius: '12px', backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                  <span style={{ fontSize: '1rem' }}>🧠</span>
-                  <p style={{ fontSize: '0.8rem', color: '#9CA3AF', margin: 0, lineHeight: 1.5 }}>
-                    PM Graph dimension breakdown will appear here after your next Friction Case is evaluated.
-                  </p>
-                </div>
-              ) : null
-            ) : null}
 
             {/* Recent Product Taste exercises from AppContext */}
             {(state.tasteExercises ?? []).length > 0 && (
@@ -439,8 +337,6 @@ export default function InsightsPage() {
                     const meta = THEME_LABELS[sub.theme];
                     const sc = sub.score;
                     const scColor = scoreColor(sc);
-                    const pmEval = pmByCase[sub.caseId];
-                    const provLabel = pmEval ? formatEvalProvenanceLabel(pmEval) : null;
                     return (
                       <div key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '12px', backgroundColor: meta.bg, border: `1px solid ${meta.color}22` }}>
                         <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{meta.emoji}</span>
@@ -449,11 +345,6 @@ export default function InsightsPage() {
                           <span style={{ fontSize: '0.75rem', color: '#9CA3AF', marginLeft: '0.5rem' }}>
                             {sub.rootIssueCorrect ? '✓ Root' : '✗ Root'} · {sub.fixCorrect ? '✓ Fix' : '✗ Fix'}
                           </span>
-                          <ProvenanceBadge
-                            label={provLabel}
-                            as="span"
-                            style={{ display: 'block', fontSize: '0.65rem', color: '#A78BFA', marginTop: '0.1rem' }}
-                          />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem', flexShrink: 0 }}>
                           <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: scColor }}>{Math.round(sc * 100)}%</span>
