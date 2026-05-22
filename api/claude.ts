@@ -12,6 +12,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
 
 const COST_PER_INPUT_TOKEN  = 3.00  / 1_000_000;
 const COST_PER_OUTPUT_TOKEN = 15.00 / 1_000_000;
@@ -56,6 +57,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (isRateLimited(sessionId)) {
     res.status(429).json({ error: 'Rate limit exceeded. Please wait before retrying.' });
     return;
+  }
+
+  // ── Usage tracking (non-blocking) ──────────────────────────────────────────
+  const authHeader = req.headers.authorization as string | undefined;
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (authHeader?.startsWith('Bearer ') && supabaseUrl && serviceKey) {
+    const sb = createClient(supabaseUrl, serviceKey);
+    const { data: { user } } = await sb.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (user) {
+      sb.rpc('increment_usage', { p_user_id: user.id, p_feature: 'coach' }).catch(() => {});
+    }
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
