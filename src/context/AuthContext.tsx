@@ -3,6 +3,7 @@ import {
 } from 'react';
 import type { Session, User, AuthError } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { identifyUser, resetUser } from '../lib/posthog';
 
 interface SignUpResult {
   error: AuthError | null;
@@ -43,6 +44,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
+      if (newSession?.user) {
+        identifyUser(newSession.user.id, { email: newSession.user.email });
+      } else {
+        resetUser();
+      }
     });
 
     return () => subscription.unsubscribe();
