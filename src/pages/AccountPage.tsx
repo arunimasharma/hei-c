@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
+import PassStatusBadge from '../components/common/PassStatusBadge';
+import { usePass } from '../context/PassContext';
+import { supabase } from '../lib/supabaseClient';
 import { motion, AnimatePresence } from 'motion/react';
 import { Edit2, Save, RotateCw, Bell, Moon, Trash2, LogIn, LogOut, User } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
@@ -19,6 +22,31 @@ export default function AccountPage() {
   const [showEmotionGame, setShowEmotionGame] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { hasPaidPass, openCohort } = usePass();
+  const [purchaseLoading, setPurchaseLoading] = useState(false);
+  const [searchParams] = useSearchParams();
+  const purchaseStatus = searchParams.get('purchase');
+
+  const handleUpgrade = async () => {
+    if (!openCohort || !supabase) return;
+    setPurchaseLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ cohort_id: openCohort.id }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } finally {
+      setPurchaseLoading(false);
+    }
+  };
 
   const user = state.user;
 
@@ -120,6 +148,44 @@ export default function AccountPage() {
                 transition={{ duration: 0.2 }}
                 style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
               >
+                {/* Pass Status */}
+                <PassStatusBadge />
+
+                {/* Purchase success/cancel messages */}
+                {purchaseStatus === 'success' && (
+                  <Card style={{ borderLeft: '4px solid #10B981', padding: '1rem 1.25rem' }}>
+                    <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#065F46', margin: 0 }}>
+                      Purchase successful! Your access is now active.
+                    </p>
+                  </Card>
+                )}
+                {purchaseStatus === 'cancelled' && (
+                  <Card style={{ borderLeft: '4px solid #F59E0B', padding: '1rem 1.25rem' }}>
+                    <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#92400E', margin: 0 }}>
+                      Purchase cancelled. You can try again anytime.
+                    </p>
+                  </Card>
+                )}
+
+                {/* Upgrade button for free users */}
+                {!hasPaidPass && openCohort && (
+                  <Card>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1F2937', margin: 0 }}>
+                          Upgrade to {openCohort.name}
+                        </h3>
+                        <p style={{ fontSize: '0.75rem', color: '#6B7280', margin: '0.25rem 0 0' }}>
+                          ${(openCohort.price_cents / 100).toFixed(0)} for full access
+                        </p>
+                      </div>
+                      <Button size="sm" onClick={handleUpgrade} disabled={purchaseLoading}>
+                        {purchaseLoading ? 'Loading...' : 'Upgrade'}
+                      </Button>
+                    </div>
+                  </Card>
+                )}
+
                 {/* Basic Info Card */}
                 <Card>
                   <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem' }}>
