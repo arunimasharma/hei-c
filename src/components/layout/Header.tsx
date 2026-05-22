@@ -11,7 +11,7 @@ const PRIMARY_NAV: { path: string; emoji: string; label: string }[] = [
 
 export default function Header() {
   const { state, logout } = useApp();
-  const { user: authUser } = useAuth();
+  const { user: authUser, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -181,6 +181,23 @@ export default function Header() {
                       {item.icon} {item.label}
                     </Link>
                   ))}
+                  {isAdmin && (
+                    <Link
+                      to="/admin"
+                      onClick={() => setMenuOpen(false)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '0.625rem',
+                        padding: '0.625rem 0.875rem', borderRadius: '8px',
+                        fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none',
+                        color: '#7C3AED',
+                        backgroundColor: location.pathname === '/admin' ? 'rgba(124,58,237,0.08)' : 'transparent',
+                      }}
+                      onMouseEnter={(e) => { if (location.pathname !== '/admin') e.currentTarget.style.backgroundColor = 'rgba(124,58,237,0.04)'; }}
+                      onMouseLeave={(e) => { if (location.pathname !== '/admin') e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    >
+                      <Settings size={15} color="#7C3AED" /> Admin
+                    </Link>
+                  )}
 
                   {/* Sign in CTA for unauthenticated users */}
                   {!authUser && (
