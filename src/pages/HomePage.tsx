@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Button from '../components/common/Button';
+import { trackEvent } from '../lib/posthog';
 import { useApp } from '../context/AppContext';
 import { useJournalAnalysis } from '../hooks/useJournalAnalysis';
 import { callClaudeMessages, parseActionResponse } from '../services/claudeApi';
@@ -618,6 +619,7 @@ export default function HomePage() {
     const text = chatInput.trim();
     if (!text || chatLoading) return;
     if (!checkAndUseAi()) return;
+    trackEvent('coach_session_started', { is_paid: false, usage_count: 0 });
     const updatedMessages: ChatMessage[] = [...chatMessages, { role: 'user', content: text }];
     setChatMessages(updatedMessages);
     setChatInput('');

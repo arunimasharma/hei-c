@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/layout/Header';
 import InfoTooltip from '../components/common/InfoTooltip';
+import { trackEvent } from '../lib/posthog';
 import { useApp } from '../context/AppContext';
 import PmInterviewExercise from '../components/product/PmInterviewExercise';
 import FrictionCaseExercise from '../components/product/FrictionCaseExercise';
@@ -94,6 +95,7 @@ export default function ProductTastePage() {
   }, [messages]);
 
   const startExercise = () => {
+    trackEvent('taste_exercise_started', { source: 'product_taste_page' });
     setView('exercise');
     setPhase('naming');
     setProductName('');

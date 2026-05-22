@@ -1,9 +1,11 @@
+import { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Lock } from 'lucide-react';
 import Button from './Button';
 import Card from './Card';
 import { usePass } from '../../context/PassContext';
 import type { FeatureKey } from '../../services/passService';
+import { trackEvent } from '../../lib/posthog';
 
 const FEATURE_LABELS: Record<FeatureKey, string> = {
   coach: 'coach sessions',
@@ -19,6 +21,10 @@ interface PaywallPromptProps {
 export default function PaywallPrompt({ feature, onUpgrade }: PaywallPromptProps) {
   const { getUsage, openCohort } = usePass();
   const { limit } = getUsage(feature);
+
+  useEffect(() => {
+    trackEvent('paywall_shown', { feature, cohort_id: openCohort?.id });
+  }, [feature, openCohort?.id]);
 
   return (
     <motion.div
@@ -48,7 +54,7 @@ export default function PaywallPrompt({ feature, onUpgrade }: PaywallPromptProps
               {Math.round((new Date(openCohort.cohort_ends_at).getTime() - new Date(openCohort.cohort_starts_at).getTime()) / (1000 * 60 * 60 * 24 * 7))}{' '}
               weeks of full access.
             </p>
-            <Button onClick={onUpgrade} size="lg">
+            <Button onClick={() => { trackEvent('checkout_started', { cohort_id: openCohort?.id, price: openCohort?.price_cents }); onUpgrade(); }} size="lg">
               Join Cohort
             </Button>
           </>

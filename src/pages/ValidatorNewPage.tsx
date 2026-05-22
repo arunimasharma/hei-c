@@ -28,6 +28,7 @@ import {
   type ValidatorReadiness,
   type ValidatorRole,
 } from '../types/validator';
+import { trackEvent } from '../lib/posthog';
 
 const INITIAL_GREETING =
   "What's the rough idea? A sentence or two — even messy. I'll ask follow-ups to sharpen it into a hypothesis you can test.";
@@ -133,6 +134,7 @@ function ValidatorNewInner() {
 
     if (!hasStartedSession) {
       trackSessionStarted(mode);
+      trackEvent('validator_session_started', { mode, session_id: sessionId });
       setHasStartedSession(true);
     }
     trackMessageSent({ sessionId, mode, turnNumber: userTurnCount + 1 });
