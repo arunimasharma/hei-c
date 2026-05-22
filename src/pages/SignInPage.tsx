@@ -14,18 +14,16 @@ const BENEFITS = [
 ];
 
 export default function SignInPage() {
-  const { signIn, signUp, user, authReady } = useAuth();
+  const { signIn, signUp, signInWithGoogle, signInWithMagicLink, user, authReady } = useAuth();
   const { state } = useApp();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  // Honor a ?next= path set by gates (e.g. RequireAuth) so the user lands
-  // back where they tried to go. Restrict to in-app paths to avoid open redirects.
   const nextParam = searchParams.get('next');
   const safeNext = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')
     ? nextParam
     : '/';
 
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'magic-link'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -33,18 +31,34 @@ export default function SignInPage() {
   const [migrating, setMigrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signupSuccess, setSignupSuccess] = useState<null | 'auto-signed-in' | 'needs-confirmation'>(null);
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
 
-  const switchMode = (next: 'signin' | 'signup') => {
+  const switchMode = (next: 'signin' | 'signup' | 'magic-link') => {
     setMode(next);
     setError(null);
     setSignupSuccess(null);
+    setMagicLinkSent(false);
     setPassword('');
     setConfirmPassword('');
   };
 
-  const continueAsGuest = () => {
-    sessionStorage.setItem('heq_guest_session', 'true');
-    navigate('/', { replace: true });
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    const err = await signInWithGoogle();
+    if (err) setError(err.message);
+  };
+
+  const handleMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const { error: err, sent } = await signInWithMagicLink(email);
+      if (err) { setError(err.message); return; }
+      if (sent) setMagicLinkSent(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,40 +71,24 @@ export default function SignInPage() {
     }
 
     setLoading(true);
-
     try {
       if (mode === 'signup') {
         const { error: authError, needsEmailConfirmation } = await signUp(email, password);
-        if (authError) {
-          setError(authError.message);
-          return;
-        }
+        if (authError) { setError(authError.message); return; }
         if (needsEmailConfirmation) {
-          // User must click the verification link before they can sign in.
-          // Keep them on the signup view with a clear message — switching to
-          // signin would just put them in a loop of "Email not confirmed".
           setSignupSuccess('needs-confirmation');
           setPassword('');
           setConfirmPassword('');
           return;
         }
-        // Email confirmation is disabled: signup is effectively complete.
-        // Navigate unconditionally. If Supabase auto-created a session, the
-        // user lands signed-in; if not, they land on the public home page —
-        // either way, they're no longer stuck on this screen.
         setSignupSuccess('auto-signed-in');
         navigate(safeNext, { replace: true });
         return;
       }
 
-      // Sign in flow
       const authError = await signIn(email, password);
-      if (authError) {
-        setError(authError.message);
-        return;
-      }
+      if (authError) { setError(authError.message); return; }
 
-      // Run one-time Dexie → Supabase migration.
       try {
         setMigrating(true);
         const { supabase } = await import('../lib/supabaseClient');
@@ -100,7 +98,7 @@ export default function SignInPage() {
         }) ?? Promise.resolve();
         await Promise.race([migrationRun, migrationTimeout]);
       } catch {
-        // Migration failure is non-fatal — data will sync on next action.
+        // Migration failure is non-fatal.
       } finally {
         setMigrating(false);
       }
@@ -124,7 +122,6 @@ export default function SignInPage() {
     }}>
       <div style={{ width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
-        {/* Benefits panel — shown on signup or initial landing */}
         {mode === 'signup' && (
           <div style={{
             backgroundColor: 'white', borderRadius: '16px',
@@ -149,13 +146,11 @@ export default function SignInPage() {
           </div>
         )}
 
-        {/* Auth card */}
         <div style={{
           backgroundColor: 'white', borderRadius: '20px',
           padding: '2.5rem 2rem',
           boxShadow: '0 4px 24px rgba(74, 95, 193, 0.1)',
         }}>
-          {/* Logo / heading */}
           <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
             <div style={{
               width: '52px', height: '52px', borderRadius: '14px',
@@ -166,14 +161,47 @@ export default function SignInPage() {
               🧠
             </div>
             <h1 style={{ fontSize: '1.375rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>
-              {mode === 'signin' ? 'Welcome back' : 'Create your account'}
+              {mode === 'signin' ? 'Welcome back' : mode === 'signup' ? 'Create your account' : 'Sign in with email'}
             </h1>
             <p style={{ fontSize: '0.875rem', color: '#6B7280', marginTop: '0.375rem' }}>
               {mode === 'signin'
                 ? 'Sign in to access your growth journey'
-                : 'Free forever — your growth data, always with you'}
+                : mode === 'signup'
+                  ? 'Start your growth journey today'
+                  : "We'll send you a sign-in link"}
             </p>
           </div>
+
+          {mode !== 'magic-link' && (
+            <>
+              <button
+                onClick={handleGoogleSignIn}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '12px',
+                  border: '1px solid #E5E7EB', backgroundColor: 'white', cursor: 'pointer',
+                  fontSize: '0.875rem', fontWeight: 500, color: '#374151', fontFamily: 'inherit',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#F9FAFB'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                  <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+                  <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                  <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                </svg>
+                Continue with Google
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '1.25rem 0' }}>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#E5E7EB' }} />
+                <span style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 500 }}>or</span>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#E5E7EB' }} />
+              </div>
+            </>
+          )}
 
           {signupSuccess === 'needs-confirmation' && (
             <div style={{
@@ -190,80 +218,116 @@ export default function SignInPage() {
               padding: '0.75rem 1rem', marginBottom: '1rem',
               fontSize: '0.875rem', color: '#15803D', textAlign: 'center',
             }}>
-              Account created! Taking you in…
+              Account created! Taking you in...
+            </div>
+          )}
+          {magicLinkSent && (
+            <div style={{
+              backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px',
+              padding: '0.75rem 1rem', marginBottom: '1rem',
+              fontSize: '0.875rem', color: '#15803D', textAlign: 'center',
+            }}>
+              Magic link sent to <strong>{email}</strong>. Check your inbox!
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <Input
-              label="Email"
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              autoComplete="email"
-            />
-            <Input
-              label="Password"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder={mode === 'signup' ? 'At least 6 characters' : '••••••••'}
-              required
-              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-            />
-            {mode === 'signup' && (
+          {mode === 'magic-link' ? (
+            <form onSubmit={handleMagicLink} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <Input
-                label="Confirm Password"
-                type="password"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter your password"
+                label="Email"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
                 required
-                autoComplete="new-password"
-                error={error ?? undefined}
+                autoComplete="email"
               />
+              {error && <p style={{ fontSize: '0.8125rem', color: '#DC2626', margin: 0 }}>{error}</p>}
+              <Button type="submit" fullWidth disabled={loading || magicLinkSent}>
+                {magicLinkSent ? 'Check your inbox' : loading ? 'Sending...' : 'Send Magic Link'}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <Input
+                label="Email"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                autoComplete="email"
+              />
+              <Input
+                label="Password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={mode === 'signup' ? 'At least 6 characters' : '••••••••'}
+                required
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+              />
+              {mode === 'signup' && (
+                <Input
+                  label="Confirm Password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter your password"
+                  required
+                  autoComplete="new-password"
+                  error={error ?? undefined}
+                />
+              )}
+              {mode === 'signin' && error && (
+                <p style={{ fontSize: '0.8125rem', color: '#DC2626', margin: 0 }}>{error}</p>
+              )}
+              <Button type="submit" fullWidth disabled={loading || migrating} style={{ marginTop: '0.25rem' }}>
+                {migrating
+                  ? 'Syncing your data...'
+                  : loading
+                    ? (mode === 'signin' ? 'Signing in...' : 'Creating account...')
+                    : (mode === 'signin' ? 'Sign In' : 'Create Account')}
+              </Button>
+            </form>
+          )}
+
+          <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+            {mode === 'magic-link' ? (
+              <button
+                onClick={() => switchMode('signin')}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#4A5FC1', fontWeight: 600, padding: 0, fontFamily: 'inherit', fontSize: '0.875rem',
+                }}
+              >
+                Sign in with password
+              </button>
+            ) : (
+              <>
+                <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: 0 }}>
+                  {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+                  <button
+                    onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#4A5FC1', fontWeight: 600, padding: 0, fontFamily: 'inherit', fontSize: 'inherit',
+                    }}
+                  >
+                    {mode === 'signin' ? 'Sign Up' : 'Sign In'}
+                  </button>
+                </p>
+                <button
+                  onClick={() => switchMode('magic-link')}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#9CA3AF', padding: 0, fontFamily: 'inherit', fontSize: '0.8125rem',
+                  }}
+                >
+                  Sign in with magic link instead
+                </button>
+              </>
             )}
-            {mode === 'signin' && error && (
-              <p style={{ fontSize: '0.8125rem', color: '#DC2626', margin: 0 }}>{error}</p>
-            )}
-
-            <Button type="submit" fullWidth disabled={loading || migrating} style={{ marginTop: '0.25rem' }}>
-              {migrating
-                ? 'Syncing your data…'
-                : loading
-                  ? (mode === 'signin' ? 'Signing in…' : 'Creating account…')
-                  : (mode === 'signin' ? 'Sign In' : 'Create Account')}
-            </Button>
-          </form>
-
-          <p style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.875rem', color: '#6B7280' }}>
-            {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
-            <button
-              onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: '#4A5FC1', fontWeight: 600, padding: 0, fontFamily: 'inherit', fontSize: 'inherit',
-              }}
-            >
-              {mode === 'signin' ? 'Sign Up' : 'Sign In'}
-            </button>
-          </p>
-
-          <div style={{ marginTop: '1.25rem', borderTop: '1px solid #F3F4F6', paddingTop: '1.25rem', textAlign: 'center' }}>
-            <button
-              onClick={continueAsGuest}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: '#9CA3AF', padding: 0, fontFamily: 'inherit', fontSize: '0.8125rem',
-              }}
-            >
-              Continue without signing in
-            </button>
-            <p style={{ fontSize: '0.75rem', color: '#D1D5DB', margin: '0.25rem 0 0' }}>
-              Your data won't be saved between sessions
-            </p>
           </div>
         </div>
       </div>
