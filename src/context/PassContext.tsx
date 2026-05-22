@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 import {
   fetchUserPasses, fetchUsageCounts, fetchOpenCohort,
   hasActivePass, isFeatureLocked, daysRemaining,
-  type UserPass, type UsageCount, type Cohort, type FeatureKey, FREE_LIMITS,
+  type UserPass, type Cohort, type FeatureKey, FREE_LIMITS,
 } from '../services/passService';
 
 interface PassContextType {

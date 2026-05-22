@@ -26,14 +26,14 @@ export default function AdminPage() {
     max_seats: '',
   });
 
-  useEffect(() => { loadCohorts(); }, []);
-
-  async function loadCohorts() {
+  const loadCohorts = async () => {
     setLoading(true);
     const data = await fetchAllCohorts();
     setCohorts(data);
     setLoading(false);
-  }
+  };
+
+  useEffect(() => { loadCohorts(); }, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();

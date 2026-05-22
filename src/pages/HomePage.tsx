@@ -713,7 +713,7 @@ Keep it sharp and specific. No filler.`;
             id: decisionId,
             userId: state.user?.id || 'anonymous',
             question: decisionHistory[0] || text,
-            options: decisionHistory[1] ? decisionHistory[1].split(/[,\n•\-]+/).map(s => s.trim()).filter(Boolean) : [],
+            options: decisionHistory[1] ? decisionHistory[1].split(/[,\n•-]+/).map(s => s.trim()).filter(Boolean) : [],
             aiStructuredBrief: brief,
             status: 'open',
             createdAt: new Date().toISOString(),
@@ -1215,14 +1215,16 @@ ${instructionByType[linkedInPostType]}`;
                                 const careerTarget = f.career || 'not specified';
                                 const recentExercises = state.tasteExercises.slice(0, 3).map(te => `${te.productName} (score: ${te.score}/5, ${te.evaluation?.verdict || te.scoreComment})`).join('; ') || 'none yet';
                                 const workSysPrompt = `You are a senior product manager assistant. You produce sharp, specific, executive-ready PM artifacts — no filler.\n\nUser context:\n- Product focus: ${productTarget}\n- Career target: ${careerTarget}\n- Recent product analyses: ${recentExercises}\n\nLead with the most important insight. Use short paragraphs and bullets. Be opinionated. Flag unknowns. Respond with the artifact only.`;
-                                checkAndUseAi() && callClaudeMessages(workSysPrompt, [{ role: 'user', content: task.label }], 800)
-                                  .then(r => {
-                                    const artifact = parseActionResponse(r).trim();
-                                    setWorkArtifact(artifact);
-                                    setChatMessages(prev => [...prev, { role: 'assistant', content: artifact }]);
-                                  })
-                                  .catch(() => setChatMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }]))
-                                  .finally(() => setChatLoading(false));
+                                if (checkAndUseAi()) {
+                                  callClaudeMessages(workSysPrompt, [{ role: 'user', content: task.label }], 800)
+                                    .then(r => {
+                                      const artifact = parseActionResponse(r).trim();
+                                      setWorkArtifact(artifact);
+                                      setChatMessages(prev => [...prev, { role: 'assistant', content: artifact }]);
+                                    })
+                                    .catch(() => setChatMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }]))
+                                    .finally(() => setChatLoading(false));
+                                }
                               }}
                               style={{ padding: '0.5rem 1rem', borderRadius: '999px', border: '1.5px solid #BAE6FD', backgroundColor: '#F0F9FF', fontSize: '0.875rem', color: '#0891B2', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '0.375rem' }}
                               onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#E0F2FE'; e.currentTarget.style.borderColor = '#0891B2'; }}
