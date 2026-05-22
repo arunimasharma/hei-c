@@ -10,7 +10,7 @@
  * after install is already intercepted.
  */
 
-const CACHE_NAME = 'heq-shell-v1';
+const CACHE_NAME = 'heq-shell-v2';
 
 const SHELL_URLS = [
   '/',
