@@ -1,9 +1,39 @@
 import {
-  createContext, useContext, useEffect, useState, useCallback, type ReactNode,
+  createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode,
 } from 'react';
 import type { Session, User, AuthError } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { identifyUser, resetUser } from '../lib/posthog';
+
+// ---------------------------------------------------------------------------
+// Dev-only auth bypass: set VITE_DEV_AUTH_BYPASS=true in .env to skip Google/
+// Supabase sign-in entirely when running locally. The app behaves as if a user
+// named "Dev User" is permanently signed in.
+// ---------------------------------------------------------------------------
+const DEV_AUTH_BYPASS =
+  import.meta.env.DEV &&
+  import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
+
+function makeDevSession(): { session: Session; user: User } {
+  const user = {
+    id: 'dev-local-user-00000000',
+    email: import.meta.env.VITE_DEV_AUTH_EMAIL as string || 'dev@localhost',
+    app_metadata: {},
+    user_metadata: { full_name: 'Dev User' },
+    aud: 'authenticated',
+    created_at: new Date().toISOString(),
+  } as unknown as User;
+
+  const session = {
+    access_token: 'dev-access-token',
+    refresh_token: 'dev-refresh-token',
+    expires_in: 99999,
+    token_type: 'bearer',
+    user,
+  } as unknown as Session;
+
+  return { session, user };
+}
 
 interface SignUpResult {
   error: AuthError | null;
@@ -31,10 +61,19 @@ const ADMIN_EMAILS = (import.meta.env.VITE_ALLOWED_ADMIN_EMAILS as string || '')
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
+  // ── Dev bypass path ──────────────────────────────────────────────────────
+  const devData = useMemo(() => (DEV_AUTH_BYPASS ? makeDevSession() : null), []);
+
+  const [session, setSession] = useState<Session | null>(devData?.session ?? null);
+  const [authReady, setAuthReady] = useState(!isSupabaseConfigured || DEV_AUTH_BYPASS);
 
   useEffect(() => {
+    if (DEV_AUTH_BYPASS) {
+      // eslint-disable-next-line no-console
+      console.info('[AuthContext] Dev auth bypass active — signed in as', devData!.user.email);
+      return;
+    }
+
     if (!isSupabaseConfigured || !supabase) return;
 
     supabase.auth.getSession()
@@ -52,17 +91,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [devData]);
+
+  const noop = useCallback(async () => null, []);
 
   const signIn = useCallback(async (email: string, password: string): Promise<AuthError | null> => {
-    if (!supabase) return null;
+    if (DEV_AUTH_BYPASS || !supabase) return null;
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (data.session) setSession(data.session);
     return error;
   }, []);
 
   const signUp = useCallback(async (email: string, password: string): Promise<SignUpResult> => {
-    if (!supabase) return { error: null, needsEmailConfirmation: false, session: null };
+    if (DEV_AUTH_BYPASS || !supabase) return { error: null, needsEmailConfirmation: false, session: null };
     const { data, error } = await supabase.auth.signUp({ email, password });
     const needsEmailConfirmation = !error && !!data.user && !data.session;
     if (data.session) setSession(data.session);
@@ -70,12 +111,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    if (!supabase) return;
+    if (DEV_AUTH_BYPASS || !supabase) return;
     await supabase.auth.signOut();
   }, []);
 
   const signInWithGoogle = useCallback(async (): Promise<AuthError | null> => {
-    if (!supabase) return null;
+    if (DEV_AUTH_BYPASS || !supabase) return null;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -86,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithMagicLink = useCallback(async (email: string): Promise<{ error: AuthError | null; sent: boolean }> => {
-    if (!supabase) return { error: null, sent: false };
+    if (DEV_AUTH_BYPASS || !supabase) return { error: null, sent: false };
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
@@ -97,13 +138,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const user = session?.user ?? null;
-  const isAdmin = Boolean(user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
+  const isAdmin = Boolean(
+    DEV_AUTH_BYPASS || (user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())),
+  );
 
   return (
     <AuthContext.Provider value={{
       session, user, authReady,
       signIn, signUp, signOut,
-      signInWithGoogle, signInWithMagicLink,
+      signInWithGoogle: DEV_AUTH_BYPASS ? noop : signInWithGoogle,
+      signInWithMagicLink,
       isAdmin,
     }}>
       {children}
