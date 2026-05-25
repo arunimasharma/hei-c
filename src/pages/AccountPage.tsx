@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import PassStatusBadge from '../components/common/PassStatusBadge';
 import { usePass } from '../context/PassContext';
-import { supabase } from '../lib/supabaseClient';
 import { motion, AnimatePresence } from 'motion/react';
 import { Edit2, Save, RotateCw, Bell, Moon, Trash2, LogIn, LogOut, User } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
@@ -13,6 +12,7 @@ import TextArea from '../components/common/TextArea';
 import EmotionGame from '../components/onboarding/EmotionGame';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { useUpgrade } from '../hooks/useUpgrade';
 
 export default function AccountPage() {
   const { state, updateUserProfile, updateSettings, clearAllData, logout } = useApp();
@@ -23,30 +23,9 @@ export default function AccountPage() {
   const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { hasPaidPass, openCohort } = usePass();
-  const [purchaseLoading, setPurchaseLoading] = useState(false);
+  const { handleUpgrade, upgradeLoading: purchaseLoading } = useUpgrade();
   const [searchParams] = useSearchParams();
   const purchaseStatus = searchParams.get('purchase');
-
-  const handleUpgrade = async () => {
-    if (!openCohort || !supabase) return;
-    setPurchaseLoading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const res = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ cohort_id: openCohort.id }),
-      });
-      const data = await res.json();
-      if (data.url) window.location.href = data.url;
-    } finally {
-      setPurchaseLoading(false);
-    }
-  };
 
   const user = state.user;
 

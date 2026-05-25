@@ -23,6 +23,9 @@ import {
   parseTasteAnalysisResponse,
   type TasteAnalysisResult,
 } from '../services/tasteExercisePromptBuilder';
+import { usePass } from '../context/PassContext';
+import { useUpgrade } from '../hooks/useUpgrade';
+import PaywallPrompt from '../components/common/PaywallPrompt';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
@@ -120,6 +123,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 type Phase = 'writing' | 'analyzing' | 'review' | 'success';
 
 export default function HomePage() {
+  const { isLocked } = usePass();
+  const { handleUpgrade } = useUpgrade();
   const { state, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, approveAction, startAction, snoozeAction, refreshActions, addTasteExercise, addDecision, resolveDecision, addWorkMode, llmState, checkAndUseAi } = useApp();
   const { analysisState, analyzeJournal, resetAnalysis } = useJournalAnalysis();
 
@@ -978,6 +983,16 @@ ${instructionByType[linkedInPostType]}`;
       </span>
     );
   };
+
+  if (isLocked('coach')) {
+    return (
+      <DashboardLayout>
+        <div style={{ maxWidth: '48rem', margin: '2rem auto', padding: '0 1rem' }}>
+          <PaywallPrompt feature="coach" onUpgrade={handleUpgrade} />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
