@@ -1,4 +1,16 @@
 import type { ClaudeRequest, ClaudeResponse } from '../types/llm';
+import { supabase } from '../lib/supabaseClient';
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (supabase) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+  }
+  return headers;
+}
 
 const PROXY_URL = '/api/claude';
 const MODEL = 'claude-sonnet-4-20250514';
@@ -38,9 +50,7 @@ export async function callClaude(
 
   const response = await fetch(PROXY_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(body),
   });
 
@@ -77,7 +87,7 @@ export async function callClaudeMessages(
 
   const response = await fetch(PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(body),
   });
 
@@ -105,7 +115,7 @@ export async function testConnection(): Promise<{ ok: boolean; statusCode?: numb
 
     const response = await fetch(PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders(),
       body: JSON.stringify(body),
     });
 

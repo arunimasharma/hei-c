@@ -293,6 +293,22 @@ function validatorDevPlugin(apiKey: string): Plugin {
   }
 }
 
+function checkoutDevPlugin(): Plugin {
+  return {
+    name: 'heq-checkout-dev',
+    configureServer(server) {
+      server.middlewares.use(
+        '/api/create-checkout-session',
+        (_req: IncomingMessage, res: ServerResponse) => {
+          res.statusCode = 503
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: 'Stripe checkout not available in dev mode. Deploy to Vercel to test payments.' }))
+        },
+      )
+    },
+  }
+}
+
 // ── Vite config ───────────────────────────────────────────────────────────────
 
 export default defineConfig(({ mode }) => {
@@ -314,6 +330,7 @@ export default defineConfig(({ mode }) => {
       evaluatorKey ? evaluateTasteDevPlugin(evaluatorKey) : null,
       // Idea Validator dev middleware — stateless Anthropic proxy (no auth)
       validatorDevPlugin(apiKey ?? ''),
+      checkoutDevPlugin(),
     ],
     resolve: {
       // Force a single React instance — prevents "Invalid hook call" when

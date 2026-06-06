@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/layout/Header';
 import InfoTooltip from '../components/common/InfoTooltip';
+import { trackEvent } from '../lib/posthog';
 import { useApp } from '../context/AppContext';
 import PmInterviewExercise from '../components/product/PmInterviewExercise';
 import FrictionCaseExercise from '../components/product/FrictionCaseExercise';
@@ -20,6 +21,9 @@ import {
   type TasteAnalysisResult,
 } from '../services/tasteExercisePromptBuilder';
 import type { TasteExercise, TasteExerciseAnswer, TasteEvaluatorResult } from '../types';
+import { usePass } from '../context/PassContext';
+import { useUpgrade } from '../hooks/useUpgrade';
+import PaywallPrompt from '../components/common/PaywallPrompt';
 
 type PageView = 'landing' | 'exercise' | 'interview' | 'friction';
 type ExercisePhase = 'naming' | 'questioning' | 'analyzing' | 'done';
@@ -69,6 +73,8 @@ function RichText({ text, style }: { text: string; style?: React.CSSProperties }
 }
 
 export default function ProductTastePage() {
+  const { isLocked } = usePass();
+  const { handleUpgrade } = useUpgrade();
   const { state, addTasteExercise, checkAndUseAi } = useApp();
   const [view, setView] = useState<PageView>('landing');
 
@@ -94,6 +100,7 @@ export default function ProductTastePage() {
   }, [messages]);
 
   const startExercise = () => {
+    trackEvent('taste_exercise_started', { source: 'product_taste_page' });
     setView('exercise');
     setPhase('naming');
     setProductName('');
@@ -521,6 +528,18 @@ export default function ProductTastePage() {
   // ─── FRICTION CASE VIEW ───────────────────────────────────────────────────────
   if (view === 'friction') {
     return <FrictionCaseExercise onBack={() => setView('landing')} onStartTaste={startExercise} />;
+  }
+
+  // ─── PAYWALL GATE ────────────────────────────────────────────────────────────
+  if (view === 'landing' && isLocked('taste')) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: BG, fontFamily: 'inherit' }}>
+        <Header />
+        <div style={{ maxWidth: '520px', margin: '4rem auto', padding: '0 1.5rem' }}>
+          <PaywallPrompt feature="taste" onUpgrade={handleUpgrade} />
+        </div>
+      </div>
+    );
   }
 
   // ─── LANDING VIEW ────────────────────────────────────────────────────────────

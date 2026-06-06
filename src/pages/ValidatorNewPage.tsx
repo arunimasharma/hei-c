@@ -28,6 +28,10 @@ import {
   type ValidatorReadiness,
   type ValidatorRole,
 } from '../types/validator';
+import { trackEvent } from '../lib/posthog';
+import { usePass } from '../context/PassContext';
+import { useUpgrade } from '../hooks/useUpgrade';
+import PaywallPrompt from '../components/common/PaywallPrompt';
 
 const INITIAL_GREETING =
   "What's the rough idea? A sentence or two — even messy. I'll ask follow-ups to sharpen it into a hypothesis you can test.";
@@ -38,6 +42,19 @@ interface UIMessage {
 }
 
 export default function ValidatorNewPage() {
+  const { isLocked } = usePass();
+  const { handleUpgrade } = useUpgrade();
+
+  if (isLocked('validator')) {
+    return (
+      <DashboardLayout>
+        <div style={{ maxWidth: '46rem', margin: '2rem auto', padding: '0 1rem' }}>
+          <PaywallPrompt feature="validator" onUpgrade={handleUpgrade} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <ValidatorNewInner />
@@ -133,6 +150,7 @@ function ValidatorNewInner() {
 
     if (!hasStartedSession) {
       trackSessionStarted(mode);
+      trackEvent('validator_session_started', { mode, session_id: sessionId });
       setHasStartedSession(true);
     }
     trackMessageSent({ sessionId, mode, turnNumber: userTurnCount + 1 });

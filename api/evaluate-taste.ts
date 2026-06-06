@@ -19,6 +19,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
 import {
   EVALUATOR_MODEL,
   EVALUATOR_MAX_TOKENS,
@@ -94,6 +95,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!hasAnyAnswer) {
     res.status(400).json({ error: 'At least one answer is required.' });
     return;
+  }
+
+  // ── Usage tracking (non-blocking) ──────────────────────────────────────────
+  const authHeader = req.headers.authorization as string | undefined;
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (authHeader?.startsWith('Bearer ') && supabaseUrl && serviceKey) {
+    const sb = createClient(supabaseUrl, serviceKey);
+    const { data: { user } } = await sb.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (user) {
+      sb.rpc('increment_usage', { p_user_id: user.id, p_feature: 'taste' }).catch(() => {});
+    }
   }
 
   // ── Call Anthropic with the evaluator key ───────────────────────────────────
