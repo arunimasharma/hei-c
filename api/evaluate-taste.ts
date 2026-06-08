@@ -106,7 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const sb = createClient(supabaseUrl, serviceKey);
     const { data: { user } } = await sb.auth.getUser(authHeader.replace('Bearer ', ''));
     if (user) {
-      sb.rpc('increment_usage', { p_user_id: user.id, p_feature: 'taste' }).catch(() => {});
+      sb.rpc('increment_usage', { p_user_id: user.id, p_feature: 'taste' }).then(undefined, () => {});
     }
   }
 
