@@ -13,6 +13,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
 import {
   buildChatSystemPrompt,
   buildGenerationPrompt,
@@ -127,6 +128,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const body = (req.body ?? {}) as RawBody;
   const op   = body.op;
+
+  // ── Usage tracking (non-blocking) ──────────────────────────────────────────
+  const authHeader = req.headers.authorization as string | undefined;
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (authHeader?.startsWith('Bearer ') && supabaseUrl && serviceKey) {
+    const sb = createClient(supabaseUrl, serviceKey);
+    const { data: { user } } = await sb.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (user) {
+      sb.rpc('increment_usage', { p_user_id: user.id, p_feature: 'validator' }).catch(() => {});
+    }
+  }
 
   if (op === 'chat')     return handleChat(res, body, apiKey);
   if (op === 'generate') return handleGenerate(req, res, body, apiKey);

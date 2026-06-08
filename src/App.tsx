@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/AuthContext';
+import { PassProvider } from './context/PassContext';
+import RequireAuth from './components/common/RequireAuth';
 import OnboardingPage from './pages/OnboardingPage';
 import HomePage from './pages/HomePage';
 import InsightsPage from './pages/InsightsPage';
@@ -14,17 +16,14 @@ import SignalsPage from './pages/SignalsPage';
 import ActionsPage from './pages/ActionsPage';
 import { Analytics } from '@vercel/analytics/react';
 
-// Lazy-load admin pages so next-auth/react is code-split into a separate chunk
-// and never bundled with the main app (keeps regular routes free of NextAuth).
 const UsageDashboardPage  = lazy(() => import('./pages/UsageDashboardPage'));
 const SignInPage          = lazy(() => import('./pages/SignInPage'));
 const UnauthorizedPage    = lazy(() => import('./pages/UnauthorizedPage'));
-// Public profile page — no auth required, minimal bundle
 const PublicProfilePage   = lazy(() => import('./pages/PublicProfilePage'));
-// Idea Validator — lazy so it only loads when accessed.
 const ValidatorIndexPage   = lazy(() => import('./pages/ValidatorIndexPage'));
 const ValidatorNewPage     = lazy(() => import('./pages/ValidatorNewPage'));
 const ValidatorSessionPage = lazy(() => import('./pages/ValidatorSessionPage'));
+const AdminPage            = lazy(() => import('./pages/AdminPage'));
 // Drilloop — creator-led subscription learning membership (member + creator tabs).
 const DrilloopMemberPage   = lazy(() => import('./pages/DrilloopMemberPage'));
 const DrilloopCreatorPage  = lazy(() => import('./pages/DrilloopCreatorPage'));
@@ -34,35 +33,39 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
       <AppProvider>
+      <PassProvider>
         <Routes>
-          {/* ── App routes — no sign-in required ── */}
-          <Route path="/onboarding" element={<OnboardingPage />} />
-          <Route path="/" element={<HomePage />} />
-          <Route path="/product" element={<ProductTastePage />} />
-          <Route path="/insights" element={<InsightsPage />} />
-          <Route path="/growth" element={<GrowthPage />} />
-          <Route path="/account" element={<AccountPage />} />
-          <Route path="/transparency" element={<TransparencyHubPage />} />
-          <Route path="/influence" element={<InfluencePage />} />
-          <Route path="/signals" element={<SignalsPage />} />
-          <Route path="/actions" element={<ActionsPage />} />
-
-          {/* ── Idea Validator (no auth required) ── */}
-          <Route path="/validator"             element={<Suspense fallback={null}><ValidatorIndexPage /></Suspense>} />
-          <Route path="/validator/new"         element={<Suspense fallback={null}><ValidatorNewPage /></Suspense>} />
-          <Route path="/validator/:sessionId"  element={<Suspense fallback={null}><ValidatorSessionPage /></Suspense>} />
-
-          {/* ── Drilloop (no auth required) ── */}
-          <Route path="/drilloop"         element={<Suspense fallback={null}><DrilloopMemberPage /></Suspense>} />
-          <Route path="/drilloop/creator" element={<Suspense fallback={null}><DrilloopCreatorPage /></Suspense>} />
-
-          {/* ── Public profile (no auth required) ── */}
-          <Route path="/p/:slug" element={<Suspense fallback={null}><PublicProfilePage /></Suspense>} />
-
-          {/* ── Auth + admin routes ── */}
+          {/* ── Public routes — no auth required ── */}
           <Route path="/auth/signin" element={<Suspense fallback={null}><SignInPage /></Suspense>} />
           <Route path="/unauthorized" element={<Suspense fallback={null}><UnauthorizedPage /></Suspense>} />
-          <Route path="/dashboard" element={<Suspense fallback={null}><UsageDashboardPage /></Suspense>} />
+          <Route path="/p/:slug" element={<Suspense fallback={null}><PublicProfilePage /></Suspense>} />
+
+          {/* ── Protected routes — auth required ── */}
+          <Route path="/onboarding" element={<RequireAuth><OnboardingPage /></RequireAuth>} />
+          <Route path="/" element={<RequireAuth><HomePage /></RequireAuth>} />
+          <Route path="/product" element={<RequireAuth><ProductTastePage /></RequireAuth>} />
+          <Route path="/insights" element={<RequireAuth><InsightsPage /></RequireAuth>} />
+          <Route path="/growth" element={<RequireAuth><GrowthPage /></RequireAuth>} />
+          <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
+          <Route path="/transparency" element={<RequireAuth><TransparencyHubPage /></RequireAuth>} />
+          <Route path="/influence" element={<RequireAuth><InfluencePage /></RequireAuth>} />
+          <Route path="/signals" element={<RequireAuth><SignalsPage /></RequireAuth>} />
+          <Route path="/actions" element={<RequireAuth><ActionsPage /></RequireAuth>} />
+
+          {/* ── Idea Validator (auth required) ── */}
+          <Route path="/validator" element={<RequireAuth><Suspense fallback={null}><ValidatorIndexPage /></Suspense></RequireAuth>} />
+          <Route path="/validator/new" element={<RequireAuth><Suspense fallback={null}><ValidatorNewPage /></Suspense></RequireAuth>} />
+          <Route path="/validator/:sessionId" element={<RequireAuth><Suspense fallback={null}><ValidatorSessionPage /></Suspense></RequireAuth>} />
+
+          {/* ── Drilloop (auth required) ── */}
+          <Route path="/drilloop" element={<RequireAuth><Suspense fallback={null}><DrilloopMemberPage /></Suspense></RequireAuth>} />
+          <Route path="/drilloop/creator" element={<RequireAuth><Suspense fallback={null}><DrilloopCreatorPage /></Suspense></RequireAuth>} />
+
+          {/* ── Admin (auth + admin email required) ── */}
+          <Route path="/admin" element={<RequireAuth><Suspense fallback={null}><AdminPage /></Suspense></RequireAuth>} />
+
+          {/* ── Usage dashboard ── */}
+          <Route path="/dashboard" element={<RequireAuth><Suspense fallback={null}><UsageDashboardPage /></Suspense></RequireAuth>} />
 
           {/* Legacy redirects */}
           <Route path="/timeline" element={<Navigate to="/insights" replace />} />
@@ -73,10 +76,10 @@ export default function App() {
           <Route path="/add-event" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+      </PassProvider>
       </AppProvider>
       </AuthProvider>
       <Analytics />
     </BrowserRouter>
-
   );
 }

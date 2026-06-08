@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Button from '../components/common/Button';
+import { trackEvent } from '../lib/posthog';
 import { useApp } from '../context/AppContext';
 import { useJournalAnalysis } from '../hooks/useJournalAnalysis';
 import { callClaudeMessages, parseActionResponse } from '../services/claudeApi';
@@ -22,6 +23,9 @@ import {
   parseTasteAnalysisResponse,
   type TasteAnalysisResult,
 } from '../services/tasteExercisePromptBuilder';
+import { usePass } from '../context/PassContext';
+import { useUpgrade } from '../hooks/useUpgrade';
+import PaywallPrompt from '../components/common/PaywallPrompt';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
@@ -119,6 +123,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 type Phase = 'writing' | 'analyzing' | 'review' | 'success';
 
 export default function HomePage() {
+  const { isLocked } = usePass();
+  const { handleUpgrade } = useUpgrade();
   const { state, addEmotion, addEvent, addReflection, updateReflection, completeAction, skipAction, approveAction, startAction, snoozeAction, refreshActions, addTasteExercise, addDecision, resolveDecision, addWorkMode, llmState, checkAndUseAi } = useApp();
   const { analysisState, analyzeJournal, resetAnalysis } = useJournalAnalysis();
 
@@ -618,6 +624,7 @@ export default function HomePage() {
     const text = chatInput.trim();
     if (!text || chatLoading) return;
     if (!checkAndUseAi()) return;
+    trackEvent('coach_session_started', { is_paid: false, usage_count: 0 });
     const updatedMessages: ChatMessage[] = [...chatMessages, { role: 'user', content: text }];
     setChatMessages(updatedMessages);
     setChatInput('');
@@ -711,7 +718,7 @@ Keep it sharp and specific. No filler.`;
             id: decisionId,
             userId: state.user?.id || 'anonymous',
             question: decisionHistory[0] || text,
-            options: decisionHistory[1] ? decisionHistory[1].split(/[,\n•\-]+/).map(s => s.trim()).filter(Boolean) : [],
+            options: decisionHistory[1] ? decisionHistory[1].split(/[,\n•-]+/).map(s => s.trim()).filter(Boolean) : [],
             aiStructuredBrief: brief,
             status: 'open',
             createdAt: new Date().toISOString(),
@@ -977,6 +984,16 @@ ${instructionByType[linkedInPostType]}`;
     );
   };
 
+  if (isLocked('coach')) {
+    return (
+      <DashboardLayout>
+        <div style={{ maxWidth: '48rem', margin: '2rem auto', padding: '0 1rem' }}>
+          <PaywallPrompt feature="coach" onUpgrade={handleUpgrade} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div style={{ maxWidth: '48rem', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -1213,14 +1230,16 @@ ${instructionByType[linkedInPostType]}`;
                                 const careerTarget = f.career || 'not specified';
                                 const recentExercises = state.tasteExercises.slice(0, 3).map(te => `${te.productName} (score: ${te.score}/5, ${te.evaluation?.verdict || te.scoreComment})`).join('; ') || 'none yet';
                                 const workSysPrompt = `You are a senior product manager assistant. You produce sharp, specific, executive-ready PM artifacts — no filler.\n\nUser context:\n- Product focus: ${productTarget}\n- Career target: ${careerTarget}\n- Recent product analyses: ${recentExercises}\n\nLead with the most important insight. Use short paragraphs and bullets. Be opinionated. Flag unknowns. Respond with the artifact only.`;
-                                checkAndUseAi() && callClaudeMessages(workSysPrompt, [{ role: 'user', content: task.label }], 800)
-                                  .then(r => {
-                                    const artifact = parseActionResponse(r).trim();
-                                    setWorkArtifact(artifact);
-                                    setChatMessages(prev => [...prev, { role: 'assistant', content: artifact }]);
-                                  })
-                                  .catch(() => setChatMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }]))
-                                  .finally(() => setChatLoading(false));
+                                if (checkAndUseAi()) {
+                                  callClaudeMessages(workSysPrompt, [{ role: 'user', content: task.label }], 800)
+                                    .then(r => {
+                                      const artifact = parseActionResponse(r).trim();
+                                      setWorkArtifact(artifact);
+                                      setChatMessages(prev => [...prev, { role: 'assistant', content: artifact }]);
+                                    })
+                                    .catch(() => setChatMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }]))
+                                    .finally(() => setChatLoading(false));
+                                }
                               }}
                               style={{ padding: '0.5rem 1rem', borderRadius: '999px', border: '1.5px solid #BAE6FD', backgroundColor: '#F0F9FF', fontSize: '0.875rem', color: '#0891B2', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '0.375rem' }}
                               onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#E0F2FE'; e.currentTarget.style.borderColor = '#0891B2'; }}
