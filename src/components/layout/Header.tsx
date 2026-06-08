@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Menu, X, LogOut, Settings, BarChart3, TrendingUp, User, LogIn, Sparkles, ChevronRight } from 'lucide-react';
+import { Menu, X, LogOut, Settings, BarChart3, TrendingUp, User, LogIn, Sparkles, ChevronRight, Repeat, Wrench } from 'lucide-react';
 import { Fragment, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -81,6 +81,21 @@ export default function Header() {
             >
               <Sparkles size={14} /> Idea Validator
             </Link>
+            <Link
+              to="/drilloop"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
+                padding: '0.5rem 0.75rem', borderRadius: '10px',
+                fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none',
+                color: location.pathname.startsWith('/drilloop') ? '#0D9488' : '#374151',
+                backgroundColor: location.pathname.startsWith('/drilloop') ? 'rgba(13,148,136,0.08)' : 'transparent',
+                marginLeft: '0.25rem', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (!location.pathname.startsWith('/drilloop')) e.currentTarget.style.backgroundColor = '#F3F4F6'; }}
+              onMouseLeave={e => { if (!location.pathname.startsWith('/drilloop')) e.currentTarget.style.backgroundColor = 'transparent'; }}
+            >
+              <Repeat size={14} /> Drilloop
+            </Link>
             <a
               href="https://forms.gle/qZAfUaUeYH4FNJnQ9"
               target="_blank"
@@ -159,10 +174,12 @@ export default function Header() {
                     More
                   </div>
                   {[
-                    { path: '/validator', label: 'Idea Validator', icon: <Sparkles size={15} color="#6B7280" /> },
-                    { path: '/growth',    label: 'Growth',    icon: <TrendingUp size={15} color="#6B7280" /> },
-                    { path: '/insights',  label: 'Insights',  icon: <BarChart3 size={15} color="#6B7280" /> },
-                    { path: '/account',   label: 'Account',   icon: <User size={15} color="#6B7280" /> },
+                    { path: '/validator',       label: 'Idea Validator',   icon: <Sparkles size={15} color="#6B7280" /> },
+                    { path: '/drilloop',        label: 'Drilloop — Member', icon: <Repeat size={15} color="#0D9488" /> },
+                    { path: '/drilloop/creator', label: 'Drilloop — Creator', icon: <Wrench size={15} color="#0D9488" /> },
+                    { path: '/growth',          label: 'Growth',    icon: <TrendingUp size={15} color="#6B7280" /> },
+                    { path: '/insights',        label: 'Insights',  icon: <BarChart3 size={15} color="#6B7280" /> },
+                    { path: '/account',         label: 'Account',   icon: <User size={15} color="#6B7280" /> },
                   ].map(item => (
                     <Link
                       key={item.path}

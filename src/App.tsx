@@ -25,6 +25,9 @@ const PublicProfilePage   = lazy(() => import('./pages/PublicProfilePage'));
 const ValidatorIndexPage   = lazy(() => import('./pages/ValidatorIndexPage'));
 const ValidatorNewPage     = lazy(() => import('./pages/ValidatorNewPage'));
 const ValidatorSessionPage = lazy(() => import('./pages/ValidatorSessionPage'));
+// Drilloop — creator-led subscription learning membership (member + creator tabs).
+const DrilloopMemberPage   = lazy(() => import('./pages/DrilloopMemberPage'));
+const DrilloopCreatorPage  = lazy(() => import('./pages/DrilloopCreatorPage'));
 
 export default function App() {
   return (
@@ -48,6 +51,10 @@ export default function App() {
           <Route path="/validator"             element={<Suspense fallback={null}><ValidatorIndexPage /></Suspense>} />
           <Route path="/validator/new"         element={<Suspense fallback={null}><ValidatorNewPage /></Suspense>} />
           <Route path="/validator/:sessionId"  element={<Suspense fallback={null}><ValidatorSessionPage /></Suspense>} />
+
+          {/* ── Drilloop (no auth required) ── */}
+          <Route path="/drilloop"         element={<Suspense fallback={null}><DrilloopMemberPage /></Suspense>} />
+          <Route path="/drilloop/creator" element={<Suspense fallback={null}><DrilloopCreatorPage /></Suspense>} />
 
           {/* ── Public profile (no auth required) ── */}
           <Route path="/p/:slug" element={<Suspense fallback={null}><PublicProfilePage /></Suspense>} />
