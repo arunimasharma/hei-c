@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { motion } from 'motion/react';
-import { Lock, Flame, Target, TrendingUp, Award, Check, ArrowLeft, Sparkles, Wrench } from 'lucide-react';
+import { Lock, Flame, Target, TrendingUp, Award, Check, ArrowLeft, Sparkles, Wrench, Users, MapPin, Calendar, BadgeCheck } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import DrillPlayer from '../components/drilloop/DrillPlayer';
+import ConnectView from '../components/drilloop/ConnectView';
 import { DRILLOOP, DRILLOOP_DARK, DRILLOOP_SOFT, Pill, ProgressBar, StatTile, PageHeader, DIFFICULTY_META } from '../components/drilloop/shared';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
@@ -14,8 +15,9 @@ import {
   loadState, saveState, recordAttempt, recordFeedback, upgradeToMember, dayKey,
   computeMetrics,
 } from '../services/drilloopStore';
+import { DRILL_ROOM, LOCAL_CHAPTERS, COLLECTIVE } from '../data/drilloopCommunity';
 
-type View = 'today' | 'program' | 'progress';
+type View = 'today' | 'program' | 'progress' | 'community' | 'connect';
 
 function unlocked(state: DrilloopState, drill: Drill): boolean {
   return state.tier === 'member' || !!drill.isSample;
@@ -115,7 +117,7 @@ export default function DrilloopMemberPage() {
 
         {/* Sub-nav */}
         <div style={{ display: 'flex', gap: '0.4rem', borderBottom: '1px solid #F3F4F6', paddingBottom: '0.1rem' }}>
-          {([['today', 'Today'], ['program', 'Program'], ['progress', 'Progress']] as [View, string][]).map(([v, label]) => (
+          {([['today', 'Today'], ['program', 'Program'], ['progress', 'Progress'], ['community', 'Community'], ['connect', 'Connect']] as [View, string][]).map(([v, label]) => (
             <button key={v} onClick={() => setView(v)}
               style={{ padding: '0.55rem 0.875rem', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.875rem', fontWeight: view === v ? 700 : 500, color: view === v ? DRILLOOP : '#6B7280', borderBottom: view === v ? `2px solid ${DRILLOOP}` : '2px solid transparent', marginBottom: -1 }}>
               {label}
@@ -126,6 +128,8 @@ export default function DrilloopMemberPage() {
         {view === 'today' && <TodayView nextDrill={nextDrill} metrics={metrics} state={state} onStart={startDrill} />}
         {view === 'program' && <ProgramView catalog={catalog} completedIds={completedIds} state={state} onStart={startDrill} />}
         {view === 'progress' && <ProgressView state={state} metrics={metrics} />}
+        {view === 'community' && <CommunityView metrics={metrics} />}
+        {view === 'connect' && <ConnectView />}
       </div>
 
       {showPaywall && <Paywall onClose={() => setShowPaywall(false)} onUpgrade={upgrade} />}
@@ -263,8 +267,153 @@ function ProgressView({ state, metrics }: { state: DrilloopState; metrics: Retur
         {metrics.completedDrills === 0 && <p style={{ fontSize: '0.8125rem', color: '#9CA3AF', margin: 0 }}>Complete a drill to see your strength map build.</p>}
       </Card>
 
+      <ProofCard state={state} metrics={metrics} />
+
       <ShoutoutStrip state={state} />
     </div>
+  );
+}
+
+// ── Proof — a portable, verifiable credential for the AI era ──
+// When anyone can sound expert because a model wrote it, the scarce thing is
+// evidence that *you* can reason under a respected rubric. This is that record.
+function ProofCard({ state, metrics }: { state: DrilloopState; metrics: ReturnType<typeof computeMetrics> }) {
+  const verified = metrics.completedDrills > 0;
+  const topPhase = [...metrics.phaseProgress].filter(p => p.completed > 0).sort((a, b) => b.mastery - a.mastery)[0];
+  return (
+    <Card style={{ background: verified ? `linear-gradient(135deg, #0F172A, #1E293B)` : 'white', border: verified ? 'none' : '1px dashed #E5E7EB', color: verified ? 'white' : '#1F2937' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <BadgeCheck size={18} color={verified ? '#5EEAD4' : '#9CA3AF'} />
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 800, margin: 0, color: verified ? 'white' : '#1F2937' }}>Proof of Judgment</h3>
+        </div>
+        {verified && <Pill color="#5EEAD4" soft={false} style={{ color: '#0F172A' }}>Verifiable</Pill>}
+      </div>
+      {verified ? (
+        <>
+          <p style={{ fontSize: '0.82rem', lineHeight: 1.55, margin: '0 0 0.875rem', color: 'rgba(255,255,255,0.85)' }}>
+            {state.memberName} has tested their judgment on <strong>{metrics.completedDrills} drills</strong> in {CREATOR.topic}, graded against {CREATOR.name}’s rubric{topPhase ? `, strongest in “${topPhase.phaseTitle}” (${topPhase.mastery}% mastery)` : ''}. Not “knows about it” — <strong>demonstrated it</strong>.
+          </p>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 90px', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.6rem 0.75rem' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#5EEAD4' }}>{Math.round(metrics.masteryRate * 100)}%</div>
+              <div style={{ fontSize: '0.66rem', color: 'rgba(255,255,255,0.7)' }}>nailed cold</div>
+            </div>
+            <div style={{ flex: '1 1 90px', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.6rem 0.75rem' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#5EEAD4' }}>{metrics.longestStreak}d</div>
+              <div style={{ fontSize: '0.66rem', color: 'rgba(255,255,255,0.7)' }}>longest streak</div>
+            </div>
+            <div style={{ flex: '1 1 90px', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.6rem 0.75rem' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#5EEAD4' }}>{state.shoutouts.length}</div>
+              <div style={{ fontSize: '0.66rem', color: 'rgba(255,255,255,0.7)' }}>credentials</div>
+            </div>
+          </div>
+          <p style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.55)', margin: '0.875rem 0 0' }}>
+            Share to LinkedIn or send to a hiring manager — the résumé line that survives AI. (Demo: production issues a verifiable link.)
+          </p>
+        </>
+      ) : (
+        <p style={{ fontSize: '0.82rem', color: '#6B7280', margin: 0, lineHeight: 1.55 }}>
+          Complete drills to build a verifiable record of your judgment — a credential the market trusts, because a model can’t fake having done the reps.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+// ── Community — the cohort, in person, and the collective ──
+function CommunityView({ metrics }: { metrics: ReturnType<typeof computeMetrics> }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <DrillRoomCard streak={metrics.currentStreak} />
+      <LocalChaptersCard />
+      <CollectiveStrip />
+    </div>
+  );
+}
+
+function DrillRoomCard({ streak }: { streak: number }) {
+  return (
+    <Card>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.3rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Users size={17} color={DRILLOOP} />
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>{DRILL_ROOM.name}</h3>
+        </div>
+        <Pill color="#10B981">{DRILL_ROOM.activeToday}/{DRILL_ROOM.size} drilled today</Pill>
+      </div>
+      <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0 0 0.875rem' }}>{DRILL_ROOM.weekTheme} · you’re moving with a room, not alone.</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+        {DRILL_ROOM.members.map((m, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.6rem', borderRadius: 999, backgroundColor: m.drilledToday ? DRILLOOP_SOFT : '#F9FAFB', border: `1px solid ${m.drilledToday ? DRILLOOP + '22' : '#F3F4F6'}` }}>
+            <span style={{ width: 22, height: 22, borderRadius: '50%', backgroundColor: m.initials === 'You' ? DRILLOOP : '#E5E7EB', color: m.initials === 'You' ? 'white' : '#6B7280', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700 }}>{m.initials === 'You' ? '🙂' : m.initials}</span>
+            <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#374151' }}>{m.initials}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: '0.66rem', color: '#F97316', fontWeight: 600 }}>
+              <Flame size={10} fill="#F97316" />{m.initials === 'You' ? streak : m.streak}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function LocalChaptersCard() {
+  return (
+    <Card>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+        <MapPin size={17} color={DRILLOOP} />
+        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>Local Chapters</h3>
+      </div>
+      <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0 0 1rem' }}>
+        The cohort steps off the screen. When enough members cluster in a city, a chapter forms and meets in person — the part a feed (and a model) can never give you.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+        {LOCAL_CHAPTERS.map(ch => (
+          <div key={ch.city} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 0.875rem', borderRadius: 12, backgroundColor: '#FAFAFA', border: '1px solid rgba(0,0,0,0.04)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '1.4rem' }}>{ch.flag}</span>
+            <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1F2937' }}>{ch.city}</span>
+                <Pill color={ch.status === 'active' ? '#10B981' : '#9CA3AF'}>{ch.status === 'active' ? 'Active' : 'Forming'}</Pill>
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#9CA3AF', marginTop: 1 }}>{ch.membersNearby} members nearby{ch.host ? ` · ${ch.host}` : ''}</div>
+              {ch.nextMeetup && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', color: DRILLOOP_DARK, fontWeight: 600, marginTop: '0.3rem' }}>
+                  <Calendar size={12} /> {ch.nextMeetup} · {ch.venue}
+                </div>
+              )}
+            </div>
+            {ch.status === 'active' ? (
+              <Button onClick={() => {}} style={{ backgroundColor: DRILLOOP }}>RSVP{ch.rsvps ? ` · ${ch.rsvps} going` : ''}</Button>
+            ) : (
+              <Button variant="outline" onClick={() => {}} style={{ borderColor: '#E5E7EB', color: DRILLOOP }}>Start it</Button>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function CollectiveStrip() {
+  return (
+    <Card style={{ background: `linear-gradient(135deg, ${DRILLOOP}, ${DRILLOOP_DARK})`, border: 'none', color: 'white' }}>
+      <div style={{ fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.85, marginBottom: '0.4rem' }}>Part of a collective</div>
+      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 0.4rem' }}>{COLLECTIVE.name}</h3>
+      <p style={{ fontSize: '0.8rem', lineHeight: 1.5, opacity: 0.92, margin: '0 0 1rem', maxWidth: 540 }}>{COLLECTIVE.blurb}</p>
+      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+        {COLLECTIVE.experts.map(e => (
+          <div key={e.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: '0.5rem 0.75rem' }}>
+            <span style={{ fontSize: '1.2rem' }}>{e.avatar}</span>
+            <div>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700 }}>{e.name}</div>
+              <div style={{ fontSize: '0.66rem', opacity: 0.85 }}>{e.specialty} · {e.followers}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 

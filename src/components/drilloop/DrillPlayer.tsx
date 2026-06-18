@@ -4,6 +4,7 @@ import { Check, X, Loader2, ExternalLink, Sparkles } from 'lucide-react';
 import type { Drill, DrillGrade, SelfRating, FeedbackTag } from '../../types/drilloop';
 import { gradeAnswer } from '../../services/drilloopGrading';
 import Button from '../common/Button';
+import Mirror from './Mirror';
 import { DRILLOOP, DRILLOOP_DARK, DRILLOOP_SOFT, Pill, ProgressBar, TYPE_META, DIFFICULTY_META } from './shared';
 
 interface DrillPlayerProps {
@@ -195,6 +196,11 @@ export default function DrillPlayer({ drill, onComplete, onFeedback, onNext, nex
                     Thanks — “{fbTag}” feedback sent to the creator. 🙌
                   </div>
                 )}
+
+                {/* Mirror — unlocked only after committing, so answers can't be copied */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <Mirror drill={drill} />
+                </div>
 
                 <Button fullWidth onClick={onNext}
                   style={{ backgroundColor: DRILLOOP, boxShadow: '0 2px 8px rgba(13,148,136,0.3)' }}>

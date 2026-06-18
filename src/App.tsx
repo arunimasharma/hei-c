@@ -27,6 +27,7 @@ const AdminPage            = lazy(() => import('./pages/AdminPage'));
 // Drilloop — creator-led subscription learning membership (member + creator tabs).
 const DrilloopMemberPage   = lazy(() => import('./pages/DrilloopMemberPage'));
 const DrilloopCreatorPage  = lazy(() => import('./pages/DrilloopCreatorPage'));
+const PitchPage            = lazy(() => import('./pages/PitchPage'));
 
 export default function App() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/auth/signin" element={<Suspense fallback={null}><SignInPage /></Suspense>} />
           <Route path="/unauthorized" element={<Suspense fallback={null}><UnauthorizedPage /></Suspense>} />
           <Route path="/p/:slug" element={<Suspense fallback={null}><PublicProfilePage /></Suspense>} />
+          <Route path="/pitch" element={<Suspense fallback={null}><PitchPage /></Suspense>} />
 
           {/* ── Protected routes — auth required ── */}
           <Route path="/onboarding" element={<RequireAuth><OnboardingPage /></RequireAuth>} />

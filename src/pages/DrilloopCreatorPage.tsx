@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { motion } from 'motion/react';
-import { Sparkles, Loader2, Check, Trash2, Trophy, BarChart3, MessageSquare, Link2, Wand2, Users, Eye } from 'lucide-react';
+import { Sparkles, Loader2, Check, Trash2, Trophy, BarChart3, MessageSquare, Link2, Wand2, Users, Eye, Network, Play, AlertCircle } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
@@ -13,8 +13,14 @@ import { publishDrafts, getAuthoredDrills, deleteAuthoredDrill } from '../servic
 import { computeCreatorInsights } from '../services/drilloopInsights';
 import { loadState } from '../services/drilloopStore';
 import { PHASE_TITLES } from '../data/drilloopDrills';
+import { COLLECTIVE } from '../data/drilloopCommunity';
+import {
+  getNetworkInsights, getMatchingRuns, triggerMatchingRun,
+  type NetworkInsights,
+} from '../services/drilloop/creatorRepo';
+import type { MatchingRun } from '../types/connect';
 
-type Tab = 'author' | 'insights' | 'shoutouts';
+type Tab = 'author' | 'insights' | 'shoutouts' | 'connections';
 
 const SAMPLE_TRANSCRIPT = `Everyone calls their feature "an AI agent" the moment it touches an LLM. But most of these are workflows: the control flow is hardcoded and the model just fills a slot. A system is only agentic to the degree the model itself decides what to do next, which tool to call, and when it's done. Autonomy is a spectrum — fixed workflow, LLM-routed workflow, tool-calling agent, autonomous loop — and the honest default is usually a workflow, because autonomy is a cost you pay in non-determinism and debugging, not a feature you get for free.`;
 
@@ -44,9 +50,11 @@ export default function DrilloopCreatorPage() {
           <StatTile label="Avg score" value={insights.avgScore} sub="/ 100" />
         </div>
 
+        <CollectiveBanner />
+
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '0.4rem', borderBottom: '1px solid #F3F4F6', flexWrap: 'wrap' }}>
-          {([['author', 'Author drills', Wand2], ['insights', 'Insights', BarChart3], ['shoutouts', 'Shoutouts', Trophy]] as [Tab, string, typeof Wand2][]).map(([t, label, Icon]) => (
+          {([['author', 'Author drills', Wand2], ['insights', 'Insights', BarChart3], ['connections', 'Connections', Network], ['shoutouts', 'Shoutouts', Trophy]] as [Tab, string, typeof Wand2][]).map(([t, label, Icon]) => (
             <button key={t} onClick={() => setTab(t)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 0.875rem', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.875rem', fontWeight: tab === t ? 700 : 500, color: tab === t ? DRILLOOP : '#6B7280', borderBottom: tab === t ? `2px solid ${DRILLOOP}` : '2px solid transparent', marginBottom: -1 }}>
               <Icon size={15} /> {label}
@@ -56,9 +64,39 @@ export default function DrilloopCreatorPage() {
 
         {tab === 'author' && <AuthorTab />}
         {tab === 'insights' && <InsightsTab insights={insights} />}
+        {tab === 'connections' && <ConnectionsTab />}
         {tab === 'shoutouts' && <ShoutoutsTab insights={insights} />}
       </div>
     </DashboardLayout>
+  );
+}
+
+// ── Expert Collective — the strategic, multi-expert offering ──
+// Several sub-scale experts co-teach one flagship program: more complete, more
+// defensible, and a cohort none could fill alone. Partnership > solo creator.
+function CollectiveBanner() {
+  return (
+    <Card style={{ borderLeft: `4px solid ${DRILLOOP}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+            <Users size={16} color={DRILLOOP} />
+            <h3 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>{COLLECTIVE.name}</h3>
+            <Pill color={DRILLOOP}>Collective</Pill>
+          </div>
+          <p style={{ fontSize: '0.76rem', color: '#6B7280', margin: 0, lineHeight: 1.5, maxWidth: 560 }}>{COLLECTIVE.blurb}</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          {COLLECTIVE.experts.map((e, i) => (
+            <span key={e.name} title={`${e.name} · ${e.specialty} · ${e.followers}`}
+              style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: DRILLOOP_SOFT, border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem', marginLeft: i === 0 ? 0 : -10, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+              {e.avatar}
+            </span>
+          ))}
+          <Button variant="outline" onClick={() => {}} style={{ borderColor: '#E5E7EB', color: DRILLOOP, marginLeft: '0.75rem' }}>+ Invite expert</Button>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -275,6 +313,127 @@ function InsightsTab({ insights }: { insights: CreatorInsights }) {
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+// ── Connections — aggregate network health (server-computed, anonymized) ──
+const MATCH_TYPE_LABEL: Record<string, string> = {
+  knowledge_complement: 'Complementary strengths',
+  goal_aligned: 'Aligned goals',
+  mixed: 'Strengths + goals',
+};
+
+function ConnectionsTab() {
+  const [net, setNet] = useState<NetworkInsights | null>(null);
+  const [runs, setRuns] = useState<MatchingRun[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [n, r] = await Promise.all([getNetworkInsights(), getMatchingRuns()]);
+      setNet(n);
+      setRuns(r);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load network health.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  const run = async () => {
+    setRunning(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await triggerMatchingRun();
+      setNotice(`Run complete — ${res.matchesGenerated} matches generated across ${res.membersConsidered} members.`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Matching run failed.');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      {error && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: '#B91C1C', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '0.6rem 0.875rem' }}>
+          <AlertCircle size={15} /> {error}
+        </div>
+      )}
+      {notice && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: '#10B981', backgroundColor: '#10B98110', borderRadius: 10, padding: '0.6rem 0.875rem' }}>
+          <Check size={15} /> {notice}
+        </div>
+      )}
+
+      <Card style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Network size={16} color={DRILLOOP} />
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>Matching engine</h3>
+          </div>
+          <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0.3rem 0 0' }}>
+            Generate a fresh round of 1:1 suggestions across the member base from drill performance + profiles.
+          </p>
+        </div>
+        <Button onClick={run} disabled={running} style={{ backgroundColor: DRILLOOP, boxShadow: '0 2px 8px rgba(13,148,136,0.3)' }}>
+          {running ? <><Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> Running…</> : <><Play size={15} /> Run matching</>}
+        </Button>
+      </Card>
+
+      {loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#6B7280', fontSize: '0.85rem' }}><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Loading network health…</div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <StatTile label="In matching pool" value={net?.poolSize ?? 0} sub="opted-in" />
+            <StatTile label="Matches generated" value={net?.totalMatches ?? 0} />
+            <StatTile label="Connections" value={net?.totalConnections ?? 0} sub="mutual accepts" />
+            <StatTile label="Acceptance rate" value={net?.acceptanceRate != null ? `${Math.round(net.acceptanceRate * 100)}%` : '—'} />
+          </div>
+
+          <Card>
+            <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1F2937', margin: '0 0 0.5rem' }}>Most common match type</h3>
+            <p style={{ fontSize: '0.85rem', color: '#374151', margin: 0 }}>
+              {net?.topMatchType ? (MATCH_TYPE_LABEL[net.topMatchType] ?? net.topMatchType) : 'No matches yet — run the engine to start.'}
+            </p>
+          </Card>
+
+          <Card>
+            <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1F2937', margin: '0 0 0.75rem' }}>Recent matching runs</h3>
+            {runs.length === 0 ? (
+              <p style={{ fontSize: '0.8rem', color: '#9CA3AF', margin: 0 }}>No runs yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {runs.map(r => (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', padding: '0.55rem 0.75rem', borderRadius: 10, backgroundColor: '#FAFAFA' }}>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1F2937' }}>
+                        {new Date(r.startedAt).toLocaleString()} · {r.triggerType}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>
+                        {r.matchesGenerated} matches · {r.membersConsidered} members · ${r.costUsd.toFixed(4)}
+                        {r.error ? ` · ${r.error}` : ''}
+                      </div>
+                    </div>
+                    <Pill color={r.status === 'success' ? '#10B981' : r.status === 'failed' ? '#DC2626' : '#9CA3AF'}>{r.status}</Pill>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </>
+      )}
     </div>
   );
 }

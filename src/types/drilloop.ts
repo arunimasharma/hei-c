@@ -9,9 +9,18 @@ export type DrillType = 'judgment' | 'recall' | 'scenario';
 
 export type DrillDifficulty = 'core' | 'stretch' | 'mastery';
 
+/**
+ * The axis the connection product adds: a `knowledge` drill is graded against a
+ * rubric; a `profile` drill is parsed into the member's structured profile.
+ * (Distinct from DrillType, which is the practice *format* of a knowledge drill.)
+ */
+export type DrillKind = 'knowledge' | 'profile';
+
 /** One repeatable practice unit, tied to a phase of the creator's study plan. */
 export interface Drill {
   id: string;
+  /** knowledge (rubric-graded) vs profile (parsed into the member profile). Defaults to knowledge. */
+  kind?: DrillKind;
   /** 0-8 — maps to the study-plan phase the drill drills. */
   phase: number;
   phaseTitle: string;
