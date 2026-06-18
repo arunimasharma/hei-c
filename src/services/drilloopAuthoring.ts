@@ -291,7 +291,7 @@ function buildMcqSystemPrompt(): string {
     'Given the drill question, its rubric (key points a strong answer hits), and the reference answer, write EXACTLY FOUR answer options:',
     '- exactly ONE correct option that captures the reference answer\'s judgment;',
     '- THREE plausible-but-flawed distractors: a common oversimplification, a partially-right-but-misapplied take, and a confident-but-wrong call.',
-    'Keep all four options parallel in length and tone so the correct one is not obvious.',
+    'Each option\'s "text" MUST be succinct and crisp — ONE short sentence, TWO at most. Keep all four parallel in length and tone so the correct one is not obvious. Put all detail and nuance in "rationale", never in the option text.',
     'For EVERY option include a 1-2 sentence "rationale". For the correct option: why it is right. For each wrong option: the specific flaw AND how to think about it relative to the correct answer — the reasoning guidance the learner needs.',
     'Return ONLY minified JSON, no markdown, with this exact shape:',
     '{"options":[{"text":"","correct":true,"rationale":""},{"text":"","correct":false,"rationale":""},{"text":"","correct":false,"rationale":""},{"text":"","correct":false,"rationale":""}]}',
@@ -329,6 +329,84 @@ export async function generateDrillMCQ(drill: Drill): Promise<DrillMCQ> {
   } catch (err) {
     console.warn('[Drilloop] AI MCQ generation failed — using heuristic options.', err);
     return mcqFallback(drill);
+  }
+}
+
+// ── Explain it simply (member side) ──
+// Explains the core concept a drill tests in very plain language — without giving
+// away the specific answer — so a member who's stuck can still learn.
+
+export interface SimpleExplanation {
+  text: string;
+  aiGenerated: boolean;
+}
+
+function buildExplainSystemPrompt(): string {
+  return [
+    'You explain the concept behind a "Drilloop" judgment drill in very simple, plain language — like to a smart beginner, with no jargon.',
+    'The member has already answered, so explain the FULL concept clearly — including the key insight behind the best answer and why it holds.',
+    'Use one short everyday analogy if it helps. Keep it to 3-5 short sentences.',
+    'Return plain text only — no JSON, no markdown headers.',
+  ].join('\n');
+}
+
+export async function explainSimply(drill: Drill): Promise<SimpleExplanation> {
+  try {
+    const raw = await callClaude(
+      buildExplainSystemPrompt(),
+      [
+        `DRILL TITLE: ${drill.title}`,
+        `QUESTION: ${drill.prompt}`,
+        drill.keyPoints.length ? `KEY IDEAS IT TESTS:\n${drill.keyPoints.map(k => `- ${k}`).join('\n')}` : '',
+        '',
+        'Explain the core concept simply. Plain text only.',
+      ].filter(Boolean).join('\n'),
+      400,
+    );
+    const text = parseActionResponse(raw).trim();
+    if (!text) throw new Error('empty');
+    return { text, aiGenerated: true };
+  } catch (err) {
+    console.warn('[Drilloop] AI explain-simply failed — using fallback.', err);
+    const k = drill.keyPoints[0];
+    return {
+      text: k
+        ? `In simple terms, this drill is about: ${k}. Focus on that idea — think about when it would hold, and when it wouldn't.`
+        : 'In simple terms: read the question slowly, decide what the best judgment call is, and be ready to justify it.',
+      aiGenerated: false,
+    };
+  }
+}
+
+// Neutral, on-demand explanation of ONE answer option, shown BEFORE the learner
+// chooses — so they can understand each option without being told which is right.
+export async function explainMcqOption(drill: Drill, optionText: string): Promise<SimpleExplanation> {
+  try {
+    const raw = await callClaude(
+      [
+        'You help a learner understand ONE answer option in a "Drilloop" multiple-choice judgment drill, BEFORE they choose.',
+        'In plain language, explain what this option is claiming and the reasoning someone might use to consider it — clarify the concept so the learner can evaluate it themselves.',
+        'CRITICAL: do NOT say or hint whether this option is correct or incorrect, and do not reveal the answer. Stay strictly neutral.',
+        'Keep it to 2-4 short sentences, plain language, no jargon. Return plain text only — no JSON, no markdown headers.',
+      ].join('\n'),
+      [
+        `QUESTION: ${drill.prompt}`,
+        `ANSWER OPTION: "${optionText}"`,
+        drill.keyPoints.length ? `RELEVANT IDEAS THE DRILL TESTS: ${drill.keyPoints.join('; ')}` : '',
+        '',
+        'Explain this option neutrally and simply, without judging it. Plain text only.',
+      ].filter(Boolean).join('\n'),
+      400,
+    );
+    const text = parseActionResponse(raw).trim();
+    if (!text) throw new Error('empty');
+    return { text, aiGenerated: true };
+  } catch (err) {
+    console.warn('[Drilloop] AI explain-option failed — using fallback.', err);
+    return {
+      text: `This option claims: ${optionText} Think about whether that holds, given the question and the ideas this drill is testing.`,
+      aiGenerated: false,
+    };
   }
 }
 
@@ -413,6 +491,8 @@ export async function iterateDrill(
 export interface NextPostContext {
   creatorName: string;
   topic: string;
+  /** Optional — a specific topic the creator wants this post centered on. */
+  focusTopic?: string;
   /** Titles of recent calendar posts — for a cohesive arc without repetition. */
   recentPostTitles: string[];
   /** Where the audience struggles, from drill performance. */
@@ -449,6 +529,10 @@ function buildNextPostSystemPrompt(topic: string): string {
 
 function buildNextPostUserMessage(ctx: NextPostContext): string {
   const lines: string[] = [`CREATOR: ${ctx.creatorName} — topic: ${ctx.topic}`, ''];
+
+  if (ctx.focusTopic) {
+    lines.push(`FOCUS TOPIC: The creator wants this post centered on "${ctx.focusTopic}". Prioritize it — pick the sharpest angle within this topic that the signals and your market research support.`, '');
+  }
 
   lines.push('RECENT POSTS (build on these, do not repeat):');
   lines.push(ctx.recentPostTitles.length ? ctx.recentPostTitles.map(t => `- ${t}`).join('\n') : '- (none yet — this sets the tone)');
@@ -500,7 +584,7 @@ export async function suggestNextPost(ctx: NextPostContext): Promise<NextPostSug
 function nextPostFallback(ctx: NextPostContext): NextPostSuggestion {
   const req = ctx.requests[0];
   const struggle = ctx.struggles[0];
-  const focus = req?.topicTitle || struggle?.title || ctx.topic;
+  const focus = ctx.focusTopic || req?.topicTitle || struggle?.title || ctx.topic;
   const signals: string[] = [];
   if (req) signals.push(`Member request on “${req.topicTitle}”`);
   if (struggle) signals.push(`“${struggle.title}” drill — ${Math.round(struggle.struggleRate * 100)}% struggled`);

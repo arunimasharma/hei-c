@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Check, X, Loader2, ExternalLink, Sparkles, ListChecks, PenLine } from 'lucide-react';
+import { Check, X, Loader2, ExternalLink, Sparkles, ListChecks, PenLine, Lightbulb, ChevronDown, ChevronUp, Send, Copy } from 'lucide-react';
 import type { Drill, DrillGrade, SelfRating, FeedbackTag } from '../../types/drilloop';
 import { gradeAnswer } from '../../services/drilloopGrading';
-import { generateDrillMCQ, type DrillMCQ, type DrillMCQOption } from '../../services/drilloopAuthoring';
+import { generateDrillMCQ, explainSimply, explainMcqOption, type DrillMCQ, type DrillMCQOption, type SimpleExplanation } from '../../services/drilloopAuthoring';
 import Button from '../common/Button';
 import Mirror from './Mirror';
 import { DRILLOOP, DRILLOOP_DARK, DRILLOOP_SOFT, Pill, ProgressBar, TYPE_META, DIFFICULTY_META } from './shared';
@@ -33,9 +33,6 @@ export default function DrillPlayer({ drill, onComplete, onFeedback, onNext, nex
   const [grade, setGrade] = useState<DrillGrade | null>(null);
   const [selfRating, setSelfRating] = useState<SelfRating | null>(null);
   const [committed, setCommitted] = useState(false);
-  const [fbTag, setFbTag] = useState<FeedbackTag | null>(null);
-  const [fbNote, setFbNote] = useState('');
-  const [fbSent, setFbSent] = useState(false);
   const [mode, setMode] = useState<'write' | 'mcq'>('write');
   const [mcqAnswered, setMcqAnswered] = useState(false);
 
@@ -69,12 +66,6 @@ export default function DrillPlayer({ drill, onComplete, onFeedback, onNext, nex
     setSelfRating(rating);
     if (grade) onComplete({ answer, grade, selfRating: rating });
     setCommitted(true);
-  };
-
-  const sendFeedback = (tag: FeedbackTag) => {
-    setFbTag(tag);
-    onFeedback(tag, fbNote);
-    setFbSent(true);
   };
 
   return (
@@ -113,7 +104,7 @@ export default function DrillPlayer({ drill, onComplete, onFeedback, onNext, nex
 
       {/* ── Multiple-choice mode ── */}
       {mode === 'mcq' && (
-        <MultipleChoice drill={drill} onAnswered={handleMcqAnswered} onNext={onNext} nextLabel={nextLabel} />
+        <MultipleChoice drill={drill} onAnswered={handleMcqAnswered} onFeedback={onFeedback} onNext={onNext} nextLabel={nextLabel} />
       )}
 
       {/* ── Write mode ── */}
@@ -188,6 +179,9 @@ export default function DrillPlayer({ drill, onComplete, onFeedback, onNext, nex
               </div>
             </details>
 
+            {/* Explain it simply — full concept in plain language, now that they've answered */}
+            <ExplainSimply drill={drill} />
+
             {/* Self-rating — the retention/honesty signal */}
             {!committed ? (
               <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: '1rem' }}>
@@ -206,34 +200,8 @@ export default function DrillPlayer({ drill, onComplete, onFeedback, onNext, nex
                   <Check size={15} /> Logged{selfRating ? ` — you rated yourself “${selfRating}”.` : '.'}
                 </div>
 
-                {/* Feedback capture */}
-                {!fbSent ? (
-                  <div style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: '0.875rem 1rem', marginBottom: '1rem' }}>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151', marginBottom: '0.5rem' }}>
-                      Quick signal for the creator — how was this drill?
-                    </div>
-                    <input
-                      value={fbNote}
-                      onChange={e => setFbNote(e.target.value)}
-                      placeholder="Optional: what was confusing or great? (sent to the creator)"
-                      style={{ width: '100%', borderRadius: 10, border: '1px solid #E5E7EB', padding: '0.55rem 0.75rem', fontSize: '0.8125rem', fontFamily: 'inherit', outline: 'none', marginBottom: '0.55rem' }}
-                    />
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      {FEEDBACK_OPTIONS.map(o => (
-                        <button key={o.tag} onClick={() => sendFeedback(o.tag)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.7rem', borderRadius: 999, border: '1px solid #E5E7EB', backgroundColor: 'white', fontSize: '0.75rem', fontWeight: 600, color: '#374151', cursor: 'pointer', fontFamily: 'inherit' }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#F3F4F6')}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'white')}>
-                          {o.emoji} {o.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: '0.78rem', color: '#9CA3AF', marginBottom: '1rem' }}>
-                    Thanks — “{fbTag}” feedback sent to the creator. 🙌
-                  </div>
-                )}
+                {/* Written feedback for the creator */}
+                <DrillFeedback onSubmit={onFeedback} />
 
                 {/* Mirror — unlocked only after committing, so answers can't be copied */}
                 <div style={{ marginBottom: '1rem' }}>
@@ -265,19 +233,24 @@ export default function DrillPlayer({ drill, onComplete, onFeedback, onNext, nex
 // AI builds 1 correct + 3 distractor options for the drill. The learner picks
 // one and gets reasoning guidance: why their pick was right, or its flaw and how
 // to think about it versus the correct answer.
-function MultipleChoice({ drill, onAnswered, onNext, nextLabel }: {
+function MultipleChoice({ drill, onAnswered, onFeedback, onNext, nextLabel }: {
   drill: Drill;
   onAnswered: (opt: DrillMCQOption, mcq: DrillMCQ) => void;
+  onFeedback: (tag: FeedbackTag, note: string) => void;
   onNext: () => void;
   nextLabel: string;
 }) {
   const [mcq, setMcq] = useState<DrillMCQ | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<number | null>(null);
+  const [optionExp, setOptionExp] = useState<Record<number, SimpleExplanation>>({});
+  const [optionExpLoading, setOptionExpLoading] = useState<number | null>(null);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
     setLoading(true); setSelected(null); setMcq(null);
+    setOptionExp({}); setOptionExpLoading(null); setCopiedIdx(null);
     generateDrillMCQ(drill).then(m => { if (active) { setMcq(m); setLoading(false); } });
     return () => { active = false; };
   }, [drill]);
@@ -301,10 +274,25 @@ function MultipleChoice({ drill, onAnswered, onNext, nextLabel }: {
     onAnswered(mcq.options[i], mcq);
   };
 
+  // Neutral, per-option explanation — available BEFORE choosing.
+  const explainOption = async (i: number) => {
+    if (optionExp[i] || optionExpLoading !== null) return;
+    setOptionExpLoading(i);
+    const r = await explainMcqOption(drill, mcq.options[i].text);
+    setOptionExp(prev => ({ ...prev, [i]: r }));
+    setOptionExpLoading(null);
+  };
+
+  const copyOption = async (i: number) => {
+    const t = optionExp[i]?.text;
+    if (!t) return;
+    try { await navigator.clipboard.writeText(t); setCopiedIdx(i); setTimeout(() => setCopiedIdx(null), 1600); } catch { /* noop */ }
+  };
+
   return (
     <div>
       <div style={{ fontSize: '0.78rem', color: '#9CA3AF', marginBottom: '0.75rem' }}>
-        Pick the strongest answer. You’ll get reasoning guidance once you choose.
+        Pick the strongest answer. Tap “Explain more” on any option first if you want to understand it before choosing.
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -317,16 +305,39 @@ function MultipleChoice({ drill, onAnswered, onNext, nextLabel }: {
           const bg = revealed
             ? (o.correct ? '#10B98110' : isChosen ? '#FEF2F2' : '#FAFAFA')
             : 'white';
+          const exp = optionExp[i];
           return (
-            <button key={i} onClick={() => choose(i)} disabled={revealed}
-              style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', width: '100%', textAlign: 'left', padding: '0.8rem 0.95rem', borderRadius: 12, border: `1.5px solid ${border}`, backgroundColor: bg, cursor: revealed ? 'default' : 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', opacity: revealed && !o.correct && !isChosen ? 0.6 : 1 }}
-              onMouseEnter={e => { if (!revealed) e.currentTarget.style.borderColor = DRILLOOP; }}
-              onMouseLeave={e => { if (!revealed) e.currentTarget.style.borderColor = '#E5E7EB'; }}>
-              <span style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, backgroundColor: revealed && o.correct ? '#10B981' : revealed && isChosen ? '#DC2626' : DRILLOOP_SOFT, color: revealed && (o.correct || isChosen) ? 'white' : DRILLOOP }}>
-                {revealed && o.correct ? <Check size={14} /> : revealed && isChosen ? <X size={14} /> : letters[i]}
-              </span>
-              <span style={{ flex: 1, fontSize: '0.86rem', lineHeight: 1.5, color: '#1F2937', fontWeight: revealed && o.correct ? 600 : 400 }}>{o.text}</span>
-            </button>
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', opacity: revealed && !o.correct && !isChosen ? 0.6 : 1 }}>
+              <button onClick={() => choose(i)} disabled={revealed}
+                style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', width: '100%', textAlign: 'left', padding: '0.8rem 0.95rem', borderRadius: 12, border: `1.5px solid ${border}`, backgroundColor: bg, cursor: revealed ? 'default' : 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+                onMouseEnter={e => { if (!revealed) e.currentTarget.style.borderColor = DRILLOOP; }}
+                onMouseLeave={e => { if (!revealed) e.currentTarget.style.borderColor = '#E5E7EB'; }}>
+                <span style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, backgroundColor: revealed && o.correct ? '#10B981' : revealed && isChosen ? '#DC2626' : DRILLOOP_SOFT, color: revealed && (o.correct || isChosen) ? 'white' : DRILLOOP }}>
+                  {revealed && o.correct ? <Check size={14} /> : revealed && isChosen ? <X size={14} /> : letters[i]}
+                </span>
+                <span style={{ flex: 1, fontSize: '0.86rem', lineHeight: 1.5, color: '#1F2937', fontWeight: revealed && o.correct ? 600 : 400 }}>{o.text}</span>
+              </button>
+
+              {/* Per-option "Explain more" — neutral, before choosing */}
+              {!revealed && (
+                exp ? (
+                  <div style={{ marginLeft: '2.1rem', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '0.6rem 0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.6rem' }}>
+                      <div style={{ fontSize: '0.8rem', lineHeight: 1.55, color: '#374151', flex: 1 }}>{exp.text}</div>
+                      <button onClick={() => copyOption(i)} title="Copy explanation"
+                        style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.45rem', borderRadius: 8, border: `1px solid ${copiedIdx === i ? '#10B981' : '#FCD34D'}`, backgroundColor: 'white', color: copiedIdx === i ? '#10B981' : '#92400E', fontSize: '0.66rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {copiedIdx === i ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => explainOption(i)} disabled={optionExpLoading !== null}
+                    style={{ marginLeft: '2.1rem', alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.6rem', borderRadius: 999, border: `1px solid ${DRILLOOP}33`, backgroundColor: 'white', color: DRILLOOP_DARK, fontSize: '0.7rem', fontWeight: 700, cursor: optionExpLoading !== null ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                    {optionExpLoading === i ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Lightbulb size={12} />} Explain more
+                  </button>
+                )
+              )}
+            </div>
           );
         })}
       </div>
@@ -359,15 +370,129 @@ function MultipleChoice({ drill, onAnswered, onNext, nextLabel }: {
             </div>
           </details>
 
+          {/* Explain it simply — full concept in plain language */}
+          <ExplainSimply drill={drill} />
+
           {!mcq.aiGenerated && (
             <div style={{ fontSize: '0.72rem', color: '#9CA3AF', marginBottom: '0.75rem' }}>Offline options (no AI key reachable) — reasoning is heuristic.</div>
           )}
+
+          {/* Written feedback for the creator */}
+          <div style={{ marginBottom: '1rem' }}>
+            <DrillFeedback onSubmit={onFeedback} />
+          </div>
 
           <Button fullWidth onClick={onNext} style={{ backgroundColor: DRILLOOP, boxShadow: '0 2px 8px rgba(13,148,136,0.3)' }}>
             {nextLabel}
           </Button>
         </motion.div>
       )}
+    </div>
+  );
+}
+
+// ── Explain it simply — AI plain-language explanation of the drill's concept ──
+function ExplainSimply({ drill }: { drill: Drill }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [exp, setExp] = useState<SimpleExplanation | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const toggle = async () => {
+    if (!open && !exp) {
+      setLoading(true);
+      const e = await explainSimply(drill);
+      setExp(e);
+      setLoading(false);
+    }
+    setOpen(o => !o);
+  };
+
+  const copy = async () => {
+    if (!exp) return;
+    try {
+      await navigator.clipboard.writeText(exp.text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch { /* clipboard unavailable */ }
+  };
+
+  return (
+    <div style={{ marginBottom: '1rem' }}>
+      <button onClick={toggle} disabled={loading}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.8rem', borderRadius: 999, border: `1px solid ${DRILLOOP}33`, backgroundColor: DRILLOOP_SOFT, color: DRILLOOP_DARK, fontSize: '0.78rem', fontWeight: 700, cursor: loading ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+        {loading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Lightbulb size={14} />}
+        Explain it simply
+        {!loading && (open ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
+      </button>
+
+      <AnimatePresence>
+        {open && exp && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            style={{ overflow: 'hidden' }}>
+            <div style={{ marginTop: '0.6rem', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '0.875rem 1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
+                <div style={{ fontSize: '0.86rem', lineHeight: 1.6, color: '#374151', flex: 1 }}>{exp.text}</div>
+                <button onClick={copy} title="Copy explanation"
+                  style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.3rem 0.5rem', borderRadius: 8, border: `1px solid ${copied ? '#10B981' : '#FCD34D'}`, backgroundColor: 'white', color: copied ? '#10B981' : '#92400E', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {copied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
+                </button>
+              </div>
+              {!exp.aiGenerated && <div style={{ fontSize: '0.68rem', color: '#9CA3AF', marginTop: '0.4rem' }}>Offline explanation — heuristic.</div>}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ── Written feedback for the creator — text-first, optional sentiment ──
+function DrillFeedback({ onSubmit }: { onSubmit: (tag: FeedbackTag, note: string) => void }) {
+  const [note, setNote] = useState('');
+  const [tag, setTag] = useState<FeedbackTag | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const send = () => {
+    if (!note.trim() && !tag) return;
+    onSubmit(tag ?? 'useful', note.trim());
+    setSent(true);
+  };
+
+  if (sent) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#10B981', fontWeight: 600, backgroundColor: '#10B98110', borderRadius: 10, padding: '0.6rem 0.875rem', marginBottom: '1rem' }}>
+        <Check size={15} /> Thanks — your feedback was sent to the creator. 🙌
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: '0.875rem 1rem', marginBottom: '1rem' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#374151', marginBottom: '0.5rem' }}>
+        Feedback for the creator
+      </div>
+      <textarea
+        value={note}
+        onChange={e => setNote(e.target.value)}
+        rows={2}
+        placeholder="Write what was confusing, what was great, or what you'd change about this drill…"
+        style={{ width: '100%', borderRadius: 10, border: '1px solid #E5E7EB', padding: '0.6rem 0.75rem', fontSize: '0.82rem', lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical', outline: 'none', marginBottom: '0.55rem' }}
+      />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+        {FEEDBACK_OPTIONS.map(o => {
+          const active = tag === o.tag;
+          return (
+            <button key={o.tag} onClick={() => setTag(active ? null : o.tag)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.65rem', borderRadius: 999, border: `1px solid ${active ? DRILLOOP : '#E5E7EB'}`, backgroundColor: active ? DRILLOOP_SOFT : 'white', fontSize: '0.72rem', fontWeight: 600, color: active ? DRILLOOP_DARK : '#374151', cursor: 'pointer', fontFamily: 'inherit' }}>
+              {o.emoji} {o.label}
+            </button>
+          );
+        })}
+        <Button onClick={send} disabled={!note.trim() && !tag} style={{ marginLeft: 'auto', backgroundColor: DRILLOOP }}>
+          <Send size={14} /> Send feedback
+        </Button>
+      </div>
     </div>
   );
 }

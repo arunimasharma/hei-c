@@ -557,6 +557,8 @@ function CalendarTab({ onUseInAuthor }: { onUseInAuthor: () => void }) {
 function NextPostSuggester({ posts, onUseInAuthor }: { posts: CalendarPost[]; onUseInAuthor: () => void }) {
   const [loading, setLoading] = useState(false);
   const [s, setS] = useState<NextPostSuggestion | null>(null);
+  const [focusTopic, setFocusTopic] = useState('');
+  const phases = getPhases();
 
   const generate = async () => {
     setLoading(true);
@@ -569,6 +571,7 @@ function NextPostSuggester({ posts, onUseInAuthor }: { posts: CalendarPost[]; on
     const suggestion = await suggestNextPost({
       creatorName: CREATOR.name,
       topic: CREATOR.topic,
+      focusTopic: focusTopic || undefined,
       recentPostTitles: posts.slice(0, 10).map(p => p.title),
       struggles,
       feedback: insights.recentFeedback.map(f => ({ tag: f.tag, note: f.note })),
@@ -604,6 +607,14 @@ function NextPostSuggester({ posts, onUseInAuthor }: { posts: CalendarPost[]; on
       <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0.4rem 0 0', lineHeight: 1.5 }}>
         Synthesizes member feedback, drill-performance signals, member requests, and live market research into your best next post — to build a cohesive thought-leadership brand and grow on Drilloop and social.
       </p>
+
+      <label style={{ ...fieldLabel, marginTop: '0.875rem', maxWidth: 360 }}>
+        Focus topic <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(optional)</span>
+        <select value={focusTopic} onChange={e => setFocusTopic(e.target.value)} style={fieldInput}>
+          <option value="">Let AI pick (strongest signal)</option>
+          {phases.map(p => <option key={p.phase} value={p.title}>{p.title}</option>)}
+        </select>
+      </label>
 
       {!s && !loading && (
         <Button onClick={generate} style={{ backgroundColor: '#7C3AED', boxShadow: '0 2px 8px rgba(124,58,237,0.3)', marginTop: '0.875rem' }}>
