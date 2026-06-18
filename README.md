@@ -2,7 +2,7 @@
 
 **Turn real-world product experiences into structured insights that sharpen product thinking — and turn rough ideas into testable prototypes.**
 
-Hello-EQ is a deliberate-practice platform for product managers and aspiring PMs. It pairs an AI coach for career and emotional growth with a product-taste studio for sharpening analytical instincts, and a validator that converts messy ideas into paste-ready build prompts for a coding agent.
+Hello-EQ is a deliberate-practice platform for product managers and aspiring PMs. It pairs an AI coach for career and emotional growth with a product-taste studio for sharpening analytical instincts, and a validator that converts messy ideas into paste-ready build prompts for a coding agent. A fourth surface, **Drilloop**, extends the same deliberate-practice thesis into a creator-led learning membership for the AI era — where knowledge is cheap and *demonstrated judgment* is the scarce, credential-worthy skill.
 
 Live app → [hello-eq.club](https://hello-eq.club)
 
@@ -20,6 +20,8 @@ Live app → [hello-eq.club](https://hello-eq.club)
 | **🧠 Career EQ Coach** | `/` | One conversational entry point that routes you to journaling, product taste, AI/tech action plans, decision logs, or PM artifact drafting. |
 | **🧪 Product Career** | `/product` | A two-step studio — articulate your product taste, then test your instincts against benchmarked friction cases. Also hosts PM Interview Practice. |
 | **✨ Idea Validator** | `/validator` | A one-question-at-a-time interview that turns a rough idea into a hypothesis summary plus a paste-ready Claude Code build prompt. |
+
+These three form the core PM-practice journey. A standalone fourth surface — **🔁 Drilloop** (`/drilloop`) — applies the same deliberate-practice thesis to creator-led learning memberships, with an investor [Pitch page](#-drilloop) at `/pitch`. See [🔁 Drilloop](#-drilloop) below.
 
 ---
 
@@ -135,10 +137,53 @@ A single server endpoint — `POST /api/validator` — handles every operation, 
 
 ---
 
+## 🔁 Drilloop
+
+A creator-led subscription learning membership built for the **AI era**: when LLM knowledge is one prompt away, knowing things is cheap and *proving you can reason* is scarce. Drilloop turns a trusted expert's content into short daily **drills** — judgment questions you answer in your own words, AI-graded against the creator's rubric — inside a small community that learns together online and in person. Built for the credible-but-small expert (~2,000 followers) and the audience that wants a productive alternative to the feed. **No auth required.**
+
+### Member experience — `/drilloop`
+
+| Tab | What it does |
+|-----|--------------|
+| **Today** | Your next drill, day streak, and "nailed cold" mastery. Free members get sample drills; the rest is behind a membership paywall (Stripe Checkout stand-in). |
+| **Program** | The full catalog grouped into phases — done / locked / available. |
+| **Progress** | Completion, streaks, improvement trend, per-phase strength bars, **Proof of Judgment** (a portable, verifiable credential of your tested judgment — the résumé line that survives AI), and earned shoutouts. |
+| **Community** | **Drill Rooms** (your small synchronized cohort), **Local Chapters** (in-person meetups that form when members cluster in a city), and the **Expert Collective** you're part of. |
+| **Connect** | A reasoning-based 1:1 network — suggested matches by how you think and what you're working toward, with accept / snooze / decline and mutual-accept contact reveal. Backed by a real Supabase Postgres matching engine. |
+
+**Grading** (`drilloopGrading.ts`): scores free-text answers 0–100 with coaching via the `/api/claude` proxy, with a transparent keyword-overlap heuristic fallback so the loop never dead-ends. After committing an answer, **Mirror** reveals how anonymized peers reasoned on the same drill — substance over influencer hot-takes.
+
+### Creator Studio — `/drilloop/creator`
+
+| Tab | What it does |
+|-----|--------------|
+| **Author drills** | Paste a post or transcript → Claude drafts judgment drills with rubrics → edit and publish to the live program. |
+| **Insights** | Per-drill struggle rates, average scores, clustered common gaps, and member feedback. |
+| **Connections** | Network health and matching-run controls. |
+| **Shoutouts** | A weekly leaderboard for recognition. |
+
+The studio also surfaces **Expert Collectives** — several sub-scale experts co-teaching one flagship program, more complete and defensible than any single creator could build alone.
+
+### Investor Pitch page — `/pitch`
+
+A standalone, public pitch page that doubles as a clickable demo: investors read the full narrative (AI-era thesis, the underserved expert + exhausted audience, the product, why it retains, the ask) and every feature card **links straight into the live prototype** — so they can click the product, not just read about it.
+
+```
+/drilloop            # member app — Today · Program · Progress · Community · Connect
+/drilloop/creator    # Creator Studio — Author · Insights · Connections · Shoutouts
+/pitch               # investor pitch + live-demo launcher (public)
+```
+
+Drilloop is a working prototype: the learning loop and the matching engine are real (Claude grading + Supabase Postgres, schema in `supabase/migrations/20260612_drilloop_core.sql`); auth, payments, and some community surfaces (Drill Rooms, Local Chapters, Collectives) are demo stand-ins. Member progress and authored drills persist to `localStorage` in the demo.
+
+---
+
 ## Other Surfaces
 
 | Page | Route | Purpose |
 |------|-------|---------|
+| **Drilloop** | `/drilloop` | Creator-led learning membership — daily AI-graded judgment drills + community. |
+| **Drilloop Pitch** | `/pitch` | Investor pitch page + live-demo launcher (public). |
 | **Signals** | `/signals` | Friction signals by theme with accuracy bars and a submission feed. |
 | **Influence** | `/influence` | Insight Credibility Score, expert tags, reputation trajectory. |
 | **Actions** | `/actions` | Rule-based next-step recommendations from your `InsightProfile`. |
@@ -220,6 +265,9 @@ src/
 │   ├── ValidatorIndexPage.tsx      # ✨ Idea Validator — sessions + "What happened?" nudge
 │   ├── ValidatorNewPage.tsx        # Validator interview
 │   ├── ValidatorSessionPage.tsx    # Build Prompt / Hypothesis / Outcome
+│   ├── DrilloopMemberPage.tsx      # 🔁 Drilloop — Today · Program · Progress · Community · Connect
+│   ├── DrilloopCreatorPage.tsx     # Drilloop Creator Studio — Author · Insights · Connections · Shoutouts
+│   ├── PitchPage.tsx               # Investor pitch + live-demo launcher (/pitch)
 │   ├── SignalsPage.tsx · InfluencePage.tsx · ActionsPage.tsx
 │   ├── InsightsPage.tsx · GrowthPage.tsx · AccountPage.tsx
 │   ├── PublicProfilePage.tsx · TransparencyHubPage.tsx · UsageDashboardPage.tsx
@@ -227,8 +275,11 @@ src/
 │   ├── common/                     # FlowJourney, Card, Button, Modal, etc.
 │   ├── product/                    # FrictionCaseExercise, PmInterviewExercise
 │   ├── validator/                  # ChatBubble, Markdown, ModeToggle, OutcomePanel
+│   ├── drilloop/                   # DrillPlayer, Mirror, ConnectView, shared
 │   ├── feedback/ · goals/ · layout/ · onboarding/ · profile/ · emotions/
 ├── services/
+│   ├── drilloop/                   # repo.ts, creatorRepo.ts (Supabase matching engine)
+│   ├── drilloopGrading.ts · drilloopStore.ts · drilloopCatalog.ts · drilloopAuthoring.ts · drilloopInsights.ts
 │   ├── claudeApi.ts                # Anthropic client (callClaudeMessages, parseActionResponse)
 │   ├── productTasteEvaluatorApi.ts # V1 Taste Evaluator client
 │   ├── tasteExercisePromptBuilder.ts
