@@ -6,7 +6,7 @@
  * Contains only pure functions and constants — zero external dependencies.
  */
 
-export const EVALUATOR_MODEL      = 'claude-sonnet-4-20250514';
+export const EVALUATOR_MODEL      = 'claude-sonnet-4-6';
 export const EVALUATOR_MAX_TOKENS = 2048;
 
 // ── System prompt ─────────────────────────────────────────────────────────────

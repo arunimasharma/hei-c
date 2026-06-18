@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 import { type ReactNode } from 'react';
 import {
   Repeat, Target, Users, MapPin, BadgeCheck, Network, Wand2, Timer,
-  ArrowRight, Sparkles, TrendingUp, Quote,
+  ArrowRight, Sparkles, TrendingUp, Quote, FileText, Share2, Lock, ClipboardList,
 } from 'lucide-react';
 
 // ── Investor pitch page (/pitch) ──
@@ -27,13 +27,15 @@ export default function PitchPage() {
             When AI knows everything,<br />the scarce thing is proving <span style={{ color: '#5EEAD4' }}>you</span> can think.
           </h1>
           <p style={{ fontSize: 'clamp(1rem, 2.2vw, 1.25rem)', lineHeight: 1.55, color: 'rgba(255,255,255,0.82)', maxWidth: 720, margin: '0 0 2rem' }}>
-            Drilloop turns a trusted expert’s knowledge into daily judgment drills — AI-graded, peer-mirrored, and credentialed — inside a small community that meets online and in person. Built for the 2,000-follower expert everyone else ignores, and the audience done wasting its evenings on the feed.
+            Drilloop turns a trusted expert’s knowledge into daily judgment drills — AI-graded, peer-mirrored, and credentialed — inside a small community that meets online and in person. Built for the 2,000-follower expert everyone else ignores, and the audience done wasting its evenings on the feed. <strong style={{ color: 'white' }}>Both sides of the marketplace are built and clickable today.</strong>
           </p>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             <Link to="/drilloop" style={ctaPrimary}>
-              <Sparkles size={17} /> Try the live demo <ArrowRight size={16} />
+              <Sparkles size={17} /> Try the member demo <ArrowRight size={16} />
             </Link>
-            <a href="#product" style={ctaGhost}>Read the pitch</a>
+            <Link to="/drilloop/creator" style={ctaGhost}>
+              <Wand2 size={16} /> Open the Creator Studio
+            </Link>
           </div>
           <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', marginTop: '3rem' }}>
             <HeroStat value="1 prompt" label="away from any answer — so knowing is worthless" />
@@ -64,28 +66,47 @@ export default function PitchPage() {
         </div>
       </Section>
 
-      {/* ── Product / features (with live links) ── */}
-      <Section eyebrow="The product" title="A better place to spend the hour you’d lose to the feed." id="product">
+      {/* ── Demand side — member experience (with deep links) ── */}
+      <Section eyebrow="The product · demand side" title="A better place to spend the hour you’d lose to the feed." id="product">
         <p style={lede}>
-          The drill is the atom — a judgment question you answer in your own words, AI-graded against the expert’s rubric. Everything around it is engineered to make this a more worthwhile use of leisure time than social media. <strong>Every card below is clickable in the live prototype.</strong>
+          The drill is the atom — a judgment question you answer in your own words, AI-graded against the expert’s rubric. Everything around it is engineered to make this a more worthwhile use of leisure time than social media. <strong>Every card links straight to that exact screen in the live prototype.</strong>
         </p>
         <div style={featureGrid}>
-          <FeatureCard icon={<Timer size={20} />} title="The Daily Rep" to="/drilloop" cta="Open the member app"
+          <FeatureCard icon={<Timer size={20} />} title="The Daily Rep" to="/drilloop?view=today" cta="Open the member app"
             body="A finite session by design — a few drills, your peers’ answers, done. No infinite scroll. We win by ending well." />
-          <FeatureCard icon={<Target size={20} />} title="AI grading + reference" to="/drilloop" cta="Drill a sample"
+          <FeatureCard icon={<Target size={20} />} title="AI grading + reference" to="/drilloop?view=today" cta="Drill a sample"
             body="Score your free-text answer 0–100 with coaching and the expert’s reference answer. Real Claude calls, graceful offline fallback." />
-          <FeatureCard icon={<Users size={20} />} title="Mirror — peer reasoning" to="/drilloop" cta="Answer a drill to unlock"
+          <FeatureCard icon={<Users size={20} />} title="Mirror — peer reasoning" to="/drilloop?view=today" cta="Answer a drill to unlock"
             body="See how sharp peers reasoned on the same question — anonymized, unlocked only after you commit. The feed replaced by substance." />
-          <FeatureCard icon={<Users size={20} />} title="Drill Rooms" to="/drilloop" cta="See the Community tab"
+          <FeatureCard icon={<Users size={20} />} title="Drill Rooms" to="/drilloop?view=community" cta="See the Community tab"
             body="A small synchronized cohort moving together this week — presence and accountability, minus the performance." />
-          <FeatureCard icon={<MapPin size={20} />} title="Local Chapters" to="/drilloop" cta="See the Community tab"
+          <FeatureCard icon={<MapPin size={20} />} title="Local Chapters" to="/drilloop?view=community" cta="See the Community tab"
             body="When members cluster in a city, a chapter forms and meets in person. The deeply human good a model can never offer." />
-          <FeatureCard icon={<BadgeCheck size={20} />} title="Proof of Judgment" to="/drilloop" cta="See the Progress tab"
+          <FeatureCard icon={<BadgeCheck size={20} />} title="Proof of Judgment" to="/drilloop?view=progress" cta="See the Progress tab"
             body="A portable, verifiable credential of your tested judgment — the résumé line that survives AI." />
-          <FeatureCard icon={<Network size={20} />} title="Reasoning-based network" to="/drilloop" cta="See the Connect tab"
+          <FeatureCard icon={<Network size={20} />} title="Reasoning-based network" to="/drilloop?view=connect" cta="See the Connect tab"
             body="1:1 matches by how you think and what you’re working toward — accept, meet, log the outcome. Backed by a real Postgres matching engine." />
-          <FeatureCard icon={<Wand2 size={20} />} title="Expert Collectives" to="/drilloop/creator" cta="Open the Creator Studio"
-            body="Several sub-scale experts co-teach one flagship program — more complete, more defensible, a cohort none could fill alone." />
+        </div>
+      </Section>
+
+      {/* ── Supply side — the creator studio is built (with deep links) ── */}
+      <Section eyebrow="The product · supply side" title="Onboarding creators isn’t a roadmap. It’s shipped." dark>
+        <p style={{ ...lede, color: 'rgba(255,255,255,0.82)' }}>
+          A two-sided marketplace lives or dies on supply. So the entire creator side is functional today — a small expert can develop content, monetize, and run a community end-to-end. <strong style={{ color: 'white' }}>Click any card to drive the real Creator Studio.</strong>
+        </p>
+        <div style={featureGrid}>
+          <FeatureCard dark icon={<FileText size={20} />} title="Rough notes → publishable everything" to="/drilloop/creator?tab=author" cta="Open Author"
+            body="Paste a messy brain-dump. Claude returns a publish-ready post, drafted drills with rubrics, and research suggestions to go deeper — turning content creation, not just drill creation, into one paste." />
+          <FeatureCard dark icon={<Lock size={20} />} title="Free & paid tiers" to="/drilloop/creator?tab=manage" cta="Open Manage drills"
+            body="Publish each drill to a Free preview or Members-only tier, and re-tier in one click. The free rung demonstrates value; the paywall converts it." />
+          <FeatureCard dark icon={<ClipboardList size={20} />} title="Full drill lifecycle + audit" to="/drilloop/creator?tab=manage" cta="Open Manage drills"
+            body="Create, edit, re-tier, and delete every drill, with an audit log of every action. Managing a real program, not a one-shot generator." />
+          <FeatureCard dark icon={<Users size={20} />} title="Privacy-safe community management" to="/drilloop/creator?tab=community" cta="Open Community"
+            body="See active vs. inactive members and their milestone ‘wins’ — never their identities or answers. Know who to nudge and who to celebrate." />
+          <FeatureCard dark icon={<MapPin size={20} />} title="Host in-person gatherings" to="/drilloop/creator?tab=community" cta="Open Community"
+            body="Schedule a local meetup and get a ready-to-paste announcement. The online cohort becomes a real-world community the creator owns." />
+          <FeatureCard dark icon={<Share2 size={20} />} title="One-link free→paid onboarding" to="/drilloop/creator?tab=grow" cta="Open Grow"
+            body="A shareable invite link plus ready-made social copy. New people join free and are welcomed by name, then prompted to upgrade once hooked." />
         </div>
       </Section>
 
@@ -102,18 +123,26 @@ export default function PitchPage() {
         </blockquote>
       </Section>
 
-      {/* ── For the small expert ── */}
-      <Section eyebrow="Founder-side" title="Finally, a product where small is a feature — not a bug." dark>
-        <p style={{ ...lede, color: 'rgba(255,255,255,0.82)' }}>
-          Paste a post, a talk, a Slack rant → AI drafts the drills with rubrics in seconds → publish. Partner with two peers to launch a Collective. Watch an online cohort turn into chapters in five cities. 2,000 high-trust followers who chose you — a meaningful share of whom pay for measurable growth, a credential, and a real community — beats 200,000 passive scrollers. We’re the first product whose economics are built around the long tail of credible-but-small experts.
+      {/* ── For the small expert — the economics ── */}
+      <Section eyebrow="Why the long tail wins" title="Small isn’t a limitation here. It’s the whole market.">
+        <p style={lede}>
+          2,000 high-trust followers who chose you — a meaningful share of whom will pay for measurable growth, a credential, and a real community — beats 200,000 passive scrollers a horizontal platform fights over. Twenty paying members at $19/mo is a real business to this person, and the studio above makes twenty achievable: develop in one paste, monetize with tiers, onboard with one link, and keep them with a community they can’t get elsewhere. We’re the first product whose unit economics are built <em>around</em> the long tail of credible-but-small experts — a market thousands of times larger than the head.
         </p>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <Link to="/drilloop/creator?tab=grow" style={ctaPrimary}>
+            <Share2 size={16} /> See how a creator onboards an audience <ArrowRight size={15} />
+          </Link>
+          <Link to="/drilloop/creator?tab=author" style={{ ...ctaGhost, color: TEAL, border: `1px solid ${TEAL}33` }}>
+            <Wand2 size={16} /> Develop content from notes
+          </Link>
+        </div>
       </Section>
 
       {/* ── Why now + traction ── */}
       <Section eyebrow="Why now & where we are" title="The technology that broke the old model is what makes the new one possible.">
         <div style={grid3}>
           <ValueCard icon={<Sparkles size={22} />} title="Why now" body="AI made information worthless and judgment scarce; expertise unbundled from institutions; a generation hit peak influencer fatigue. LLMs can finally grade open-ended judgment cheaply." />
-          <ValueCard icon={<Target size={22} />} title="Live today" body="The core loop runs on real model calls — drill, AI-grade, streak, mastery map, expert authoring, struggle analytics — plus a working Postgres matching engine for the network." />
+          <ValueCard icon={<Target size={22} />} title="Live today" body="Both sides ship: the member loop (drill, AI-grade, streak, Mirror, Proof) and the full creator studio (develop-from-notes, free/paid tiers, drill lifecycle + audit, privacy-safe community management, in-person gatherings, one-link onboarding) — on real model calls, with a working Postgres matching engine." />
           <ValueCard icon={<TrendingUp size={22} />} title="The ask" body="Take one expert (or a small Collective) with ~2,000 followers, convert a slice to paying members, and show a retention curve that flattens past month three." />
         </div>
       </Section>
@@ -125,18 +154,18 @@ export default function PitchPage() {
             Don’t take the pitch’s word for it. Click the product.
           </h2>
           <p style={{ fontSize: '1.05rem', opacity: 0.9, margin: '0 0 2rem', lineHeight: 1.5 }}>
-            The prototype is live and working — drill, get graded, see your cohort, build your Proof.
+            Both sides are live and working — drill and build your Proof as a member, or develop content, set tiers, and run a community as the expert.
           </p>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <Link to="/drilloop" style={{ ...ctaPrimary, backgroundColor: 'white', color: TEAL_DARK }}>
+            <Link to="/drilloop?view=today" style={{ ...ctaPrimary, backgroundColor: 'white', color: TEAL_DARK }}>
               <Repeat size={17} /> Member experience
             </Link>
-            <Link to="/drilloop/creator" style={{ ...ctaGhost, borderColor: 'rgba(255,255,255,0.5)' }}>
+            <Link to="/drilloop/creator?tab=author" style={{ ...ctaGhost, borderColor: 'rgba(255,255,255,0.5)' }}>
               <Wand2 size={16} /> Creator Studio
             </Link>
           </div>
           <p style={{ fontSize: '0.78rem', opacity: 0.7, marginTop: '2rem' }}>
-            Prototype — auth, payments, and some community surfaces are demo stand-ins. The learning loop and matching engine are real.
+            Prototype — auth and payments are demo stand-ins (the studio persists locally). The learning loop, AI authoring, and matching engine are real.
           </p>
         </div>
       </section>
@@ -186,15 +215,19 @@ function ProblemCard({ n, title, body }: { n: string; title: string; body: strin
   );
 }
 
-function FeatureCard({ icon, title, body, to, cta }: { icon: ReactNode; title: string; body: string; to: string; cta: string }) {
+function FeatureCard({ icon, title, body, to, cta, dark }: { icon: ReactNode; title: string; body: string; to: string; cta: string; dark?: boolean }) {
+  const base: React.CSSProperties = dark
+    ? { backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(94,234,212,0.18)', boxShadow: 'none' }
+    : { backgroundColor: 'white', border: '1px solid #E5E7EB', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' };
+  const accent = dark ? '#5EEAD4' : TEAL;
   return (
-    <Link to={to} style={{ textDecoration: 'none', color: 'inherit', display: 'block', backgroundColor: 'white', borderRadius: 16, padding: '1.4rem', border: '1px solid #E5E7EB', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', transition: 'transform 0.15s, box-shadow 0.15s' }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(13,148,136,0.14)'; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.04)'; }}>
-      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 11, backgroundColor: 'rgba(13,148,136,0.08)', color: TEAL, marginBottom: '0.875rem' }}>{icon}</div>
-      <h3 style={{ fontSize: '0.98rem', fontWeight: 700, margin: '0 0 0.4rem', color: INK }}>{title}</h3>
-      <p style={{ fontSize: '0.83rem', lineHeight: 1.5, color: '#475569', margin: '0 0 0.875rem' }}>{body}</p>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 700, color: TEAL }}>{cta} <ArrowRight size={14} /></span>
+    <Link to={to} style={{ textDecoration: 'none', color: 'inherit', display: 'block', borderRadius: 16, padding: '1.4rem', transition: 'transform 0.15s, box-shadow 0.15s', ...base }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = dark ? '0 10px 24px rgba(94,234,212,0.12)' : '0 10px 24px rgba(13,148,136,0.14)'; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = dark ? 'none' : '0 2px 10px rgba(0,0,0,0.04)'; }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 11, backgroundColor: dark ? 'rgba(94,234,212,0.12)' : 'rgba(13,148,136,0.08)', color: accent, marginBottom: '0.875rem' }}>{icon}</div>
+      <h3 style={{ fontSize: '0.98rem', fontWeight: 700, margin: '0 0 0.4rem', color: dark ? 'white' : INK }}>{title}</h3>
+      <p style={{ fontSize: '0.83rem', lineHeight: 1.5, color: dark ? 'rgba(255,255,255,0.72)' : '#475569', margin: '0 0 0.875rem' }}>{body}</p>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 700, color: accent }}>{cta} <ArrowRight size={14} /></span>
     </Link>
   );
 }

@@ -150,7 +150,7 @@ function evaluateTasteDevPlugin(evaluatorKey: string): Plugin {
 // localStorage (see src/services/validatorClient.ts). This middleware just
 // proxies to Anthropic for `chat` and `generate`.
 
-const VALIDATOR_DEV_CHAT_MODEL          = 'claude-sonnet-4-20250514'
+const VALIDATOR_DEV_CHAT_MODEL          = 'claude-sonnet-4-6'
 const VALIDATOR_DEV_CHAT_MAX_TOKENS     = 800
 const VALIDATOR_DEV_GENERATE_MAX_TOKENS = 4096
 

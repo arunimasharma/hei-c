@@ -13,7 +13,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 }
 
 const PROXY_URL = '/api/claude';
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-sonnet-4-6';
 const MAX_TOKENS = 1024;
 
 export class ClaudeApiError extends Error {
@@ -40,10 +40,11 @@ export class ClaudeApiError extends Error {
 export async function callClaude(
   systemPrompt: string,
   userMessage: string,
+  maxTokens: number = MAX_TOKENS,
 ): Promise<ClaudeResponse> {
   const body: ClaudeRequest = {
     model: MODEL,
-    max_tokens: MAX_TOKENS,
+    max_tokens: maxTokens,
     system: systemPrompt,
     messages: [{ role: 'user', content: userMessage }],
   };

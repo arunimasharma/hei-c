@@ -7,7 +7,7 @@ import type { ZodType } from 'zod';
 // that validates structured output with zod and does one repair-retry before
 // failing loudly. Mirrors the conventions in api/claude.ts and api/usage-increment.ts.
 
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-sonnet-4-6';
 const COST_PER_INPUT_TOKEN = 3.0 / 1_000_000;
 const COST_PER_OUTPUT_TOKEN = 15.0 / 1_000_000;
 

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { motion } from 'motion/react';
-import { Lock, Flame, Target, TrendingUp, Award, Check, ArrowLeft, Sparkles, Wrench, Users, MapPin, Calendar, BadgeCheck } from 'lucide-react';
+import { Flame, Target, TrendingUp, Award, Check, ArrowLeft, Sparkles, Wrench, Users, MapPin, Calendar, BadgeCheck, Gift, Layers, ChevronRight, Lightbulb } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import DrillPlayer from '../components/drilloop/DrillPlayer';
 import ConnectView from '../components/drilloop/ConnectView';
@@ -15,19 +15,30 @@ import {
   loadState, saveState, recordAttempt, recordFeedback, upgradeToMember, dayKey,
   computeMetrics,
 } from '../services/drilloopStore';
+import { addDrillRequest } from '../services/drilloopRequests';
 import { DRILL_ROOM, LOCAL_CHAPTERS, COLLECTIVE } from '../data/drilloopCommunity';
 
-type View = 'today' | 'program' | 'progress' | 'community' | 'connect';
+type View = 'today' | 'topics' | 'progress' | 'community' | 'connect';
 
-function unlocked(state: DrilloopState, drill: Drill): boolean {
-  return state.tier === 'member' || !!drill.isSample;
+// Every drill is free to everyone — no membership gating.
+function unlocked(_state: DrilloopState, _drill: Drill): boolean {
+  return true;
 }
 
+const VIEW_IDS: View[] = ['today', 'topics', 'progress', 'community', 'connect'];
+
 export default function DrilloopMemberPage() {
+  const [searchParams] = useSearchParams();
+  const invitedBy = searchParams.get('ref');
+  const initialView = (() => {
+    const v = searchParams.get('view');
+    return v && (VIEW_IDS as string[]).includes(v) ? (v as View) : 'today';
+  })();
   const [state, setState] = useState<DrilloopState>(() => loadState());
-  const [view, setView] = useState<View>('today');
+  const [view, setView] = useState<View>(initialView);
   const [activeDrill, setActiveDrill] = useState<Drill | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [inviteDismissed, setInviteDismissed] = useState(false);
 
   const catalog = useMemo(() => getCatalog(), []);
   const metrics = useMemo(() => computeMetrics(state), [state]);
@@ -106,6 +117,11 @@ export default function DrilloopMemberPage() {
           }
         />
 
+        {/* Invite welcome — shown when arriving via a creator's share link */}
+        {invitedBy && !isMember && !inviteDismissed && (
+          <InviteWelcome invitedBy={invitedBy} onDismiss={() => setInviteDismissed(true)} />
+        )}
+
         {/* Membership status banner */}
         {isMember ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', fontWeight: 600, color: DRILLOOP_DARK, backgroundColor: DRILLOOP_SOFT, padding: '0.55rem 0.875rem', borderRadius: 10, alignSelf: 'flex-start' }}>
@@ -117,7 +133,7 @@ export default function DrilloopMemberPage() {
 
         {/* Sub-nav */}
         <div style={{ display: 'flex', gap: '0.4rem', borderBottom: '1px solid #F3F4F6', paddingBottom: '0.1rem' }}>
-          {([['today', 'Today'], ['program', 'Program'], ['progress', 'Progress'], ['community', 'Community'], ['connect', 'Connect']] as [View, string][]).map(([v, label]) => (
+          {([['today', 'Today'], ['topics', 'Topics'], ['progress', 'Progress'], ['community', 'Community'], ['connect', 'Connect']] as [View, string][]).map(([v, label]) => (
             <button key={v} onClick={() => setView(v)}
               style={{ padding: '0.55rem 0.875rem', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.875rem', fontWeight: view === v ? 700 : 500, color: view === v ? DRILLOOP : '#6B7280', borderBottom: view === v ? `2px solid ${DRILLOOP}` : '2px solid transparent', marginBottom: -1 }}>
               {label}
@@ -125,8 +141,8 @@ export default function DrilloopMemberPage() {
           ))}
         </div>
 
-        {view === 'today' && <TodayView nextDrill={nextDrill} metrics={metrics} state={state} onStart={startDrill} />}
-        {view === 'program' && <ProgramView catalog={catalog} completedIds={completedIds} state={state} onStart={startDrill} />}
+        {view === 'today' && <TodayView nextDrill={nextDrill} metrics={metrics} state={state} onStart={startDrill} onBrowseTopics={() => setView('topics')} />}
+        {view === 'topics' && <TopicsView catalog={catalog} completedIds={completedIds} onStart={startDrill} />}
         {view === 'progress' && <ProgressView state={state} metrics={metrics} />}
         {view === 'community' && <CommunityView metrics={metrics} />}
         {view === 'connect' && <ConnectView />}
@@ -134,6 +150,24 @@ export default function DrilloopMemberPage() {
 
       {showPaywall && <Paywall onClose={() => setShowPaywall(false)} onUpgrade={upgrade} />}
     </DashboardLayout>
+  );
+}
+
+// ── Invite welcome — the free-join onboarding moment from a creator's link ──
+function InviteWelcome({ invitedBy, onDismiss }: { invitedBy: string; onDismiss: () => void }) {
+  const name = invitedBy.charAt(0).toUpperCase() + invitedBy.slice(1);
+  return (
+    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+      style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: 12, backgroundColor: '#10B98112', border: '1px solid #10B98133', flexWrap: 'wrap' }}>
+      <span style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#10B98122', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Gift size={18} color="#0B7A70" />
+      </span>
+      <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+        <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#065F46' }}>{name} invited you — welcome! 🎉</div>
+        <div style={{ fontSize: '0.76rem', color: '#047857' }}>Start drilling free below. Upgrade to a membership any time you're hooked — no rush.</div>
+      </div>
+      <button onClick={onDismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#047857', fontSize: '0.75rem', fontWeight: 600, fontFamily: 'inherit', flexShrink: 0 }}>Got it</button>
+    </motion.div>
   );
 }
 
@@ -155,15 +189,14 @@ function CreatorLanding({ onJoin }: { onJoin: () => void }) {
           style={{ backgroundColor: 'white', color: DRILLOOP_DARK, border: 'none', borderRadius: 12, padding: '0.7rem 1.4rem', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(0,0,0,0.15)' }}>
           Start membership — ${CREATOR.tiers[1].price}/mo
         </button>
-        <span style={{ fontSize: '0.78rem', opacity: 0.85 }}>Or try the free sample drills below ↓</span>
+        <span style={{ fontSize: '0.78rem', opacity: 0.85 }}>Every drill is free — pick a topic and start below ↓</span>
       </div>
     </Card>
   );
 }
 
 // ── Today view ──
-function TodayView({ nextDrill, metrics, state, onStart }: { nextDrill: Drill | null; metrics: ReturnType<typeof computeMetrics>; state: DrilloopState; onStart: (d: Drill) => void }) {
-  const locked = nextDrill ? !unlocked(state, nextDrill) : false;
+function TodayView({ nextDrill, metrics, state, onStart, onBrowseTopics }: { nextDrill: Drill | null; metrics: ReturnType<typeof computeMetrics>; state: DrilloopState; onStart: (d: Drill) => void; onBrowseTopics: () => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -175,20 +208,27 @@ function TodayView({ nextDrill, metrics, state, onStart }: { nextDrill: Drill | 
       {nextDrill ? (
         <Card hover style={{ borderLeft: `4px solid ${DRILLOOP}` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <Pill>{locked ? <><Lock size={11} /> Members only</> : "Today’s drill"}</Pill>
+            <Pill>Pick up where you left off</Pill>
             <Pill color={DIFFICULTY_META[nextDrill.difficulty].color}>{DIFFICULTY_META[nextDrill.difficulty].label}</Pill>
           </div>
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1F2937', margin: '0.25rem 0 0.4rem' }}>{nextDrill.title}</h3>
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1F2937', margin: '0.25rem 0 0.2rem' }}>{nextDrill.title}</h3>
+          <div style={{ fontSize: '0.72rem', color: '#9CA3AF', marginBottom: '0.4rem' }}>Topic: {nextDrill.phaseTitle}</div>
           <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: '0 0 1rem', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{nextDrill.prompt}</p>
-          <Button onClick={() => onStart(nextDrill)} style={{ backgroundColor: locked ? '#9CA3AF' : DRILLOOP, boxShadow: locked ? 'none' : '0 2px 8px rgba(13,148,136,0.3)' }}>
-            {locked ? <><Lock size={14} /> Unlock to drill</> : <><Target size={15} /> Start drill</>}
-          </Button>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <Button onClick={() => onStart(nextDrill)} style={{ backgroundColor: DRILLOOP, boxShadow: '0 2px 8px rgba(13,148,136,0.3)' }}>
+              <Target size={15} /> Start drill
+            </Button>
+            <Button variant="outline" onClick={onBrowseTopics} style={{ borderColor: '#E5E7EB', color: DRILLOOP }}>
+              <Layers size={15} /> Choose a topic
+            </Button>
+          </div>
         </Card>
       ) : (
         <Card style={{ textAlign: 'center', padding: '2rem' }}>
           <div style={{ fontSize: '2rem' }}>🏆</div>
           <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1F2937', margin: '0.5rem 0' }}>You’ve cleared every drill.</h3>
-          <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: 0 }}>Re-drill any from the Program tab to keep the judgment sharp — repetition is the point.</p>
+          <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: '0 0 1rem' }}>Re-drill any topic to keep the judgment sharp — repetition is the point.</p>
+          <Button onClick={onBrowseTopics} style={{ backgroundColor: DRILLOOP }}><Layers size={15} /> Browse topics</Button>
         </Card>
       )}
 
@@ -197,45 +237,150 @@ function TodayView({ nextDrill, metrics, state, onStart }: { nextDrill: Drill | 
   );
 }
 
-// ── Program view (full catalog, grouped by phase) ──
-function ProgramView({ catalog, completedIds, state, onStart }: { catalog: Drill[]; completedIds: Set<string>; state: DrilloopState; onStart: (d: Drill) => void }) {
-  const phases = [...new Set(catalog.map(d => d.phase))].sort((a, b) => a - b);
+// ── Topics view — drills grouped into topics you can pick from ──
+interface Topic { phase: number; title: string; drills: Drill[]; done: number; total: number }
+
+function TopicsView({ catalog, completedIds, onStart }: { catalog: Drill[]; completedIds: Set<string>; onStart: (d: Drill) => void }) {
+  const [selected, setSelected] = useState<number | null>(null);
+
+  const topics: Topic[] = useMemo(() => {
+    const byPhase = new Map<number, Drill[]>();
+    for (const d of catalog) {
+      const arr = byPhase.get(d.phase) ?? [];
+      arr.push(d);
+      byPhase.set(d.phase, arr);
+    }
+    return [...byPhase.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([phase, drills]) => ({
+        phase,
+        title: drills[0].phaseTitle,
+        drills,
+        done: drills.filter(d => completedIds.has(d.id)).length,
+        total: drills.length,
+      }));
+  }, [catalog, completedIds]);
+
+  // ── Topic picker ──
+  if (selected === null) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: 0, lineHeight: 1.5 }}>
+          Pick a topic to drill in — every drill is free. Drill what you want to sharpen, in any order.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.875rem' }}>
+          {topics.map(t => {
+            const pct = t.total ? (t.done / t.total) * 100 : 0;
+            return (
+              <button key={t.phase} onClick={() => setSelected(t.phase)}
+                style={{ textAlign: 'left', padding: '1.125rem', borderRadius: 16, border: '1px solid rgba(0,0,0,0.06)', backgroundColor: 'white', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 20px rgba(13,148,136,0.12)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)'; e.currentTarget.style.transform = 'none'; }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 11, background: `linear-gradient(135deg, ${DRILLOOP}, ${DRILLOOP_DARK})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Layers size={18} color="white" />
+                  </div>
+                  {t.done === t.total && t.total > 0 ? <Pill color="#10B981"><Check size={11} /> Done</Pill> : <ChevronRight size={18} color="#D1D5DB" />}
+                </div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1F2937', lineHeight: 1.3 }}>{t.title}</div>
+                <div style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>{t.total} drill{t.total === 1 ? '' : 's'} · {t.done} done</div>
+                <ProgressBar value={pct} color={pct >= 100 ? '#10B981' : DRILLOOP} />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Inside a topic ──
+  const topic = topics.find(t => t.phase === selected);
+  if (!topic) { setSelected(null); return null; }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {phases.map(phase => {
-        const drills = catalog.filter(d => d.phase === phase);
-        return (
-          <div key={phase}>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
-              Phase {phase} · {drills[0].phaseTitle}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {drills.map(d => {
-                const done = completedIds.has(d.id);
-                const locked = !unlocked(state, d);
-                return (
-                  <button key={d.id} onClick={() => onStart(d)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left', width: '100%', padding: '0.875rem 1rem', borderRadius: 12, border: '1px solid rgba(0,0,0,0.06)', backgroundColor: 'white', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
-                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#FAFAFA')}
-                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'white')}>
-                    <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: done ? '#10B98115' : locked ? '#F3F4F6' : DRILLOOP_SOFT }}>
-                      {done ? <Check size={15} color="#10B981" /> : locked ? <Lock size={13} color="#9CA3AF" /> : <Target size={14} color={DRILLOOP} />}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.875rem', fontWeight: 600, color: locked ? '#9CA3AF' : '#1F2937' }}>{d.title}</div>
-                      <div style={{ fontSize: '0.72rem', color: '#9CA3AF', marginTop: 1 }}>
-                        {DIFFICULTY_META[d.difficulty].label}{d.isSample ? ' · free sample' : ''}{d.authored ? ' · creator drill' : ''}
-                      </div>
-                    </div>
-                    {done && <Pill color="#10B981">Done</Pill>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <button onClick={() => setSelected(null)}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'none', border: 'none', color: '#6B7280', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0, alignSelf: 'flex-start' }}>
+        <ArrowLeft size={15} /> All topics
+      </button>
+
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1F2937', margin: 0 }}>{topic.title}</h2>
+          <Pill>{topic.done}/{topic.total} done</Pill>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {topic.drills.map(d => (
+          <DrillRow key={d.id} drill={d} done={completedIds.has(d.id)} onStart={() => onStart(d)} />
+        ))}
+      </div>
+
+      <RequestMoreDrills phase={topic.phase} topicTitle={topic.title} />
     </div>
+  );
+}
+
+function DrillRow({ drill, done, onStart }: { drill: Drill; done: boolean; onStart: () => void }) {
+  return (
+    <button onClick={onStart}
+      style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left', width: '100%', padding: '0.875rem 1rem', borderRadius: 12, border: '1px solid rgba(0,0,0,0.06)', backgroundColor: 'white', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+      onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#FAFAFA')}
+      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'white')}>
+      <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: done ? '#10B98115' : DRILLOOP_SOFT }}>
+        {done ? <Check size={15} color="#10B981" /> : <Target size={14} color={DRILLOOP} />}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1F2937' }}>{drill.title}</div>
+        <div style={{ fontSize: '0.72rem', color: '#9CA3AF', marginTop: 1 }}>
+          {DIFFICULTY_META[drill.difficulty].label}{drill.authored ? ' · creator drill' : ''}
+        </div>
+      </div>
+      {done && <Pill color="#10B981">Done</Pill>}
+    </button>
+  );
+}
+
+// ── Request more drills on a topic — text goes to the creator ──
+function RequestMoreDrills({ phase, topicTitle }: { phase: number; topicTitle: string }) {
+  const [text, setText] = useState('');
+  const [sent, setSent] = useState(false);
+
+  const submit = () => {
+    if (!text.trim()) return;
+    addDrillRequest({ phase, topicTitle, text }, new Date());
+    setText('');
+    setSent(true);
+  };
+
+  return (
+    <Card style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+        <Lightbulb size={16} color="#D97706" />
+        <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>Want more drills on “{topicTitle}”?</h3>
+      </div>
+      {sent ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', fontWeight: 600, color: '#059669' }}>
+            <Check size={15} /> Request sent to {CREATOR.name} — thanks!
+          </span>
+          <button onClick={() => setSent(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D97706', fontSize: '0.78rem', fontWeight: 600, fontFamily: 'inherit' }}>Request another</button>
+        </div>
+      ) : (
+        <>
+          <p style={{ fontSize: '0.78rem', color: '#92400E', margin: '0 0 0.6rem', lineHeight: 1.5 }}>
+            Tell the creator what you want to drill more — a sub-topic, a scenario, or a harder angle.
+          </p>
+          <textarea value={text} onChange={e => setText(e.target.value)} rows={3}
+            placeholder="e.g. More drills on eval design for multi-agent systems, or harder real-world failure scenarios…"
+            style={{ width: '100%', borderRadius: 10, border: '1px solid #FCD34D', padding: '0.6rem 0.75rem', fontSize: '0.82rem', lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical', outline: 'none', marginBottom: '0.6rem', backgroundColor: 'white' }} />
+          <Button onClick={submit} disabled={!text.trim()} style={{ backgroundColor: '#D97706', boxShadow: '0 2px 8px rgba(217,119,6,0.3)' }}>
+            <Lightbulb size={14} /> Send request
+          </Button>
+        </>
+      )}
+    </Card>
   );
 }
 
@@ -253,12 +398,12 @@ function ProgressView({ state, metrics }: { state: DrilloopState; metrics: Retur
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
           <TrendingUp size={16} color={DRILLOOP} />
-          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>Strength by phase</h3>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>Strength by topic</h3>
         </div>
         {metrics.phaseProgress.filter(p => p.total > 0).map(p => (
           <div key={p.phase} style={{ marginBottom: '0.875rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '0.3rem' }}>
-              <span style={{ color: '#374151', fontWeight: 500 }}>P{p.phase} · {p.phaseTitle}</span>
+              <span style={{ color: '#374151', fontWeight: 500 }}>{p.phaseTitle}</span>
               <span style={{ color: '#9CA3AF' }}>{p.completed}/{p.total} · {p.mastery || 0}%</span>
             </div>
             <ProgressBar value={p.total ? (p.completed / p.total) * 100 : 0} color={p.mastery >= 70 ? '#10B981' : p.mastery >= 40 ? DRILLOOP : '#F97316'} />

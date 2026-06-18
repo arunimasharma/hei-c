@@ -36,7 +36,8 @@ export interface Drill {
   /** The creator's reference answer, revealed after the member commits theirs. */
   modelAnswer: string;
   tags: string[];
-  /** Free preview drills are visible to non-members (the "demonstrate value" rung). */
+  /** Free preview drills are visible to non-members (the "demonstrate value" rung).
+   *  Equivalent to tier === 'free'; kept as the gating flag the member app reads. */
   isSample?: boolean;
   /** Content linking — the free post/video this drill sends members to practice from. */
   sourceUrl?: string;
@@ -44,6 +45,10 @@ export interface Drill {
   /** True if the creator authored this in-app (vs. seeded program content). */
   authored?: boolean;
 }
+
+/** Which membership tier a drill is published to. 'free' = visible to everyone
+ *  (the preview rung); 'member' = behind the paywall. */
+export type DrillTier = 'free' | 'member';
 
 /** A draft drill produced by the AI authoring tool, before the creator publishes it. */
 export interface DrillDraft {
@@ -53,6 +58,8 @@ export interface DrillDraft {
   prompt: string;
   keyPoints: string[];
   modelAnswer: string;
+  /** Creator's chosen publish tier for this draft (defaults to 'member'). */
+  tier?: DrillTier;
 }
 
 /** How confident the member felt after seeing the model answer. */

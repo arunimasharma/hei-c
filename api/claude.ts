@@ -7,7 +7,7 @@
  *  3. Enforce a per-session soft rate limit via the X-Session-Id header.
  *  4. Forward the request to the Anthropic Messages API.
  *
- * Cost model (claude-sonnet-4-20250514 as of 2025):
+ * Cost model (claude-sonnet-4-6):
  *   Input:  $3.00 per 1M tokens  |  Output: $15.00 per 1M tokens
  */
 

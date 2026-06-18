@@ -27,7 +27,7 @@ import type {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const CHAT_MODEL          = 'claude-sonnet-4-20250514';
+const CHAT_MODEL          = 'claude-sonnet-4-6';
 const CHAT_MAX_TOKENS     = 800;
 const GENERATE_MAX_TOKENS = 4096;
 const MAX_GENERATIONS_PER_DAY_PER_IP = 30;
