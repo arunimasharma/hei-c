@@ -1,8 +1,9 @@
 import { Link } from 'react-router';
 import { type ReactNode } from 'react';
 import {
-  Repeat, Target, Users, MapPin, BadgeCheck, Network, Wand2, Timer,
-  ArrowRight, Sparkles, TrendingUp, Quote, FileText, Share2, Lock, ClipboardList,
+  Repeat, Target, Users, MapPin, BadgeCheck, Network, Wand2,
+  ArrowRight, Sparkles, TrendingUp, Quote, FileText, Share2,
+  ListChecks, Layers, Lightbulb, Beaker,
 } from 'lucide-react';
 
 // ── Investor pitch page (/pitch) ──
@@ -69,15 +70,19 @@ export default function PitchPage() {
       {/* ── Demand side — member experience (with deep links) ── */}
       <Section eyebrow="The product · demand side" title="A better place to spend the hour you’d lose to the feed." id="product">
         <p style={lede}>
-          The drill is the atom — a judgment question you answer in your own words, AI-graded against the expert’s rubric. Everything around it is engineered to make this a more worthwhile use of leisure time than social media. <strong>Every card links straight to that exact screen in the live prototype.</strong>
+          The drill is the atom — a judgment question you answer in your own words or as an AI-built multiple choice, graded against the expert’s rubric. <strong>Every drill is free and grouped into topics you pick from</strong> — no paywall, no forced path. Each card links straight to that exact screen in the live prototype.
         </p>
         <div style={featureGrid}>
-          <FeatureCard icon={<Timer size={20} />} title="The Daily Rep" to="/drilloop?view=today" cta="Open the member app"
-            body="A finite session by design — a few drills, your peers’ answers, done. No infinite scroll. We win by ending well." />
+          <FeatureCard icon={<Layers size={20} />} title="Pick a topic, all free" to="/drilloop?view=topics" cta="Browse topics"
+            body="Drills are grouped into topics you choose from and drill in any order — every one free. Self-directed, not a linear course you abandon at lesson three." />
           <FeatureCard icon={<Target size={20} />} title="AI grading + reference" to="/drilloop?view=today" cta="Drill a sample"
-            body="Score your free-text answer 0–100 with coaching and the expert’s reference answer. Real Claude calls, graceful offline fallback." />
+            body="Answer in your own words and get scored 0–100 with coaching and the expert’s reference answer — a live Claude call, with a graceful offline fallback." />
+          <FeatureCard icon={<ListChecks size={20} />} title="AI multiple-choice mode" to="/drilloop?view=topics" cta="Try a drill"
+            body="One tap turns any drill into an AI-generated multiple choice — one right answer, three smart distractors, and reasoning guidance comparing your pick to the best one." />
           <FeatureCard icon={<Users size={20} />} title="Mirror — peer reasoning" to="/drilloop?view=today" cta="Answer a drill to unlock"
             body="See how sharp peers reasoned on the same question — anonymized, unlocked only after you commit. The feed replaced by substance." />
+          <FeatureCard icon={<Lightbulb size={20} />} title="Request more drills" to="/drilloop?view=topics" cta="Open a topic"
+            body="Members ask for drills on the exact sub-topic or scenario they want — a one-line demand signal that routes straight to the creator’s backlog." />
           <FeatureCard icon={<Users size={20} />} title="Drill Rooms" to="/drilloop?view=community" cta="See the Community tab"
             body="A small synchronized cohort moving together this week — presence and accountability, minus the performance." />
           <FeatureCard icon={<MapPin size={20} />} title="Local Chapters" to="/drilloop?view=community" cta="See the Community tab"
@@ -92,21 +97,23 @@ export default function PitchPage() {
       {/* ── Supply side — the creator studio is built (with deep links) ── */}
       <Section eyebrow="The product · supply side" title="Onboarding creators isn’t a roadmap. It’s shipped." dark>
         <p style={{ ...lede, color: 'rgba(255,255,255,0.82)' }}>
-          A two-sided marketplace lives or dies on supply. So the entire creator side is functional today — a small expert can develop content, monetize, and run a community end-to-end. <strong style={{ color: 'white' }}>Click any card to drive the real Creator Studio.</strong>
+          A two-sided marketplace lives or dies on supply, and supply dies on effort. So the creator side is a real <strong style={{ color: 'white' }}>AI content engine</strong>: a small expert turns rough notes into a finished, structured program in minutes. Every AI feature is a <strong style={{ color: 'white' }}>live Claude call — verified end-to-end, not a canned demo</strong>. Click any card to drive the real Creator Studio.
         </p>
         <div style={featureGrid}>
-          <FeatureCard dark icon={<FileText size={20} />} title="Rough notes → publishable everything" to="/drilloop/creator?tab=author" cta="Open Author"
-            body="Paste a messy brain-dump. Claude returns a publish-ready post, drafted drills with rubrics, and research suggestions to go deeper — turning content creation, not just drill creation, into one paste." />
-          <FeatureCard dark icon={<Lock size={20} />} title="Free & paid tiers" to="/drilloop/creator?tab=manage" cta="Open Manage drills"
-            body="Publish each drill to a Free preview or Members-only tier, and re-tier in one click. The free rung demonstrates value; the paywall converts it." />
-          <FeatureCard dark icon={<ClipboardList size={20} />} title="Full drill lifecycle + audit" to="/drilloop/creator?tab=manage" cta="Open Manage drills"
-            body="Create, edit, re-tier, and delete every drill, with an audit log of every action. Managing a real program, not a one-shot generator." />
+          <FeatureCard dark icon={<FileText size={20} />} title="Rough notes → a finished program" to="/drilloop/creator?tab=author" cta="Open Author"
+            body="Paste a messy brain-dump. Claude returns a publish-ready post, drafted drills with rubrics, and research directions — content creation collapsed to one paste." />
+          <FeatureCard dark icon={<Beaker size={20} />} title="AI does the research & iterates" to="/drilloop/creator?tab=author" cta="Open Author"
+            body="One click has AI act on the research directions and weave concrete examples and evidence into the post; another revises it on your own instructions — formatting or content. The creator stays the editor; the AI does the labor." />
+          <FeatureCard dark icon={<Layers size={20} />} title="Structure it into topics" to="/drilloop/creator?tab=manage" cta="Open Manage drills"
+            body="Tag any drill to a topic, or create new ones — the program is organized as topics members pick from, not a rigid sequence. Full lifecycle: edit, re-tier, delete, all with an audit log." />
+          <FeatureCard dark icon={<Lightbulb size={20} />} title="A backlog driven by demand" to="/drilloop/creator?tab=insights" cta="Open Insights"
+            body="Member requests for more drills land in the creator’s Insights as an authoring backlog — so they always know what to build next, straight from demand. The data flywheel that makes the AI engine point in the right direction." />
           <FeatureCard dark icon={<Users size={20} />} title="Privacy-safe community management" to="/drilloop/creator?tab=community" cta="Open Community"
             body="See active vs. inactive members and their milestone ‘wins’ — never their identities or answers. Know who to nudge and who to celebrate." />
           <FeatureCard dark icon={<MapPin size={20} />} title="Host in-person gatherings" to="/drilloop/creator?tab=community" cta="Open Community"
             body="Schedule a local meetup and get a ready-to-paste announcement. The online cohort becomes a real-world community the creator owns." />
-          <FeatureCard dark icon={<Share2 size={20} />} title="One-link free→paid onboarding" to="/drilloop/creator?tab=grow" cta="Open Grow"
-            body="A shareable invite link plus ready-made social copy. New people join free and are welcomed by name, then prompted to upgrade once hooked." />
+          <FeatureCard dark icon={<Share2 size={20} />} title="Free access as the growth engine" to="/drilloop/creator?tab=grow" cta="Open Grow"
+            body="Every drill is free — that’s the top of the funnel. A shareable invite welcomes people by name; revenue comes from the membership (community, gatherings, recognition, the credential), not a paywall on learning." />
         </div>
       </Section>
 
@@ -126,7 +133,7 @@ export default function PitchPage() {
       {/* ── For the small expert — the economics ── */}
       <Section eyebrow="Why the long tail wins" title="Small isn’t a limitation here. It’s the whole market.">
         <p style={lede}>
-          2,000 high-trust followers who chose you — a meaningful share of whom will pay for measurable growth, a credential, and a real community — beats 200,000 passive scrollers a horizontal platform fights over. Twenty paying members at $19/mo is a real business to this person, and the studio above makes twenty achievable: develop in one paste, monetize with tiers, onboard with one link, and keep them with a community they can’t get elsewhere. We’re the first product whose unit economics are built <em>around</em> the long tail of credible-but-small experts — a market thousands of times larger than the head.
+          2,000 high-trust followers who chose you — a meaningful share of whom will pay for measurable growth, a credential, and a real community — beats 200,000 passive scrollers a horizontal platform fights over. Give every drill away free to fill the top of the funnel; twenty paying members at $19/mo for the community, gatherings, and credential is a real business to this person. The studio makes it achievable: develop a whole program in one paste, let demand tell you what to build next, onboard with one link, and keep them with a community they can’t get elsewhere. We’re the first product whose unit economics are built <em>around</em> the long tail of credible-but-small experts — a market thousands of times larger than the head.
         </p>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
           <Link to="/drilloop/creator?tab=grow" style={ctaPrimary}>
@@ -142,7 +149,7 @@ export default function PitchPage() {
       <Section eyebrow="Why now & where we are" title="The technology that broke the old model is what makes the new one possible.">
         <div style={grid3}>
           <ValueCard icon={<Sparkles size={22} />} title="Why now" body="AI made information worthless and judgment scarce; expertise unbundled from institutions; a generation hit peak influencer fatigue. LLMs can finally grade open-ended judgment cheaply." />
-          <ValueCard icon={<Target size={22} />} title="Live today" body="Both sides ship: the member loop (drill, AI-grade, streak, Mirror, Proof) and the full creator studio (develop-from-notes, free/paid tiers, drill lifecycle + audit, privacy-safe community management, in-person gatherings, one-link onboarding) — on real model calls, with a working Postgres matching engine." />
+          <ValueCard icon={<Target size={22} />} title="Live today" body="Both sides ship on live Claude calls (verified end-to-end): the member loop (free topic-based drills, write or AI multiple-choice, AI grading, Mirror, Proof, request-more-drills) and the AI creator studio (notes→post→drills→research→iterate, topic structuring, demand backlog, community management, gatherings, one-link onboarding) — plus a working Postgres matching engine." />
           <ValueCard icon={<TrendingUp size={22} />} title="The ask" body="Take one expert (or a small Collective) with ~2,000 followers, convert a slice to paying members, and show a retention curve that flattens past month three." />
         </div>
       </Section>
@@ -154,7 +161,7 @@ export default function PitchPage() {
             Don’t take the pitch’s word for it. Click the product.
           </h2>
           <p style={{ fontSize: '1.05rem', opacity: 0.9, margin: '0 0 2rem', lineHeight: 1.5 }}>
-            Both sides are live and working — drill and build your Proof as a member, or develop content, set tiers, and run a community as the expert.
+            Both sides are live and working — drill free by topic and build your Proof as a member, or turn rough notes into a whole program with AI and run a community as the expert.
           </p>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
             <Link to="/drilloop?view=today" style={{ ...ctaPrimary, backgroundColor: 'white', color: TEAL_DARK }}>
