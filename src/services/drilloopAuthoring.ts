@@ -344,6 +344,180 @@ function mcqFallback(drill: Drill): DrillMCQ {
   return { options: shuffle(options), aiGenerated: false };
 }
 
+// ── Iterate a single drill on the creator's instruction ──
+// The creator types what to change — the question, difficulty, rubric, reference
+// answer, type, or title — and the model returns the full revised drill.
+
+export interface DrillRevision {
+  title: string;
+  type: DrillType;
+  difficulty: DrillDifficulty;
+  prompt: string;
+  keyPoints: string[];
+  modelAnswer: string;
+  aiGenerated: boolean;
+}
+
+function buildDrillIterateSystemPrompt(): string {
+  return [
+    'You revise a single "Drilloop" judgment drill according to the creator\'s instruction.',
+    'The instruction may target any part: the question/prompt, the difficulty, the type, the rubric (key points), the reference answer, or the title.',
+    'Keep it a JUDGMENT drill — it must force a defensible call, not recall of definitions. Keep the rubric (3-5 key points) and the reference answer consistent with the revised prompt.',
+    'Return ONLY minified JSON, no markdown, with this exact shape:',
+    '{"title":"","type":"judgment","difficulty":"core","prompt":"","keyPoints":["",""],"modelAnswer":""}',
+  ].join('\n');
+}
+
+export async function iterateDrill(
+  current: { title: string; type: DrillType; difficulty: DrillDifficulty; prompt: string; keyPoints: string[]; modelAnswer: string },
+  instruction: string,
+): Promise<DrillRevision> {
+  try {
+    const raw = await callClaude(
+      buildDrillIterateSystemPrompt(),
+      [
+        'CURRENT DRILL (JSON):',
+        JSON.stringify(current),
+        '',
+        `CREATOR'S INSTRUCTION:\n${instruction.trim()}`,
+        '',
+        'Apply it and return the full revised drill. Return only the JSON.',
+      ].join('\n'),
+      1400,
+    );
+    const text = parseActionResponse(raw).trim();
+    const json = text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
+    const d = JSON.parse(json) as RawDraft;
+    if (!d.prompt || !d.title) throw new Error('empty');
+    return {
+      title: d.title.trim(),
+      type: coerceType(d.type),
+      difficulty: coerceDiff(d.difficulty),
+      prompt: d.prompt.trim(),
+      keyPoints: (d.keyPoints ?? []).map(p => p.trim()).filter(Boolean).slice(0, 6),
+      modelAnswer: (d.modelAnswer ?? '').trim(),
+      aiGenerated: true,
+    };
+  } catch (err) {
+    console.warn('[Drilloop] AI drill iteration failed — drill left unchanged.', err);
+    return { ...current, aiGenerated: false };
+  }
+}
+
+// ── Generate next-post suggestion (content calendar) ──
+// Synthesizes member feedback, drill-performance signals, explicit member
+// requests, and the model's own market research into the single best next post —
+// one that meets real demand, builds a cohesive thought-leadership brand, and is
+// primed to perform on Drilloop and on social.
+
+export interface NextPostContext {
+  creatorName: string;
+  topic: string;
+  /** Titles of recent calendar posts — for a cohesive arc without repetition. */
+  recentPostTitles: string[];
+  /** Where the audience struggles, from drill performance. */
+  struggles: { title: string; avgScore: number; struggleRate: number; commonGaps: string[] }[];
+  feedback: { tag: string; note: string }[];
+  requests: { topicTitle: string; text: string }[];
+}
+
+export interface NextPostSuggestion {
+  title: string;
+  hook: string;
+  angle: string;
+  /** Why this post now — references the signals it drew from. */
+  rationale: string;
+  outline: string[];
+  drillIdeas: string[];
+  /** The concrete signals (demand, struggle, trend) behind the pick. */
+  signals: string[];
+  /** How it builds a cohesive thought-leadership brand + social growth. */
+  brandNote: string;
+  aiGenerated: boolean;
+}
+
+function buildNextPostSystemPrompt(topic: string): string {
+  return [
+    `You are the content strategist for a Drilloop creator building a thought-leadership brand in "${topic}".`,
+    'Synthesize four inputs to recommend the SINGLE best next post: (a) member feedback, (b) drill-performance signals (where the audience struggles), (c) explicit member requests (real demand), and (d) your own market research on what is timely, contrarian, or under-served in this space right now.',
+    'The post must: address genuine audience demand, build a cohesive thought-leadership arc (extend prior posts without repeating them), spawn 2-4 strong judgment drills, and be primed to perform on social media (a sharp, defensible point of view — not a listicle).',
+    'In "signals", cite the specific evidence you used (e.g. "3 members requested eval design", "drill X had 62% struggle rate", "market: everyone over-hypes multi-agent").',
+    'Return ONLY minified JSON, no markdown, with this exact shape:',
+    '{"title":"","hook":"","angle":"","rationale":"","outline":["",""],"drillIdeas":["",""],"signals":["",""],"brandNote":""}',
+  ].join('\n');
+}
+
+function buildNextPostUserMessage(ctx: NextPostContext): string {
+  const lines: string[] = [`CREATOR: ${ctx.creatorName} — topic: ${ctx.topic}`, ''];
+
+  lines.push('RECENT POSTS (build on these, do not repeat):');
+  lines.push(ctx.recentPostTitles.length ? ctx.recentPostTitles.map(t => `- ${t}`).join('\n') : '- (none yet — this sets the tone)');
+  lines.push('');
+
+  lines.push('WHERE MEMBERS STRUGGLE (drill performance):');
+  lines.push(ctx.struggles.length
+    ? ctx.struggles.map(s => `- ${s.title}: avg ${s.avgScore}/100, ${Math.round(s.struggleRate * 100)}% struggled${s.commonGaps.length ? `; gaps: ${s.commonGaps.join(', ')}` : ''}`).join('\n')
+    : '- (no performance data yet)');
+  lines.push('');
+
+  lines.push('MEMBER FEEDBACK:');
+  lines.push(ctx.feedback.length ? ctx.feedback.map(f => `- [${f.tag}] ${f.note || '(no note)'}`).join('\n') : '- (none yet)');
+  lines.push('');
+
+  lines.push('MEMBER REQUESTS (explicit demand):');
+  lines.push(ctx.requests.length ? ctx.requests.map(r => `- on "${r.topicTitle}": ${r.text}`).join('\n') : '- (none yet)');
+  lines.push('');
+
+  lines.push(`Using these plus your market research on what is timely in ${ctx.topic}, recommend the single best next post. Return only the JSON.`);
+  return lines.join('\n');
+}
+
+export async function suggestNextPost(ctx: NextPostContext): Promise<NextPostSuggestion> {
+  try {
+    const raw = await callClaude(buildNextPostSystemPrompt(ctx.topic), buildNextPostUserMessage(ctx), 1600);
+    const text = parseActionResponse(raw).trim();
+    const json = text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
+    const p = JSON.parse(json) as Partial<NextPostSuggestion>;
+    if (!p.title || !p.angle) throw new Error('empty');
+    const arr = (x: unknown): string[] => (Array.isArray(x) ? x.map(String).map(s => s.trim()).filter(Boolean) : []);
+    return {
+      title: String(p.title).trim(),
+      hook: String(p.hook ?? '').trim(),
+      angle: String(p.angle).trim(),
+      rationale: String(p.rationale ?? '').trim(),
+      outline: arr(p.outline).slice(0, 8),
+      drillIdeas: arr(p.drillIdeas).slice(0, 6),
+      signals: arr(p.signals).slice(0, 8),
+      brandNote: String(p.brandNote ?? '').trim(),
+      aiGenerated: true,
+    };
+  } catch (err) {
+    console.warn('[Drilloop] AI next-post suggestion failed — using heuristic.', err);
+    return nextPostFallback(ctx);
+  }
+}
+
+function nextPostFallback(ctx: NextPostContext): NextPostSuggestion {
+  const req = ctx.requests[0];
+  const struggle = ctx.struggles[0];
+  const focus = req?.topicTitle || struggle?.title || ctx.topic;
+  const signals: string[] = [];
+  if (req) signals.push(`Member request on “${req.topicTitle}”`);
+  if (struggle) signals.push(`“${struggle.title}” drill — ${Math.round(struggle.struggleRate * 100)}% struggled`);
+  signals.push(`Market: ${ctx.topic} is noisy — a defensible POV stands out`);
+  return {
+    title: `What everyone gets wrong about ${focus}`,
+    hook: `Most takes on ${focus} are confident and shallow. Here's the judgment call that actually matters.`,
+    angle: `Take the most-requested / hardest area for your audience (${focus}) and give the contrarian, defensible point of view they can't get from a model.`,
+    rationale: `Offline suggestion: your audience is asking for and struggling with ${focus}, so a sharp post there meets real demand and reinforces your authority.`,
+    outline: [`The common (wrong) belief about ${focus}`, 'Why it breaks in practice', 'The judgment call that separates experts', 'A concrete example', 'What to do instead'],
+    drillIdeas: [`A judgment drill on the core trade-off in ${focus}`, `A scenario drill where the naive approach to ${focus} fails`],
+    signals,
+    brandNote: `Owning the hard, in-demand corners of ${ctx.topic} compounds into a recognizable thought-leadership brand — on Drilloop and on social.`,
+    aiGenerated: false,
+  };
+}
+
 function developFallback(notes: string, count: number): NotesDevelopment {
   const clean = notes.replace(/\s+/g, ' ').trim();
   const sentences = clean.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);

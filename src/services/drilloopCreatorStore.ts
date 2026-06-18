@@ -1,11 +1,10 @@
 // ── Drilloop creator-side persistence ──
-// Everything the creator owns that isn't a drill: their shareable invite config,
-// the in-person gatherings they host, and an audit log of their actions. Fully
-// client-side (localStorage) to match the rest of the Drilloop demo; in
-// production these are the `creators`, `gatherings`, and `audit_log` tables.
+// Everything the creator owns that isn't a drill: their shareable invite config
+// and the in-person gatherings they host. Fully client-side (localStorage) to
+// match the rest of the Drilloop demo; in production these are the `creators`
+// and `gatherings` tables.
 
 const GATHERINGS_KEY = 'drilloop_gatherings_v1';
-const AUDIT_KEY = 'drilloop_audit_v1';
 const SHARE_KEY = 'drilloop_share_v1';
 
 // ── Share / invite config ──────────────────────────────────────────────────
@@ -89,13 +88,11 @@ export function createGathering(
     rsvps: 0,
   };
   saveGatherings([g, ...getGatherings()]);
-  logAudit('gathering_created', `${g.city} · ${g.when}`, now);
   return g;
 }
 
-export function cancelGathering(id: string, now: Date): void {
+export function cancelGathering(id: string, _now: Date): void {
   saveGatherings(getGatherings().map(g => (g.id === id ? { ...g, status: 'cancelled' } : g)));
-  logAudit('gathering_cancelled', id, now);
 }
 
 /** A ready-to-paste announcement the creator sends to the community. */
@@ -108,69 +105,4 @@ export function gatheringAnnouncement(g: Gathering, creatorName: string): string
     g.note ? `\n${g.note}` : '',
     `\nWe'll debate the week's hardest drills over coffee. ${g.capacity} spots — reply to claim yours.`,
   ].filter(Boolean).join('\n');
-}
-
-// ── Audit log ───────────────────────────────────────────────────────────────
-
-export type AuditAction =
-  | 'drill_published'
-  | 'drill_edited'
-  | 'drill_tier_changed'
-  | 'drill_deleted'
-  | 'post_developed'
-  | 'phase_created'
-  | 'phase_deleted'
-  | 'gathering_created'
-  | 'gathering_cancelled'
-  | 'invite_shared';
-
-export interface AuditEntry {
-  id: string;
-  at: string;
-  action: AuditAction;
-  detail: string;
-}
-
-const ACTION_LABEL: Record<AuditAction, string> = {
-  drill_published: 'Published drill',
-  drill_edited: 'Edited drill',
-  drill_tier_changed: 'Changed drill tier',
-  drill_deleted: 'Deleted drill',
-  post_developed: 'Developed post from notes',
-  phase_created: 'Created phase',
-  phase_deleted: 'Deleted phase',
-  gathering_created: 'Scheduled gathering',
-  gathering_cancelled: 'Cancelled gathering',
-  invite_shared: 'Shared invite',
-};
-
-export function auditLabel(action: AuditAction): string {
-  return ACTION_LABEL[action] ?? action;
-}
-
-export function getAuditLog(): AuditEntry[] {
-  try {
-    const raw = localStorage.getItem(AUDIT_KEY);
-    if (!raw) return [];
-    return (JSON.parse(raw) as AuditEntry[]).sort(
-      (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),
-    );
-  } catch {
-    return [];
-  }
-}
-
-export function logAudit(action: AuditAction, detail: string, now: Date = new Date()): void {
-  const entry: AuditEntry = {
-    id: `audit-${now.getTime()}-${Math.floor(now.getTime() % 1000)}`,
-    at: now.toISOString(),
-    action,
-    detail,
-  };
-  try {
-    const log = getAuditLog();
-    localStorage.setItem(AUDIT_KEY, JSON.stringify([entry, ...log].slice(0, 200)));
-  } catch {
-    /* noop */
-  }
 }

@@ -4,7 +4,7 @@ import { motion } from 'motion/react';
 import {
   Sparkles, Loader2, Check, Trash2, Trophy, BarChart3, MessageSquare, Wand2,
   Users, Eye, Network, Play, AlertCircle, FileText, Pencil, Lock, Unlock, Share2,
-  Copy, MapPin, Calendar, Megaphone, History, Plus, X, ClipboardList, Search, Beaker, Layers, Lightbulb,
+  Copy, MapPin, Calendar, Megaphone, Plus, X, ClipboardList, Search, Beaker, Layers, Lightbulb, ArrowLeft, Target,
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/common/Card';
@@ -12,7 +12,10 @@ import Button from '../components/common/Button';
 import { DRILLOOP, DRILLOOP_DARK, DRILLOOP_SOFT, Pill, ProgressBar, StatTile, PageHeader, TYPE_META, DIFFICULTY_META } from '../components/drilloop/shared';
 import type { DrillDraft, DrillTier, CreatorInsights } from '../types/drilloop';
 import { CREATOR } from '../data/drilloopCreator';
-import { generateDrills, developFromNotes, researchAndEnhancePost, iteratePost, type NotesDevelopment } from '../services/drilloopAuthoring';
+import {
+  generateDrills, developFromNotes, researchAndEnhancePost, iteratePost, iterateDrill, suggestNextPost,
+  type NotesDevelopment, type NextPostSuggestion,
+} from '../services/drilloopAuthoring';
 import {
   publishDrafts, getAuthoredDrills, deleteAuthoredDrill, updateAuthoredDrill, setDrillTier, tierOf,
 } from '../services/drilloopCatalog';
@@ -22,9 +25,12 @@ import { getPhases, createPhase, deletePhase, type Phase } from '../services/dri
 import { COLLECTIVE } from '../data/drilloopCommunity';
 import {
   getShareConfig, saveShareConfig, buildInviteLink, getGatherings, createGathering,
-  cancelGathering, gatheringAnnouncement, getAuditLog, logAudit, auditLabel,
-  type Gathering, type AuditEntry,
+  cancelGathering, gatheringAnnouncement, type Gathering,
 } from '../services/drilloopCreatorStore';
+import {
+  getCalendarPosts, addCalendarPost, updateCalendarPost, deleteCalendarPost,
+  setAuthorSeed, consumeAuthorSeed, type CalendarPost,
+} from '../services/drilloopCalendar';
 import { getCommunityRoster, summarize, type CommunityMember } from '../services/drilloopCommunityService';
 import { getDrillRequests, type DrillRequest } from '../services/drilloopRequests';
 import {
@@ -33,10 +39,11 @@ import {
 } from '../services/drilloop/creatorRepo';
 import type { MatchingRun } from '../types/connect';
 
-type Tab = 'author' | 'manage' | 'community' | 'grow' | 'insights' | 'connections' | 'shoutouts';
+type Tab = 'author' | 'calendar' | 'manage' | 'community' | 'grow' | 'insights' | 'connections' | 'shoutouts';
 
 const TABS: [Tab, string, typeof Wand2][] = [
   ['author', 'Author', Wand2],
+  ['calendar', 'Content calendar', Calendar],
   ['manage', 'Manage drills', ClipboardList],
   ['community', 'Community', Users],
   ['grow', 'Grow', Share2],
@@ -45,7 +52,7 @@ const TABS: [Tab, string, typeof Wand2][] = [
   ['shoutouts', 'Shoutouts', Trophy],
 ];
 
-const TAB_IDS: Tab[] = ['author', 'manage', 'community', 'grow', 'insights', 'connections', 'shoutouts'];
+const TAB_IDS: Tab[] = ['author', 'calendar', 'manage', 'community', 'grow', 'insights', 'connections', 'shoutouts'];
 
 export default function DrilloopCreatorPage() {
   const [searchParams] = useSearchParams();
@@ -91,6 +98,7 @@ export default function DrilloopCreatorPage() {
         </div>
 
         {tab === 'author' && <AuthorTab />}
+        {tab === 'calendar' && <CalendarTab onUseInAuthor={() => setTab('author')} />}
         {tab === 'manage' && <ManageTab />}
         {tab === 'community' && <CommunityTab />}
         {tab === 'grow' && <GrowTab insights={insights} />}
@@ -165,6 +173,13 @@ type Mode = 'notes' | 'content';
 function AuthorTab() {
   const [mode, setMode] = useState<Mode>('notes');
   const [input, setInput] = useState('');
+
+  // Pick up a "draft this in Author" seed from the content calendar suggestion.
+  useEffect(() => {
+    const seed = consumeAuthorSeed();
+    if (seed) { setMode('notes'); setInput(seed); }
+  }, []);
+
   const [phase, setPhase] = useState(1);
   const [sourceUrl, setSourceUrl] = useState('');
   const [sourceLabel, setSourceLabel] = useState('');
@@ -187,7 +202,7 @@ function AuthorTab() {
     setIterateFailed(false);
     const res = await iteratePost(post, instruction);
     setPost(res.post);
-    if (res.aiGenerated) { setInstruction(''); logAudit('post_developed', `Iterated post: ${instruction.trim().slice(0, 60)}`); }
+    if (res.aiGenerated) setInstruction('');
     else setIterateFailed(true);
     setIterating(false);
   };
@@ -202,7 +217,6 @@ function AuthorTab() {
     setPost(res.post);
     setEnhancement({ additions: res.additions, aiGenerated: res.aiGenerated });
     setResearching(false);
-    logAudit('post_developed', `Researched & enhanced: ${developed.postTitle}`);
   };
 
   const run = async () => {
@@ -215,7 +229,6 @@ function AuthorTab() {
       setPost(dev.post);
       setDrafts(dev.drills.map(d => ({ ...d, tier: defaultTier })));
       setAiGenerated(dev.aiGenerated);
-      logAudit('post_developed', dev.postTitle);
     } else {
       const { drafts: ds, aiGenerated: ai } = await generateDrills(input, 4);
       setDeveloped(null);
@@ -231,11 +244,18 @@ function AuthorTab() {
   const removeDraft = (i: number) => setDrafts(ds => ds.filter((_, idx) => idx !== i));
 
   const publish = () => {
+    const now = new Date();
     const created = publishDrafts(drafts, {
       phase, sourceUrl: sourceUrl || undefined, sourceLabel: sourceLabel || undefined,
-      now: new Date(), defaultTier,
+      now, defaultTier,
     });
-    created.forEach(c => logAudit('drill_published', `${c.title} · ${tierOf(c) === 'free' ? 'Free' : 'Members'}`));
+    // Approving drills from a developed post sends that post to the content calendar.
+    if (developed && post.trim()) {
+      addCalendarPost(
+        { title: developed.postTitle, post, research: developed.research, drillsCount: created.length },
+        now,
+      );
+    }
     setPublished(created.length);
     setDrafts([]);
     setDeveloped(null);
@@ -311,7 +331,7 @@ function AuthorTab() {
 
       {published !== null && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', fontWeight: 600, color: '#10B981', backgroundColor: '#10B98110', padding: '0.6rem 0.875rem', borderRadius: 10 }}>
-          <Check size={15} /> Published {published} drill{published === 1 ? '' : 's'} — members can drill them now. Manage them in the Manage drills tab.
+          <Check size={15} /> Published {published} drill{published === 1 ? '' : 's'} — members can drill them now. The post is on your Content calendar; drills are in Manage drills.
         </div>
       )}
 
@@ -451,6 +471,10 @@ function AuthorTab() {
               <div style={uppercaseLabel}>Reference answer</div>
               <textarea value={d.modelAnswer} onChange={e => updateDraft(i, { modelAnswer: e.target.value })} rows={3}
                 style={{ width: '100%', borderRadius: 10, border: '1px solid #E5E7EB', padding: '0.6rem 0.75rem', fontSize: '0.8rem', lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical' }} />
+              <DrillAiIterate
+                current={{ title: d.title, type: d.type, difficulty: d.difficulty, prompt: d.prompt, keyPoints: d.keyPoints, modelAnswer: d.modelAnswer }}
+                onApply={r => updateDraft(i, r)}
+              />
             </Card>
           ))}
           <Button fullWidth onClick={publish} style={{ backgroundColor: DRILLOOP, boxShadow: '0 2px 8px rgba(13,148,136,0.3)' }}>
@@ -463,40 +487,394 @@ function AuthorTab() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// MANAGE — full lifecycle: audit, edit, re-tier, delete published drills,
-// plus the action audit log. (Customer needs #2 + #3.)
+// CONTENT CALENDAR — every approved post (drills published from it), dated, with
+// the full post toolset (research, iterate, copy) available to keep editing.
+// ════════════════════════════════════════════════════════════════════════════
+
+function CalendarTab({ onUseInAuthor }: { onUseInAuthor: () => void }) {
+  const [posts, setPosts] = useState<CalendarPost[]>(() => getCalendarPosts());
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const refresh = () => setPosts(getCalendarPosts());
+
+  const editing = editingId ? posts.find(p => p.id === editingId) : null;
+  if (editing) {
+    return <CalendarPostEditor post={editing} onBack={() => { setEditingId(null); refresh(); }} onChange={refresh} />;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <Card style={{ borderLeft: `4px solid ${DRILLOOP}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+          <Calendar size={16} color={DRILLOOP} />
+          <h3 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>Content calendar</h3>
+        </div>
+        <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: 0, lineHeight: 1.5 }}>
+          Every post you develop and approve — by publishing its drills in Author — lands here with a date. Keep editing any post with the full toolset: research, iterate, reschedule, copy.
+        </p>
+      </Card>
+
+      <NextPostSuggester posts={posts} onUseInAuthor={onUseInAuthor} />
+
+      {posts.length === 0 ? (
+        <Card style={{ textAlign: 'center', padding: '2rem' }}>
+          <div style={{ fontSize: '1.75rem' }}>📅</div>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1F2937', margin: '0.5rem 0 0.25rem' }}>No posts yet</h3>
+          <p style={{ fontSize: '0.82rem', color: '#6B7280', margin: 0 }}>Develop a post from rough notes in Author and publish its drills — it’ll appear here, dated.</p>
+        </Card>
+      ) : (
+        posts.map(p => {
+          const d = new Date(p.date);
+          return (
+            <Card key={p.id}>
+              <div style={{ display: 'flex', gap: '0.875rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <div style={{ width: 56, flexShrink: 0, textAlign: 'center', borderRadius: 12, overflow: 'hidden', border: '1px solid #E5E7EB' }}>
+                  <div style={{ backgroundColor: DRILLOOP, color: 'white', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', padding: '0.2rem 0' }}>{d.toLocaleString([], { month: 'short' })}</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1F2937', padding: '0.2rem 0' }}>{d.getDate()}</div>
+                </div>
+                <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#1F2937', lineHeight: 1.3 }}>{p.title}</div>
+                  <div style={{ fontSize: '0.7rem', color: '#9CA3AF', margin: '0.15rem 0 0.4rem' }}>
+                    {d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} · {p.drillsCount} drill{p.drillsCount === 1 ? '' : 's'} approved
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#6B7280', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.post}</div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                  <CopyButton text={p.post} label="Copy" />
+                  <Button onClick={() => setEditingId(p.id)} style={{ backgroundColor: DRILLOOP }}><Pencil size={14} /> Edit</Button>
+                </div>
+              </div>
+            </Card>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+// ── Generate next-post suggestion ──
+// Synthesizes member feedback, drill-performance signals, member requests, and
+// market research into the best next post for a cohesive thought-leadership brand.
+function NextPostSuggester({ posts, onUseInAuthor }: { posts: CalendarPost[]; onUseInAuthor: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [s, setS] = useState<NextPostSuggestion | null>(null);
+
+  const generate = async () => {
+    setLoading(true);
+    const insights = computeCreatorInsights(loadState());
+    const struggles = [...insights.drillInsights]
+      .filter(d => d.attempts > 0)
+      .sort((a, b) => b.struggleRate - a.struggleRate)
+      .slice(0, 6)
+      .map(d => ({ title: d.title, avgScore: d.avgScore, struggleRate: d.struggleRate, commonGaps: d.commonGaps }));
+    const suggestion = await suggestNextPost({
+      creatorName: CREATOR.name,
+      topic: CREATOR.topic,
+      recentPostTitles: posts.slice(0, 10).map(p => p.title),
+      struggles,
+      feedback: insights.recentFeedback.map(f => ({ tag: f.tag, note: f.note })),
+      requests: getDrillRequests().map(r => ({ topicTitle: r.topicTitle, text: r.text })),
+    });
+    setS(suggestion);
+    setLoading(false);
+  };
+
+  const asNotes = (x: NextPostSuggestion): string => [
+    x.title,
+    x.hook ? `\nHook: ${x.hook}` : '',
+    x.angle ? `\nAngle: ${x.angle}` : '',
+    x.outline.length ? `\nOutline:\n${x.outline.map(o => `- ${o}`).join('\n')}` : '',
+    x.drillIdeas.length ? `\nDrill ideas:\n${x.drillIdeas.map(d => `- ${d}`).join('\n')}` : '',
+  ].filter(Boolean).join('\n');
+
+  const draftInAuthor = () => { if (s) { setAuthorSeed(asNotes(s)); onUseInAuthor(); } };
+
+  return (
+    <Card style={{ borderLeft: '4px solid #7C3AED' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Sparkles size={16} color="#7C3AED" />
+          <h3 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>Generate next post suggestion</h3>
+        </div>
+        {(s || loading) && (
+          <Button onClick={generate} disabled={loading} variant="outline" style={{ borderColor: '#E5E7EB', color: '#7C3AED' }}>
+            {loading ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Working…</> : <><Sparkles size={14} /> Regenerate</>}
+          </Button>
+        )}
+      </div>
+      <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0.4rem 0 0', lineHeight: 1.5 }}>
+        Synthesizes member feedback, drill-performance signals, member requests, and live market research into your best next post — to build a cohesive thought-leadership brand and grow on Drilloop and social.
+      </p>
+
+      {!s && !loading && (
+        <Button onClick={generate} style={{ backgroundColor: '#7C3AED', boxShadow: '0 2px 8px rgba(124,58,237,0.3)', marginTop: '0.875rem' }}>
+          <Sparkles size={15} /> Generate suggestion
+        </Button>
+      )}
+
+      {loading && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.875rem', color: '#7C3AED', fontSize: '0.85rem', fontWeight: 600 }}>
+          <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Analyzing feedback, drill performance, requests + market…
+        </div>
+      )}
+
+      {s && !loading && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+          <div style={{ backgroundColor: '#7C3AED0D', border: '1px solid #7C3AED22', borderRadius: 12, padding: '0.875rem 1rem' }}>
+            <div style={{ fontSize: '1rem', fontWeight: 800, color: '#1F2937', lineHeight: 1.3 }}>{s.title}</div>
+            {s.hook && <div style={{ fontSize: '0.85rem', color: '#6D28D9', fontStyle: 'italic', marginTop: '0.3rem', lineHeight: 1.5 }}>“{s.hook}”</div>}
+            {!s.aiGenerated && <div style={{ fontSize: '0.7rem', color: '#9CA3AF', marginTop: '0.4rem' }}>Offline suggestion (no AI key reachable) — heuristic.</div>}
+          </div>
+
+          {s.angle && <Field label="The angle" body={s.angle} />}
+          {s.rationale && <Field label="Why this, now" body={s.rationale} />}
+
+          {s.signals.length > 0 && (
+            <div>
+              <div style={sugLabel}>Drew on these signals</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                {s.signals.map((sig, i) => <Pill key={i} color="#7C3AED">{sig}</Pill>)}
+              </div>
+            </div>
+          )}
+
+          {s.outline.length > 0 && (
+            <div>
+              <div style={sugLabel}>Outline</div>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                {s.outline.map((o, i) => (
+                  <li key={i} style={{ display: 'flex', gap: '0.5rem', fontSize: '0.82rem', color: '#374151', lineHeight: 1.5 }}>
+                    <span style={{ color: '#7C3AED', fontWeight: 700, flexShrink: 0 }}>{i + 1}.</span> {o}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {s.drillIdeas.length > 0 && (
+            <div>
+              <div style={sugLabel}>Drills it would spawn</div>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                {s.drillIdeas.map((d, i) => (
+                  <li key={i} style={{ display: 'flex', gap: '0.5rem', fontSize: '0.82rem', color: '#374151', lineHeight: 1.5 }}>
+                    <Target size={13} color="#7C3AED" style={{ flexShrink: 0, marginTop: 3 }} /> {d}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {s.brandNote && (
+            <div style={{ fontSize: '0.78rem', color: '#6B7280', fontStyle: 'italic', lineHeight: 1.5, borderLeft: '2px solid #7C3AED33', paddingLeft: '0.6rem' }}>
+              {s.brandNote}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <Button onClick={draftInAuthor} style={{ backgroundColor: '#7C3AED', boxShadow: '0 2px 8px rgba(124,58,237,0.3)' }}>
+              <Wand2 size={15} /> Draft this in Author
+            </Button>
+            <CopyButton text={asNotes(s)} label="Copy brief" />
+          </div>
+        </motion.div>
+      )}
+    </Card>
+  );
+}
+
+function Field({ label, body }: { label: string; body: string }) {
+  return (
+    <div>
+      <div style={sugLabel}>{label}</div>
+      <p style={{ fontSize: '0.84rem', color: '#374151', lineHeight: 1.55, margin: 0 }}>{body}</p>
+    </div>
+  );
+}
+
+const sugLabel: React.CSSProperties = { fontSize: '0.68rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' };
+
+// Full post editor — the same toolset as Author (research, iterate, copy) plus
+// rescheduling, on a saved calendar post.
+function CalendarPostEditor({ post, onBack, onChange }: { post: CalendarPost; onBack: () => void; onChange: () => void }) {
+  const [title, setTitle] = useState(post.title);
+  const [body, setBody] = useState(post.post);
+  const [date, setDate] = useState(post.date.slice(0, 10));
+  const [researching, setResearching] = useState(false);
+  const [enhanced, setEnhanced] = useState<{ additions: string[]; aiGenerated: boolean } | null>(null);
+  const [instruction, setInstruction] = useState('');
+  const [iterating, setIterating] = useState(false);
+  const [iterateFailed, setIterateFailed] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const QUICK_EDITS = ['Make the hook punchier', 'Shorten to ~150 words', 'Add bullet points', 'Add a clear call-to-action', 'More conversational tone'];
+
+  const touch = () => { setSaved(false); };
+
+  const doResearch = async () => {
+    setResearching(true);
+    setEnhanced(null);
+    const r = await researchAndEnhancePost(body, post.research);
+    setBody(r.post);
+    setEnhanced({ additions: r.additions, aiGenerated: r.aiGenerated });
+    setResearching(false);
+    touch();
+  };
+
+  const iterate = async () => {
+    if (!instruction.trim()) return;
+    setIterating(true);
+    setIterateFailed(false);
+    const r = await iteratePost(body, instruction);
+    setBody(r.post);
+    if (r.aiGenerated) setInstruction(''); else setIterateFailed(true);
+    setIterating(false);
+    touch();
+  };
+
+  const save = () => {
+    updateCalendarPost(post.id, { title, post: body, date: new Date(`${date}T12:00:00`).toISOString() });
+    setSaved(true);
+    onChange();
+  };
+
+  const del = () => {
+    deleteCalendarPost(post.id);
+    onChange();
+    onBack();
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <button onClick={onBack}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'none', border: 'none', color: '#6B7280', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0, alignSelf: 'flex-start' }}>
+        <ArrowLeft size={15} /> All posts
+      </button>
+
+      <Card style={{ borderLeft: `4px solid ${DRILLOOP}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <FileText size={16} color={DRILLOOP} />
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>Edit post</h3>
+          </div>
+          <CopyButton text={body} label="Copy post" />
+        </div>
+
+        <input value={title} onChange={e => { setTitle(e.target.value); touch(); }}
+          style={{ width: '100%', fontSize: '0.95rem', fontWeight: 700, color: '#1F2937', border: 'none', outline: 'none', borderBottom: '1px dashed #E5E7EB', paddingBottom: '0.3rem', marginBottom: '0.6rem', fontFamily: 'inherit' }} />
+
+        <label style={{ ...fieldLabel, marginBottom: '0.75rem' }}>
+          Scheduled date
+          <input type="date" value={date} onChange={e => { setDate(e.target.value); touch(); }} style={{ ...fieldInput, maxWidth: 200 }} />
+        </label>
+
+        <textarea value={body} onChange={e => { setBody(e.target.value); touch(); }} rows={10}
+          style={{ width: '100%', borderRadius: 10, border: '1px solid #E5E7EB', padding: '0.75rem 0.875rem', fontSize: '0.85rem', lineHeight: 1.6, fontFamily: 'inherit', resize: 'vertical' }} />
+
+        {/* Iterate */}
+        <div style={{ marginTop: '0.875rem', borderTop: '1px solid #F3F4F6', paddingTop: '0.875rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', fontWeight: 700, color: '#374151', marginBottom: '0.4rem' }}>
+            <Pencil size={13} color={DRILLOOP} /> Iterate on this post
+          </div>
+          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+            {QUICK_EDITS.map(q => (
+              <button key={q} onClick={() => setInstruction(q)} disabled={iterating}
+                style={{ fontSize: '0.7rem', fontWeight: 600, color: '#6B7280', backgroundColor: '#F3F4F6', border: 'none', borderRadius: 999, padding: '0.25rem 0.6rem', cursor: iterating ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                {q}
+              </button>
+            ))}
+          </div>
+          <textarea value={instruction} onChange={e => { setInstruction(e.target.value); setIterateFailed(false); }} rows={2}
+            placeholder="Tell AI how to revise — formatting or content…"
+            style={{ width: '100%', borderRadius: 10, border: '1px solid #E5E7EB', padding: '0.6rem 0.75rem', fontSize: '0.82rem', lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical', marginBottom: '0.5rem' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <Button onClick={iterate} disabled={iterating || !instruction.trim()} style={{ backgroundColor: DRILLOOP, boxShadow: '0 2px 8px rgba(13,148,136,0.3)' }}>
+              {iterating ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Revising…</> : <><Wand2 size={14} /> Apply edit with AI</>}
+            </Button>
+            {iterateFailed && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', color: '#C2410C' }}>
+                <AlertCircle size={13} /> Couldn’t reach AI — post left unchanged.
+              </span>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* Research & enhance (if research directions were captured) */}
+      {post.research.length > 0 && (
+        <Card>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Search size={15} color="#7C3AED" />
+              <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>Research to go deeper</h3>
+            </div>
+            <Button onClick={doResearch} disabled={researching} style={{ backgroundColor: '#7C3AED', boxShadow: '0 2px 8px rgba(124,58,237,0.3)' }}>
+              {researching ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Researching…</> : <><Beaker size={14} /> Research & enhance post</>}
+            </Button>
+          </div>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {post.research.map((r, i) => (
+              <li key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.82rem', color: '#374151', lineHeight: 1.5 }}>
+                <Beaker size={14} color="#7C3AED" style={{ flexShrink: 0, marginTop: 2 }} /> {r}
+              </li>
+            ))}
+          </ul>
+          {enhanced && (
+            <div style={{ marginTop: '0.875rem', padding: '0.7rem 0.875rem', borderRadius: 10, backgroundColor: enhanced.aiGenerated ? '#7C3AED10' : '#FFF7ED', border: `1px solid ${enhanced.aiGenerated ? '#7C3AED22' : '#FED7AA'}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 700, color: enhanced.aiGenerated ? '#6D28D9' : '#C2410C', marginBottom: enhanced.additions.length ? '0.4rem' : 0 }}>
+                <Check size={14} /> {enhanced.aiGenerated ? 'Researched and woven into the post above ↑' : 'Offline — research appended as a checklist'}
+              </div>
+              {enhanced.additions.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                  {enhanced.additions.map((a, i) => (
+                    <span key={i} style={{ fontSize: '0.7rem', fontWeight: 600, color: '#6D28D9', backgroundColor: 'white', border: '1px solid #7C3AED33', borderRadius: 999, padding: '0.2rem 0.55rem' }}>+ {a}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Save / delete */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+        <Button onClick={save} style={{ backgroundColor: DRILLOOP, boxShadow: '0 2px 8px rgba(13,148,136,0.3)' }}>
+          {saved ? <><Check size={15} /> Saved</> : <><Check size={15} /> Save changes</>}
+        </Button>
+        <Button variant="outline" onClick={del} style={{ borderColor: '#FECACA', color: '#DC2626' }}><Trash2 size={14} /> Delete post</Button>
+        {saved && <span style={{ fontSize: '0.76rem', color: '#10B981', fontWeight: 600 }}>Calendar updated.</span>}
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// MANAGE — full lifecycle: edit, re-tier, re-tag, delete published drills.
+// (Customer needs #2 + #3.)
 // ════════════════════════════════════════════════════════════════════════════
 
 function ManageTab() {
   const [drills, setDrills] = useState(() => getAuthoredDrills());
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [audit, setAudit] = useState<AuditEntry[]>(() => getAuditLog());
   const [phases, setPhases] = useState<Phase[]>(() => getPhases());
 
-  const refresh = () => { setDrills(getAuthoredDrills()); setAudit(getAuditLog()); setPhases(getPhases()); };
+  const refresh = () => { setDrills(getAuthoredDrills()); setPhases(getPhases()); };
 
-  const changeTier = (id: string, title: string, tier: DrillTier) => {
+  const changeTier = (id: string, _title: string, tier: DrillTier) => {
     setDrillTier(id, tier);
-    logAudit('drill_tier_changed', `${title} → ${tier === 'free' ? 'Free' : 'Members'}`);
     refresh();
   };
-  const remove = (id: string, title: string) => {
+  const remove = (id: string) => {
     deleteAuthoredDrill(id);
-    logAudit('drill_deleted', title);
     if (editingId === id) setEditingId(null);
     refresh();
   };
   const saveEdit = (id: string, patch: Partial<DrillDraft> & { phase?: number }) => {
-    const updated = updateAuthoredDrill(id, patch);
-    if (updated) logAudit('drill_edited', updated.title);
+    updateAuthoredDrill(id, patch);
     setEditingId(null);
     refresh();
   };
   // Tag a drill to a phase from the list, without opening the full editor.
-  const retag = (id: string, title: string, phase: number) => {
+  const retag = (id: string, phase: number) => {
     updateAuthoredDrill(id, { phase });
-    const p = phases.find(ph => ph.phase === phase);
-    logAudit('drill_edited', `${title} → P${phase} ${p ? `(${p.title})` : ''}`.trim());
     refresh();
   };
 
@@ -538,7 +916,7 @@ function ManageTab() {
                     <div style={{ flex: '1 1 200px', minWidth: 0 }}>
                       <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1F2937' }}>{d.title}</div>
                       <div style={{ fontSize: '0.7rem', color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.3rem' }}>
-                        <select value={d.phase} onChange={e => retag(d.id, d.title, Number(e.target.value))}
+                        <select value={d.phase} onChange={e => retag(d.id, Number(e.target.value))}
                           title="Tag this drill to a phase"
                           style={{ ...miniSelect, color: '#7C3AED', borderColor: '#7C3AED33', fontWeight: 600 }}>
                           {phases.map(p => <option key={p.phase} value={p.phase}>P{p.phase} · {p.title}</option>)}
@@ -552,7 +930,7 @@ function ManageTab() {
                       <button title={tierOf(d) === 'free' ? 'Move to Members' : 'Make Free'} onClick={() => changeTier(d.id, d.title, tierOf(d) === 'free' ? 'member' : 'free')} style={iconBtn('#7C3AED')}>
                         {tierOf(d) === 'free' ? <Lock size={14} /> : <Unlock size={14} />}
                       </button>
-                      <button title="Delete" onClick={() => remove(d.id, d.title)} style={iconBtn('#DC2626')}><Trash2 size={14} /></button>
+                      <button title="Delete" onClick={() => remove(d.id)} style={iconBtn('#DC2626')}><Trash2 size={14} /></button>
                     </div>
                   </div>
                 ))}
@@ -561,27 +939,60 @@ function ManageTab() {
           );
         })
       )}
+    </div>
+  );
+}
 
-      {/* Audit log */}
-      <Card>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-          <History size={15} color={DRILLOOP} />
-          <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1F2937', margin: 0 }}>Audit log</h3>
-        </div>
-        {audit.length === 0 ? (
-          <p style={{ fontSize: '0.8rem', color: '#9CA3AF', margin: 0 }}>Your actions — publishing, editing, re-tiering, gatherings — are recorded here.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-            {audit.slice(0, 25).map(a => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'baseline', gap: '0.6rem', fontSize: '0.78rem' }}>
-                <span style={{ color: '#9CA3AF', flexShrink: 0, fontVariantNumeric: 'tabular-nums', width: 130 }}>{new Date(a.at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                <span style={{ fontWeight: 600, color: '#374151', flexShrink: 0 }}>{auditLabel(a.action)}</span>
-                <span style={{ color: '#6B7280', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.detail}</span>
-              </div>
-            ))}
-          </div>
+// ── Iterate a single drill with AI — reused by the Author drafts and Manage editor ──
+type DrillFields = { title: string; type: DrillDraft['type']; difficulty: DrillDraft['difficulty']; prompt: string; keyPoints: string[]; modelAnswer: string };
+
+function DrillAiIterate({ current, onApply }: { current: DrillFields; onApply: (r: DrillFields) => void }) {
+  const [instruction, setInstruction] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const QUICK = ['Make it harder', 'Make it scenario-based', 'Tighten the question', 'Sharpen the rubric', 'Strengthen the reference answer'];
+
+  const run = async () => {
+    if (!instruction.trim()) return;
+    setBusy(true);
+    setFailed(false);
+    const r = await iterateDrill(current, instruction);
+    if (r.aiGenerated) {
+      onApply({ title: r.title, type: r.type, difficulty: r.difficulty, prompt: r.prompt, keyPoints: r.keyPoints, modelAnswer: r.modelAnswer });
+      setInstruction('');
+    } else {
+      setFailed(true);
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ marginTop: '0.75rem', borderTop: '1px solid #F3F4F6', paddingTop: '0.75rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.74rem', fontWeight: 700, color: '#374151', marginBottom: '0.4rem' }}>
+        <Wand2 size={13} color={DRILLOOP} /> Iterate this drill with AI
+      </div>
+      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+        {QUICK.map(q => (
+          <button key={q} onClick={() => setInstruction(q)} disabled={busy}
+            style={{ fontSize: '0.68rem', fontWeight: 600, color: '#6B7280', backgroundColor: '#F3F4F6', border: 'none', borderRadius: 999, padding: '0.22rem 0.55rem', cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+            {q}
+          </button>
+        ))}
+      </div>
+      <textarea value={instruction} onChange={e => { setInstruction(e.target.value); setFailed(false); }} rows={2}
+        placeholder="Tell AI how to revise this drill — e.g. ‘set the scenario in a fintech team’, ‘add a rubric point on eval cost’, ‘make the reference answer crisper’…"
+        style={{ width: '100%', borderRadius: 10, border: '1px solid #E5E7EB', padding: '0.55rem 0.7rem', fontSize: '0.8rem', lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical', marginBottom: '0.5rem' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+        <Button onClick={run} disabled={busy || !instruction.trim()} style={{ backgroundColor: DRILLOOP, boxShadow: '0 2px 8px rgba(13,148,136,0.3)' }}>
+          {busy ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Revising…</> : <><Wand2 size={14} /> Iterate with AI</>}
+        </Button>
+        {failed && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.74rem', color: '#C2410C' }}>
+            <AlertCircle size={13} /> Couldn’t reach AI — drill left unchanged.
+          </span>
         )}
-      </Card>
+      </div>
     </div>
   );
 }
@@ -617,8 +1028,14 @@ function DrillEditor({ drill, phases, onSave, onCancel }: { drill: ReturnType<ty
         style={{ width: '100%', borderRadius: 10, border: '1px solid #E5E7EB', padding: '0.6rem 0.75rem', fontSize: '0.8rem', lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical', marginBottom: '0.6rem' }} />
       <div style={uppercaseLabel}>Reference answer</div>
       <textarea value={modelAnswer} onChange={e => setModelAnswer(e.target.value)} rows={3}
-        style={{ width: '100%', borderRadius: 10, border: '1px solid #E5E7EB', padding: '0.6rem 0.75rem', fontSize: '0.8rem', lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical', marginBottom: '0.75rem' }} />
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        style={{ width: '100%', borderRadius: 10, border: '1px solid #E5E7EB', padding: '0.6rem 0.75rem', fontSize: '0.8rem', lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical' }} />
+
+      <DrillAiIterate
+        current={{ title, type, difficulty, prompt, keyPoints: keyPoints.split('\n').filter(Boolean), modelAnswer }}
+        onApply={r => { setTitle(r.title); setType(r.type); setDifficulty(r.difficulty); setPrompt(r.prompt); setKeyPoints(r.keyPoints.join('\n')); setModelAnswer(r.modelAnswer); }}
+      />
+
+      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
         <Button onClick={() => onSave({ title, prompt, keyPoints: keyPoints.split('\n').filter(Boolean), modelAnswer, type, difficulty, phase })}
           style={{ backgroundColor: DRILLOOP }}><Check size={14} /> Save</Button>
         <Button variant="outline" onClick={onCancel} style={{ borderColor: '#E5E7EB', color: '#6B7280' }}><X size={14} /> Cancel</Button>
@@ -635,14 +1052,12 @@ function PhaseManager({ phases, drills, onChange }: { phases: Phase[]; drills: R
 
   const add = () => {
     if (!newTitle.trim()) return;
-    const p = createPhase(newTitle);
-    logAudit('phase_created', `P${p.phase} · ${p.title}`);
+    createPhase(newTitle);
     setNewTitle('');
     onChange();
   };
   const removePhase = (p: Phase) => {
     deletePhase(p.phase);
-    logAudit('phase_deleted', `P${p.phase} · ${p.title}`);
     onChange();
   };
 
@@ -888,7 +1303,7 @@ function GrowTab({ insights }: { insights: CreatorInsights }) {
 
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.875rem' }}>
           <div style={{ flex: '1 1 240px', minWidth: 0, fontSize: '0.82rem', color: '#374151', backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, padding: '0.6rem 0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'ui-monospace, monospace' }}>{link}</div>
-          <CopyButton text={link} label="Copy link" onCopied={() => logAudit('invite_shared', cfg.handle)} />
+          <CopyButton text={link} label="Copy link" />
           <Link to={`/drilloop?ref=${encodeURIComponent(cfg.handle)}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: DRILLOOP, textDecoration: 'none', padding: '0.55rem 0.75rem', borderRadius: 10, backgroundColor: DRILLOOP_SOFT }}>
             <Eye size={14} /> Preview
           </Link>
